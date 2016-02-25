@@ -2,5 +2,6 @@
 /Debug/
 .cproject
 .project
+.settings/
 
 *.swp
