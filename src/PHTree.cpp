@@ -27,3 +27,9 @@ bool PHTree::lookup(Entry* e) {
 	cout << "searching: " << *e << endl;
 	return root_->lookup(e, 0, 0);
 }
+
+ostream& operator <<(ostream& os, const PHTree &tree) {
+	os << "PH-Tree (dim=" << tree.dim_ << ", value length=" << tree.valueLength_ << ")" << endl;
+	os << *tree.root_;
+	return os;
+}

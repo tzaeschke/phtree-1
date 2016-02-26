@@ -15,17 +15,16 @@ using namespace std;
 
 class PHTree {
 public:
-	Node* root_;
-	int dim_; // dimensions (k)
-	int valueLength_;
-
 	PHTree(int dim, int valueLength);
-
 	virtual ~PHTree();
-
 	void insert(Entry* e);
-
 	bool lookup(Entry* e);
+	friend ostream& operator<<(ostream& os, const PHTree& tree);
+
+protected:
+	Node* root_;
+	size_t dim_; // dimensions (k)
+	size_t valueLength_;
 };
 
 #endif /* SRC_PHTREE_H_ */
