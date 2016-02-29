@@ -54,11 +54,23 @@ void AHC::insertAtAddress(long hcAddress, Node* subnode) {
 }
 
 ostream& AHC::output(ostream& os, size_t depth) {
-	os << "AHC" << endl;
+	os << "AHC";
+	Entry prefix(prefix_);
+	os << " | prefix: " << prefix << endl;
+
 	for (long address = 0; address < (2L << dim_); address++) {
-		if (hasSubnode_[address]) {
+		// print address
+		if (filled_[address]){
 			for (size_t i = 0; i < depth; i++) { os << "-";}
+			os << " " << address << ": ";
+		}
+
+		// print subnode or prefix
+		if (hasSubnode_[address]) {
 			subnodes_[address]->output(os, depth + 1);
+		} else if (filled_[address]) {
+			Entry suffix(suffixes_[address]);
+			os << " suffix: " << suffix << endl;
 		}
 	}
 

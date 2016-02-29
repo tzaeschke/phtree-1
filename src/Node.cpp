@@ -64,7 +64,7 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 				removeFirstBits(currentIndex + 1 + differentBitAtPrefixIndex + 1, &(e->values_), newSubnodeEntryPrefix);
 
 				insertAtAddress(hcAddress, newSubnode);
-				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, &e->values_);
+				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix);
 				newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
 			}
 		} else if (content.contained && !content.hasSubnode) {
@@ -95,9 +95,9 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 			// node entry does not exist:
 			// insert entry + suffix
 			// TODO need to change node type? - only if LHC is too big
-			vector<vector<bool>>* prefix = new vector<vector<bool>>(dim_);
-			removeFirstBits(currentIndex + 1, &(e->values_), prefix);
-			insertAtAddress(hcAddress, prefix);
+			vector<vector<bool>>* suffix = new vector<vector<bool>>(dim_);
+			removeFirstBits(currentIndex + 1, &(e->values_), suffix);
+			insertAtAddress(hcAddress, suffix);
 			assert (lookup(hcAddress).contained);
 		}
 }
@@ -219,9 +219,12 @@ void Node::removeFirstBits(size_t nBitsToRemove, vector<vector<bool>> *valuesFro
 	for (size_t valueIndex = 0; valueIndex < valuesFrom->size(); valueIndex++) {
 		size_t newLength = (*valuesFrom)[valueIndex].size() - nBitsToRemove;
 		vector<bool>* value = new vector<bool>(newLength);
+		value->reserve(newLength);
 		valuesTo->at(valueIndex) = *value;
 		for (size_t bit = 0; bit < newLength; bit++) {
-			value->at(bit) = valuesFrom->at(valueIndex).at(nBitsToRemove + bit);
+			bool copiedBit = valuesFrom->at(valueIndex).at(nBitsToRemove + bit);
+			valuesTo->at(valueIndex).at(bit) = copiedBit;
+			//value->at(bit) = copiedBit;
 		}
 	}
 
@@ -255,5 +258,5 @@ ostream& Node::output(ostream& os, size_t depth) {
 }
 
 ostream& operator <<(ostream& os, Node &node) {
-	return node.output(os, 0);
+	return node.output(os, 1);
 }

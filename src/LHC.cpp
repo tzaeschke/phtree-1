@@ -68,11 +68,21 @@ void LHC::insertAtAddress(long hcAddress, Node* subnode) {
 }
 
 ostream& LHC::output(ostream& os, size_t depth) {
-	os << "LHC" << endl;
+	os << "LHC";
+	Entry prefix(prefix_);
+	os << " | prefix: " << prefix << endl;
+
 	for (auto const &content : (*sortedContents_)) {
+		for (size_t i = 0; i < depth; i++) {os << "-";}
+		os << " " << content.first << ": ";
+
 		if (content.second->hasSubnode) {
-			for (int i = 0; i < depth; i++) { os << "-"; }
+			// print subnode
 			content.second->subnode->output(os, depth + 1);
+		} else {
+			// print suffix
+			Entry suffix(*(content.second->suffix));
+			os << " suffix: " << suffix << endl;
 		}
 	}
 	return os;

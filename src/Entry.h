@@ -16,6 +16,7 @@ using namespace std;
 class Entry {
 public:
 	Entry(vector<int> values, int bitLength);
+	Entry(vector<vector<bool>> values);
 	~Entry();
 
 	// value -> bit

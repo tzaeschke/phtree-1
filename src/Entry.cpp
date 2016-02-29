@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <assert.h>
 
 #include "Entry.h"
 
@@ -26,20 +27,27 @@ Entry::Entry(vector<int> values, int bitLength) {
 	}
 }
 
+Entry::Entry(vector<vector<bool>> values) {
+	values_ = values;
+}
+
 Entry::~Entry() {
-	delete &values_;
+	// delete &values_;
 }
 
 ostream& operator <<(ostream& os, const Entry &e) {
-	os << "Entry: (";
+	os << "(";
 	for (size_t value = 0; value < e.values_.size(); value++) {
+		assert (e.values_[value].size() == e.values_[0].size());
 		os << "(";
 		for (size_t bit = 0; bit < e.values_[value].size(); bit++) {
 			int bitNumber = (e.values_[value][bit]) ? 1 : 0;
 			os << bitNumber;
 		}
 
-		os << "), ";
+		os << ")";
+		if (value != e.values_.size() -1)
+			os << ", ";
 	}
 	os << ")";
 
