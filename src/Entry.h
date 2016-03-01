@@ -23,6 +23,8 @@ public:
 	vector<vector<bool>> values_;
 
 	friend ostream& operator <<(ostream &out, const Entry &entry);
+	friend bool operator ==(const Entry &entry1, const Entry &entry2);
+	friend bool operator !=(const Entry &entry1, const Entry &entry2);
 };
 
 #endif /* SRC_ENTRY_H_ */

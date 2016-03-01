@@ -10,6 +10,8 @@
 #include "LHC.h"
 #include <assert.h>
 
+#define DEBUG false
+
 Node::Node(size_t dim, size_t valueLength) {
 	dim_ = dim;
 	valueLength_ = valueLength;
@@ -20,7 +22,8 @@ Node::~Node() {
 }
 
 void Node::insert(Entry* e, size_t depth, size_t index) {
-	cout << "node (depth" << depth << ") ";
+	if (DEBUG)
+		cout << "node (depth" << depth << ") ";
 		int currentIndex = index + getPrefixLength();
 		long hcAddress = interleaveBits(currentIndex, e);
 		NodeAddressContent content = lookup(hcAddress);
@@ -44,10 +47,12 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 
 			if (prefixIncluded) {
 				// recurse on subnode
-				cout << "recurse" << endl;
+				if (DEBUG)
+					cout << "recurse" << endl;
 				content.subnode->insert(e, depth + 1, currentIndex + 1);
 			} else {
-				cout << "split subnode prefix" << endl;
+				if (DEBUG)
+					cout << "split subnode prefix" << endl;
 				// split prefix of subnode [A | d | B] where d is the index of the first different bit
 				// create new node with prefix A and only leave prefix B in old subnode
 				Node* oldSubnode = content.subnode;
@@ -68,7 +73,8 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 				newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
 			}
 		} else if (content.contained && !content.hasSubnode) {
-			cout << "create subnode with existing suffix" << endl;
+			if (DEBUG)
+				cout << "create subnode with existing suffix" << endl;
 			// node entry and suffix exist:
 			// convert suffix to new node with prefix (longest common) + insert
 			Node* subnode = determineNodeType(dim_, valueLength_, 2);
@@ -91,7 +97,8 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix);
 			subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix);
 		} else {
-			cout << "insert" << endl;
+			if (DEBUG)
+				cout << "insert" << endl;
 			// node entry does not exist:
 			// insert entry + suffix
 			// TODO need to change node type? - only if LHC is too big
@@ -148,13 +155,15 @@ Node* Node::determineNodeType(size_t dim, size_t valueLength, size_t nDirectInse
 }
 
 bool Node::lookup(Entry* e, size_t depth, size_t index) {
-	cout << "depth " << depth << " -> ";
+	if (DEBUG)
+		cout << "depth " << depth << " -> ";
 
 		// validate prefix
 		for (size_t bit = 0; bit < getPrefixLength(); bit++) {
 			for (size_t value = 0; value < e->values_.size(); value++) {
 				if (e->values_[value][index + bit] != prefix_[value][bit]) {
-					cout << "prefix missmatch" << endl;
+					if (DEBUG)
+						cout << "prefix missmatch" << endl;
 					return false;
 				}
 			}
@@ -166,7 +175,8 @@ bool Node::lookup(Entry* e, size_t depth, size_t index) {
 		NodeAddressContent content = lookup(hcAddress);
 
 		if (!content.contained) {
-			cout << "HC address missmatch" << endl;
+			if (DEBUG)
+				cout << "HC address missmatch" << endl;
 			return false;
 		}
 
@@ -177,13 +187,15 @@ bool Node::lookup(Entry* e, size_t depth, size_t index) {
 			for (size_t bit = 0; bit < getSuffixSize(hcAddress); bit++) {
 				for (size_t value = 0; value < e->values_.size(); value++) {
 					if (e->values_[value][currentIndex + 1 + bit] != (*content.suffix)[value][bit]) {
-						cout << "suffix missmatch" << endl;
+						if (DEBUG)
+							cout << "suffix missmatch" << endl;
 						return false;
 					}
 				}
 			}
 
-			cout << "found" << endl;
+			if (DEBUG)
+				cout << "found" << endl;
 			return true;
 		}
 }

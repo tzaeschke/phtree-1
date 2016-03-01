@@ -8,6 +8,8 @@
 #include "PHTree.h"
 #include "AHC.h"
 
+#define DEBUG false
+
 PHTree::PHTree(int dim, int valueLength) {
 	valueLength_ = valueLength;
 	dim_ = dim;
@@ -19,12 +21,14 @@ PHTree::~PHTree() {
 }
 
 void PHTree::insert(Entry* e) {
-	cout << "inserting: " << *e << endl;
+	if (DEBUG)
+		cout << "inserting: " << *e << endl;
 	root_->insert(e, 0, 0);
 }
 
 bool PHTree::lookup(Entry* e) {
-	cout << "searching: " << *e << endl;
+	if (DEBUG)
+		cout << "searching: " << *e << endl;
 	return root_->lookup(e, 0, 0);
 }
 
