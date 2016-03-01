@@ -5,10 +5,10 @@
  *      Author: max
  */
 
-#include "Node.h"
-#include "AHC.h"
-#include "LHC.h"
 #include <assert.h>
+#include "Node.h"
+
+using namespace std;
 
 Node::Node(size_t dim, size_t valueLength) {
 	dim_ = dim;
@@ -19,7 +19,7 @@ Node::~Node() {
 	delete &prefix_;
 }
 
-void Node::insert(Entry* e, size_t depth, size_t index) {
+Node* Node::insert(Entry* e, size_t depth, size_t index) {
 	cout << "node (depth" << depth << ") ";
 		int currentIndex = index + getPrefixLength();
 		long hcAddress = interleaveBits(currentIndex, e);
@@ -45,7 +45,9 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 			if (prefixIncluded) {
 				// recurse on subnode
 				cout << "recurse" << endl;
-				content.subnode->insert(e, depth + 1, currentIndex + 1);
+				Node* adjustedSubnode = content.subnode->insert(e, depth + 1, currentIndex + 1);
+				// TODO more efficient if index is passed for LHC!
+				insertAtAddress(hcAddress, adjustedSubnode);
 			} else {
 				cout << "split subnode prefix" << endl;
 				// split prefix of subnode [A | d | B] where d is the index of the first different bit
@@ -66,6 +68,8 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 				insertAtAddress(hcAddress, newSubnode);
 				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix);
 				newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
+				// no need to adjust size because the old node remains and the new one already
+				// has the correct size
 			}
 		} else if (content.contained && !content.hasSubnode) {
 			cout << "create subnode with existing suffix" << endl;
@@ -90,16 +94,21 @@ void Node::insert(Entry* e, size_t depth, size_t index) {
 			insertAtAddress(hcAddress, subnode);
 			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix);
 			subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix);
+			// no need to adjust size because the correct node type was already provided
 		} else {
 			cout << "insert" << endl;
 			// node entry does not exist:
 			// insert entry + suffix
-			// TODO need to change node type? - only if LHC is too big
 			vector<vector<bool>>* suffix = new vector<vector<bool>>(dim_);
 			removeFirstBits(currentIndex + 1, &(e->values_), suffix);
 			insertAtAddress(hcAddress, suffix);
 			assert (lookup(hcAddress).contained);
+
+			Node* adjustedNode = adjustSize();
+			return adjustedNode;
 		}
+
+		return this;
 }
 
 size_t Node::setLongestCommonPrefix(Node* nodeToSetTo, size_t startIndexEntry1,
@@ -138,13 +147,27 @@ void Node::insertAtAddress(long hcAddress, Node* subnode) {
 	throw "subclass should implement this";
 }
 
-Node::NodeAddressContent Node::lookup(long address) {
+NodeAddressContent Node::lookup(long address) {
+	throw "subclass should implement this";
+}
+
+Node* Node::adjustSize() {
+	throw "subclass should implement this";
+}
+
+NodeIterator Node::begin() {
+	throw "subclass should implement this";
+}
+
+NodeIterator Node::end() {
 	throw "subclass should implement this";
 }
 
 Node* Node::determineNodeType(size_t dim, size_t valueLength, size_t nDirectInserts) {
 	// TODO determine node type dynamically depending on dim and #inserts
-	return new LHC(dim, valueLength);
+	AHC bla(dim, valueLength);
+	LHC* node = new LHC(dim, valueLength);
+	return node;
 }
 
 bool Node::lookup(Entry* e, size_t depth, size_t index) {

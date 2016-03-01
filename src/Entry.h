@@ -11,18 +11,16 @@
 #include <iostream>
 #include "Entry.h"
 
-using namespace std;
-
 class Entry {
 public:
-	Entry(vector<int> values, int bitLength);
-	Entry(vector<vector<bool>> values);
+	Entry(std::vector<int> values, int bitLength);
+	Entry(std::vector<std::vector<bool>> values);
 	~Entry();
 
 	// value -> bit
-	vector<vector<bool>> values_;
+	std::vector<std::vector<bool>> values_;
 
-	friend ostream& operator <<(ostream &out, const Entry &entry);
+	friend std::ostream& operator <<(std::ostream &out, const Entry &entry);
 };
 
 #endif /* SRC_ENTRY_H_ */

@@ -8,15 +8,17 @@
 #ifndef SRC_AHC_H_
 #define SRC_AHC_H_
 
-#include "Node.h"
 #include <vector>
-
-using namespace std;
+#include "Node.h"
 
 class AHC: public Node {
+	friend class AHCIterator;
 public:
 	AHC(size_t dim, size_t valueLength);
+	AHC(size_t dim, size_t valueLength, Node& node);
 	virtual ~AHC();
+	NodeIterator begin();
+	NodeIterator end();
 
 protected:
 	vector<bool> filled_;
@@ -25,9 +27,10 @@ protected:
 	// entry -> value -> bit
 	vector<vector<vector<bool>>> suffixes_;
 
-	Node::NodeAddressContent lookup(long address);
+	NodeAddressContent lookup(long address);
 	void insertAtAddress(long hcAddress, vector<vector<bool>>* suffix);
 	void insertAtAddress(long hcAddress, Node* subnode);
+	Node* adjustSize();
 	ostream& output(ostream& os, size_t depth);
 };
 

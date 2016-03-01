@@ -6,17 +6,38 @@
  */
 
 #include "AHC.h"
+#include "AHCIterator.h"
+#include "NodeIterator.h"
+#include "NodeAddressContent.h"
 
 AHC::AHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
-	valueLength_ = valueLength;
-	dim_ = dim;
 	long maxElements = 1 << dim;
 	filled_ = vector<bool>(maxElements, false);
 	hasSubnode_ = vector<bool>(maxElements, false);
 	subnodes_ = vector<Node*>(maxElements);
 	suffixes_ = vector<vector<vector<bool>>>(maxElements);
 	prefix_ = vector<vector<bool>>(dim_);
+}
+
+AHC::AHC(size_t dim, size_t valueLength, Node& other) : Node(dim, valueLength) {
+	long maxElements = 1 << dim_;
+	filled_ = vector<bool>(maxElements, false);
+	hasSubnode_ = vector<bool>(maxElements, false);
+	subnodes_ = vector<Node*>(maxElements);
+	suffixes_ = vector<vector<vector<bool>>>(maxElements);
+//	prefix_ = other.prefix_;
+	for (NodeIterator it = other.begin(); it != other.end(); ++it) {
+		NodeAddressContent content = *it;
+		filled_[content.address] = true;
+		if (content.hasSubnode) {
+			hasSubnode_[content.address] = true;
+			subnodes_[content.address] = content.subnode;
+		} else {
+			hasSubnode_[content.address] = false;
+			suffixes_[content.address] = *content.suffix;
+		}
+	}
 }
 
 AHC::~AHC() {
@@ -29,7 +50,7 @@ AHC::~AHC() {
 	delete &suffixes_;
 }
 
-Node::NodeAddressContent AHC::lookup(long address) {
+NodeAddressContent AHC::lookup(long address) {
 	NodeAddressContent content;
 	content.contained = filled_[address];
 	content.hasSubnode = hasSubnode_[address];
@@ -51,6 +72,19 @@ void AHC::insertAtAddress(long hcAddress, Node* subnode) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = true;
 	subnodes_[hcAddress] = subnode;
+}
+
+Node* AHC::adjustSize() {
+	// TODO currently there is no need to switch from AHC to LHC because there is no delete function
+	return this;
+}
+
+NodeIterator AHC::begin() {
+	return AHCIterator(*this);
+}
+
+NodeIterator AHC::end() {
+	return AHCIterator(2<<dim_, *this);
 }
 
 ostream& AHC::output(ostream& os, size_t depth) {

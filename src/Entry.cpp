@@ -10,6 +10,8 @@
 #include <vector>
 #include <assert.h>
 
+using namespace std;
+
 #include "Entry.h"
 
 Entry::Entry(vector<int> values, int bitLength) {

@@ -8,8 +8,8 @@
 #ifndef SRC_PHTREE_H_
 #define SRC_PHTREE_H_
 
-#include "Node.h"
 #include "Entry.h"
+#include "Node.h"
 
 using namespace std;
 
