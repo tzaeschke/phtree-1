@@ -12,7 +12,7 @@
 #include "Node.h"
 #include "NodeAddressContent.h"
 
-class NodeIterator : public iterator<input_iterator_tag, NodeAddressContent> {
+class NodeIterator : public std::iterator<std::input_iterator_tag, NodeAddressContent> {
 public:
 	NodeIterator();
 	NodeIterator(long address);

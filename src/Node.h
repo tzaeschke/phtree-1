@@ -17,7 +17,9 @@
 
 class Node {
 	friend class NodeIterator;
+
 public:
+
 	Node(size_t dim, size_t valueLength);
 	virtual ~Node();
 	Node* insert(Entry* e, size_t depth, size_t index);
