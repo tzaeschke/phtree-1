@@ -36,7 +36,7 @@ protected:
 	// value -> bit
 	std::vector<std::vector<bool>> prefix_;
 
-	size_t getSuffixSize(long hcAddress);
+	size_t getSuffixSize(NodeAddressContent*);
 	size_t getPrefixLength();
 	long interleaveBits(size_t index, Entry* e);
 	long interleaveBits(size_t index, std::vector<std::vector<bool> >* values);

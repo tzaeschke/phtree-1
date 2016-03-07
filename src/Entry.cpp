@@ -34,7 +34,7 @@ Entry::Entry(vector<vector<bool>> values) {
 }
 
 Entry::~Entry() {
-	// delete &values_;
+//TODO delete &values_;
 }
 
 ostream& operator <<(ostream& os, const Entry &e) {
@@ -54,4 +54,12 @@ ostream& operator <<(ostream& os, const Entry &e) {
 	os << ")";
 
 	return os;
+}
+
+bool operator ==(const Entry &entry1, const Entry &entry2) {
+	return entry1.values_ == entry2.values_;
+}
+
+bool operator !=(const Entry &entry1, const Entry &entry2) {
+	return !(entry1 == entry2);
 }

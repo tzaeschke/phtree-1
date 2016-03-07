@@ -1,15 +1,18 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <assert.h>
 
 #include "Entry.h"
 #include "PHTree.h"
+#include "PlotUtil.h"
 
-#define BIT_LENGTH 8
+#define BIT_LENGTH 	8
+#define ENTRY_DIM 	2
+
 using namespace std;
 
-int main() {
-
+int mainSimpleExample() {
 	// TODO: add range query
 
 	vector<int> e1Values { 10, 5 };
@@ -21,7 +24,7 @@ int main() {
 	Entry* e3 = new Entry(e3Values, BIT_LENGTH);
 	Entry* e4 = new Entry(e4Values, BIT_LENGTH);
 
-	PHTree* phtree = new PHTree(2, BIT_LENGTH);
+	PHTree* phtree = new PHTree(ENTRY_DIM, BIT_LENGTH);
 	phtree->insert(e1);
 	cout << *phtree << endl;
 
@@ -46,4 +49,24 @@ int main() {
 
 	return 0;
 }
-;
+
+int main(int argc, char* argv[]) {
+
+	for (int i = 0; i < argc; i++) {
+		cout << "argv[" << i << "]= " << argv[i] << endl;
+	}
+
+	string debug = "debug";
+	string plot = "plot";
+
+	if (argc != 2 || debug.compare(argv[1]) == 0) {
+		return mainSimpleExample();
+	} else if (plot.compare(argv[1]) == 0) {
+		PlotUtil::plotAverageInsertTimePerDimension();
+		PlotUtil::plotTimeSeriesOfInserts();
+		return 0;
+	} else {
+		cerr << "Missing command line argument!" << endl;
+		return 1;
+	}
+};

@@ -12,6 +12,10 @@
 #include "Entry.h"
 
 class Entry {
+	friend std::ostream& operator <<(std::ostream &out, const Entry &entry);
+	friend bool operator ==(const Entry &entry1, const Entry &entry2);
+	friend bool operator !=(const Entry &entry1, const Entry &entry2);
+
 public:
 	Entry(std::vector<int> values, int bitLength);
 	Entry(std::vector<std::vector<bool>> values);
@@ -20,7 +24,6 @@ public:
 	// value -> bit
 	std::vector<std::vector<bool>> values_;
 
-	friend std::ostream& operator <<(std::ostream &out, const Entry &entry);
 };
 
 #endif /* SRC_ENTRY_H_ */
