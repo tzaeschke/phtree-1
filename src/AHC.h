@@ -9,29 +9,32 @@
 #define SRC_AHC_H_
 
 #include <vector>
+#include <iostream>
 #include "Node.h"
+#include "NodeIterator.h"
+#include "NodeAddressContent.h"
 
 class AHC: public Node {
 	friend class AHCIterator;
 public:
 	AHC(size_t dim, size_t valueLength);
-	AHC(size_t dim, size_t valueLength, Node& node);
+	AHC(Node& node);
 	virtual ~AHC();
-	NodeIterator begin();
-	NodeIterator end();
+	NodeIterator* begin() override;
+	NodeIterator* end() override;
+	std::ostream& output(std::ostream& os, size_t depth) override;
 
 protected:
-	vector<bool> filled_;
-	vector<bool> hasSubnode_;
-	vector<Node *> subnodes_;
+	std::vector<bool> filled_;
+	std::vector<bool> hasSubnode_;
+	std::vector<Node *> subnodes_;
 	// entry -> value -> bit
-	vector<vector<vector<bool>>> suffixes_;
+	std::vector<std::vector<std::vector<bool>>> suffixes_;
 
-	NodeAddressContent lookup(long address);
-	void insertAtAddress(long hcAddress, vector<vector<bool>>* suffix);
-	void insertAtAddress(long hcAddress, Node* subnode);
-	Node* adjustSize();
-	ostream& output(ostream& os, size_t depth);
+	virtual NodeAddressContent* lookup(long address) override;
+	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;
+	virtual void insertAtAddress(long hcAddress, Node* subnode) override;
+	virtual Node* adjustSize() override;
 };
 
 #endif /* SRC_AHC_H_ */

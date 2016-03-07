@@ -10,27 +10,26 @@
 
 #include <map>
 #include <vector>
-#include "Node.cpp"
+#include "Node.h"
 
 class LHC: public Node {
 	friend class LHCIterator;
 public:
 	LHC(size_t dim, size_t valueLength);
 	virtual ~LHC();
-
-	NodeIterator begin();
-	NodeIterator end();
+	NodeIterator* begin() override;
+	NodeIterator* end() override;
+	std::ostream& output(std::ostream& os, size_t depth) override;
 
 protected:
-	map<long, NodeAddressContent*>* sortedContents_;
+	std::map<long, NodeAddressContent*>* sortedContents_;
 	size_t longestSuffix_;
 	long highestAddress;
 
-	NodeAddressContent lookup(long address);
-	void insertAtAddress(long hcAddress, vector<vector<bool>>* suffix);
-	void insertAtAddress(long hcAddress, Node* subnode);
-	Node* adjustSize();
-	ostream& output(ostream& os, size_t depth);
+	NodeAddressContent* lookup(long address) override;
+	void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;
+	void insertAtAddress(long hcAddress, Node* subnode) override;
+	Node* adjustSize() override;
 };
 
 #endif /* LHC_H_ */

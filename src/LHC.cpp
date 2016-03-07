@@ -10,6 +10,8 @@
 #include "LHC.h"
 #include "LHCIterator.h"
 
+using namespace std;
+
 LHC::LHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
 	sortedContents_ = new map<long, NodeAddressContent*>();
@@ -26,32 +28,32 @@ LHC::~LHC() {
 	delete &prefix_;
 }
 
-NodeAddressContent LHC::lookup(long address) {
+NodeAddressContent* LHC::lookup(long address) {
 	map<long, NodeAddressContent*>::iterator it = sortedContents_->find(
 			address);
 	bool contained = it != sortedContents_->end();
 	if (contained) {
-		return *(it->second);
+		return it->second;
 	} else {
-		NodeAddressContent content;
-		content.contained = false;
+		NodeAddressContent* content = new NodeAddressContent();
+		content->contained = false;
 		return content;
 	}
 }
 
 void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
-	NodeAddressContent content = lookup(hcAddress);
-	if (!content.contained) {
+	NodeAddressContent* content = lookup(hcAddress);
+	if (!content->contained) {
 		NodeAddressContent* newContent = new NodeAddressContent();
+		newContent->address = hcAddress;
 		newContent->contained = true;
 		newContent->hasSubnode = false;
 		newContent->suffix = suffix;
 		sortedContents_->insert(
 				pair<long, NodeAddressContent*>(hcAddress, newContent));
 	} else {
-		// TODO persisted?
-		content.hasSubnode = false;
-		content.suffix = suffix;
+		content->hasSubnode = false;
+		content->suffix = suffix;
 	}
 
 	if (suffix->at(0).size() > longestSuffix_) {
@@ -63,16 +65,17 @@ void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 }
 
 void LHC::insertAtAddress(long hcAddress, Node* subnode) {
-	NodeAddressContent content = lookup(hcAddress);
-		if (!content.contained) {
+	NodeAddressContent* content = lookup(hcAddress);
+		if (!content->contained) {
 			NodeAddressContent* newContent = new NodeAddressContent();
+			newContent->address = hcAddress;
 			newContent->contained = true;
 			newContent->hasSubnode = true;
 			newContent->subnode = subnode;
 			sortedContents_->insert(
 					pair<long, NodeAddressContent*>(hcAddress, newContent));
 		} else {
-			if (!content.hasSubnode && content.suffix->size() == longestSuffix_) {
+			if (!content->hasSubnode && content->suffix->size() == longestSuffix_) {
 				// before insertion this was the longest suffix
 				// TODO efficiently find longest remaining suffix
 				longestSuffix_ = 0;
@@ -85,10 +88,9 @@ void LHC::insertAtAddress(long hcAddress, Node* subnode) {
 				}
 			}
 
-			// TODO persisted?
-			content.hasSubnode = true;
-			content.subnode = subnode;
-			delete content.suffix;
+			content->hasSubnode = true;
+			content->subnode = subnode;
+			delete content->suffix;
 		}
 
 		if (hcAddress > highestAddress) {
@@ -97,27 +99,26 @@ void LHC::insertAtAddress(long hcAddress, Node* subnode) {
 }
 
 Node* LHC::adjustSize() {
-	// TODO find exact threshold!
+	// TODO find more precise threshold depending on AHC and LHC representation!
 	size_t n = sortedContents_->size();
 	size_t k = dim_;
 	size_t ls = longestSuffix_;
-	double conversionThreshold = (2<<k) * ls / (k + ls);
+	double conversionThreshold = (1<<k) * ls / (k + ls);
 	if (n < conversionThreshold) {
 		return this;
 	} else {
-		//TODO use alternative constructor
-		AHC* convertedNode = new AHC(dim_, valueLength_);
-		delete this;
+		AHC* convertedNode = new AHC(*this);
+//TODO	delete this;
 		return convertedNode;
 	}
 }
 
-NodeIterator LHC::begin() {
-	return LHCIterator(*this);
+NodeIterator* LHC::begin() {
+	return new LHCIterator(*this);
 }
 
-NodeIterator LHC::end() {
-	return LHCIterator(highestAddress, *this);
+NodeIterator* LHC::end() {
+	return new LHCIterator(highestAddress, *this);
 }
 
 ostream& LHC::output(ostream& os, size_t depth) {

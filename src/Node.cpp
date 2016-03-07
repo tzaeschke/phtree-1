@@ -6,7 +6,9 @@
  */
 
 #include <assert.h>
+#include <stdexcept>
 #include "Node.h"
+#include "LHC.h"
 
 using namespace std;
 
@@ -15,28 +17,34 @@ Node::Node(size_t dim, size_t valueLength) {
 	valueLength_ = valueLength;
 }
 
+Node::Node(Node* other) {
+	dim_ = other->dim_;
+	valueLength_ = other->valueLength_;
+	prefix_ = other->prefix_;
+}
+
 Node::~Node() {
 	delete &prefix_;
 }
 
 Node* Node::insert(Entry* e, size_t depth, size_t index) {
-	cout << "node (depth" << depth << ") ";
+	cout << "(depth " << depth << "): ";
 		int currentIndex = index + getPrefixLength();
 		long hcAddress = interleaveBits(currentIndex, e);
-		NodeAddressContent content = lookup(hcAddress);
+		NodeAddressContent* content = lookup(hcAddress);
 
-		if (content.contained && content.hasSubnode) {
+		if (content->contained && content->hasSubnode) {
 			// node entry and subnode exist:
 			// validate prefix of subnode
 			// case 1 (entry contains prefix): recurse on subnode
 			// case 2 (otherwise): split prefix at difference into two subnodes
-			int subnodePrefixLength = content.subnode->getPrefixLength();
+			int subnodePrefixLength = content->subnode->getPrefixLength();
 			bool prefixIncluded = true;
 			int differentBitAtPrefixIndex = -1;
 			for (int i = 0; i < subnodePrefixLength && prefixIncluded; i++) {
 				for (size_t value = 0; value < dim_ && prefixIncluded; value++) {
 					prefixIncluded = e->values_[value][currentIndex + 1 + i]
-							== content.subnode->prefix_[value][i];
+							== content->subnode->prefix_[value][i];
 					if (!prefixIncluded)
 						differentBitAtPrefixIndex = i;
 				}
@@ -44,15 +52,15 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 
 			if (prefixIncluded) {
 				// recurse on subnode
-				cout << "recurse" << endl;
-				Node* adjustedSubnode = content.subnode->insert(e, depth + 1, currentIndex + 1);
+				cout << "recurse -> ";
+				Node* adjustedSubnode = content->subnode->insert(e, depth + 1, currentIndex + 1);
 				// TODO more efficient if index is passed for LHC!
 				insertAtAddress(hcAddress, adjustedSubnode);
 			} else {
 				cout << "split subnode prefix" << endl;
 				// split prefix of subnode [A | d | B] where d is the index of the first different bit
 				// create new node with prefix A and only leave prefix B in old subnode
-				Node* oldSubnode = content.subnode;
+				Node* oldSubnode = content->subnode;
 				Node* newSubnode = determineNodeType(dim_, valueLength_, 2);
 
 				long newSubnodeEntryHCAddress = interleaveBits(currentIndex + 1 + differentBitAtPrefixIndex, e);
@@ -71,25 +79,25 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 				// no need to adjust size because the old node remains and the new one already
 				// has the correct size
 			}
-		} else if (content.contained && !content.hasSubnode) {
+		} else if (content->contained && !content->hasSubnode) {
 			cout << "create subnode with existing suffix" << endl;
 			// node entry and suffix exist:
 			// convert suffix to new node with prefix (longest common) + insert
 			Node* subnode = determineNodeType(dim_, valueLength_, 2);
 
 			// set longest common prefix in subnode
-			int prefixLength = setLongestCommonPrefix(subnode, currentIndex + 1, &e->values_, content.suffix);
+			int prefixLength = setLongestCommonPrefix(subnode, currentIndex + 1, &e->values_, content->suffix);
 
 			// address in subnode starts after common prefix
 			long insertEntryHCAddress = interleaveBits(currentIndex + 1 + prefixLength, e);
-			long existingEntryHCAddress = interleaveBits(prefixLength, content.suffix);
+			long existingEntryHCAddress = interleaveBits(prefixLength, content->suffix);
 			assert (insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 			// add remaining bits after prefix and addresses as suffixes
 			vector<vector<bool>>* insertEntryPrefix = new vector<vector<bool>>(dim_);
 			vector<vector<bool>>* exisitingEntryPrefix = new vector<vector<bool>>(dim_);
 			removeFirstBits(currentIndex + 1 + prefixLength + 1, &(e->values_), insertEntryPrefix);
-			removeFirstBits(prefixLength + 1, content.suffix, exisitingEntryPrefix);
+			removeFirstBits(prefixLength + 1, content->suffix, exisitingEntryPrefix);
 
 			insertAtAddress(hcAddress, subnode);
 			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix);
@@ -102,7 +110,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			vector<vector<bool>>* suffix = new vector<vector<bool>>(dim_);
 			removeFirstBits(currentIndex + 1, &(e->values_), suffix);
 			insertAtAddress(hcAddress, suffix);
-			assert (lookup(hcAddress).contained);
+			assert (lookup(hcAddress)->contained);
 
 			Node* adjustedNode = adjustSize();
 			return adjustedNode;
@@ -139,33 +147,9 @@ size_t Node::setLongestCommonPrefix(Node* nodeToSetTo, size_t startIndexEntry1,
 	return prefixLength;
 }
 
-void Node::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
-	throw "subclass should implement this";
-}
-
-void Node::insertAtAddress(long hcAddress, Node* subnode) {
-	throw "subclass should implement this";
-}
-
-NodeAddressContent Node::lookup(long address) {
-	throw "subclass should implement this";
-}
-
-Node* Node::adjustSize() {
-	throw "subclass should implement this";
-}
-
-NodeIterator Node::begin() {
-	throw "subclass should implement this";
-}
-
-NodeIterator Node::end() {
-	throw "subclass should implement this";
-}
 
 Node* Node::determineNodeType(size_t dim, size_t valueLength, size_t nDirectInserts) {
 	// TODO determine node type dynamically depending on dim and #inserts
-	AHC bla(dim, valueLength);
 	LHC* node = new LHC(dim, valueLength);
 	return node;
 }
@@ -186,20 +170,20 @@ bool Node::lookup(Entry* e, size_t depth, size_t index) {
 		// validate HC address
 		int currentIndex = index + getPrefixLength();
 		long hcAddress = interleaveBits(currentIndex, e);
-		NodeAddressContent content = lookup(hcAddress);
+		NodeAddressContent* content = lookup(hcAddress);
 
-		if (!content.contained) {
+		if (!content->contained) {
 			cout << "HC address missmatch" << endl;
 			return false;
 		}
 
 		// validate suffix or recurse
-		if (content.hasSubnode) {
-			return content.subnode->lookup(e, depth + 1, currentIndex + 1);
+		if (content->hasSubnode) {
+			return content->subnode->lookup(e, depth + 1, currentIndex + 1);
 		} else {
 			for (size_t bit = 0; bit < getSuffixSize(hcAddress); bit++) {
 				for (size_t value = 0; value < e->values_.size(); value++) {
-					if (e->values_[value][currentIndex + 1 + bit] != (*content.suffix)[value][bit]) {
+					if (e->values_[value][currentIndex + 1 + bit] != (*content->suffix)[value][bit]) {
 						cout << "suffix missmatch" << endl;
 						return false;
 					}

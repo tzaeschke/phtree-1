@@ -8,7 +8,9 @@
 #ifndef NODEADDRESSCONTENT_H_
 #define NODEADDRESSCONTENT_H_
 
-#include "Node.h"
+#include <vector>
+
+class Node;
 
 // TODO use union to differentiate between subnode and suffix contents
 struct NodeAddressContent {

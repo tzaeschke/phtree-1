@@ -8,10 +8,10 @@
 #ifndef SRC_PHTREE_H_
 #define SRC_PHTREE_H_
 
-#include "Entry.h"
-#include "Node.h"
+#include <iostream>
 
-using namespace std;
+class Entry;
+class Node;
 
 class PHTree {
 public:
@@ -19,7 +19,7 @@ public:
 	virtual ~PHTree();
 	void insert(Entry* e);
 	bool lookup(Entry* e);
-	friend ostream& operator<<(ostream& os, const PHTree& tree);
+	friend std::ostream& operator<<(std::ostream& os, const PHTree& tree);
 
 protected:
 	Node* root_;

@@ -9,9 +9,10 @@
 #define LHCITERATOR_H_
 
 #include <map>
-#include "Node.h"
-#include "LHC.h"
 #include "NodeIterator.h"
+#include "LHC.h"
+
+struct NodeAddressContent;
 
 class LHCIterator : public NodeIterator {
 public:
@@ -19,15 +20,13 @@ public:
 	LHCIterator(long address, LHC& node);
 	virtual ~LHCIterator();
 
-	NodeIterator& operator++();
-	NodeIterator operator++(int);
-	bool operator==(const NodeIterator& rhs);
-	bool operator!=(const NodeIterator& rhs);
-	NodeAddressContent& operator*();
+	NodeIterator& operator++() override;
+	NodeIterator operator++(int) override;
+	NodeAddressContent& operator*() override;
 
 private:
 	LHC* node_;
-	map<long,NodeAddressContent*>::iterator contentMapIt_;
+	std::map<long,NodeAddressContent*>::iterator contentMapIt_;
 };
 
 #endif /* LHCITERATOR_H_ */

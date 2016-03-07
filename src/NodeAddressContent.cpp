@@ -5,8 +5,4 @@
  *      Author: max
  */
 
-#include <vector>
 #include "NodeAddressContent.h"
-
-using namespace std;
-

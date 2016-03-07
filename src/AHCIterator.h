@@ -17,11 +17,9 @@ public:
 	AHCIterator(long address, AHC& node);
 	virtual ~AHCIterator();
 
-	NodeIterator& operator++();
-	NodeIterator operator++(int);
-	bool operator==(const NodeIterator& rhs);
-	bool operator!=(const NodeIterator& rhs);
-	NodeAddressContent& operator*();
+	NodeIterator& operator++() override;
+	NodeIterator operator++(int) override;
+	NodeAddressContent& operator*() override;
 
 private:
 	AHC* node_;

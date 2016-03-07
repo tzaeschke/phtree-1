@@ -10,6 +10,8 @@
 #include "NodeIterator.h"
 #include "NodeAddressContent.h"
 
+using namespace std;
+
 AHC::AHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
 	long maxElements = 1 << dim;
@@ -20,15 +22,14 @@ AHC::AHC(size_t dim, size_t valueLength) :
 	prefix_ = vector<vector<bool>>(dim_);
 }
 
-AHC::AHC(size_t dim, size_t valueLength, Node& other) : Node(dim, valueLength) {
+AHC::AHC(Node& other) : Node(other) {
 	long maxElements = 1 << dim_;
 	filled_ = vector<bool>(maxElements, false);
 	hasSubnode_ = vector<bool>(maxElements, false);
 	subnodes_ = vector<Node*>(maxElements);
 	suffixes_ = vector<vector<vector<bool>>>(maxElements);
-//	prefix_ = other.prefix_;
-	for (NodeIterator it = other.begin(); it != other.end(); ++it) {
-		NodeAddressContent content = *it;
+	for (NodeIterator* it = other.begin(); (*it) <= *(other.end()); ++(*it)) {
+		NodeAddressContent content = *(*it);
 		filled_[content.address] = true;
 		if (content.hasSubnode) {
 			hasSubnode_[content.address] = true;
@@ -50,14 +51,14 @@ AHC::~AHC() {
 	delete &suffixes_;
 }
 
-NodeAddressContent AHC::lookup(long address) {
-	NodeAddressContent content;
-	content.contained = filled_[address];
-	content.hasSubnode = hasSubnode_[address];
-	if (content.hasSubnode) {
-		content.subnode = subnodes_[address];
+NodeAddressContent* AHC::lookup(long address) {
+	NodeAddressContent* content = new NodeAddressContent();
+	content->contained = filled_[address];
+	content->hasSubnode = hasSubnode_[address];
+	if (content->hasSubnode) {
+		content->subnode = subnodes_[address];
 	} else {
-		content.suffix = &suffixes_[address];
+		content->suffix = &suffixes_[address];
 	}
 	return content;
 }
@@ -79,12 +80,12 @@ Node* AHC::adjustSize() {
 	return this;
 }
 
-NodeIterator AHC::begin() {
-	return AHCIterator(*this);
+NodeIterator* AHC::begin() {
+	return new AHCIterator(*this);
 }
 
-NodeIterator AHC::end() {
-	return AHCIterator(2<<dim_, *this);
+NodeIterator* AHC::end() {
+	return new AHCIterator(1<<dim_, *this);
 }
 
 ostream& AHC::output(ostream& os, size_t depth) {

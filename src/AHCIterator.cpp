@@ -5,6 +5,7 @@
  *      Author: max
  */
 
+#include <stdexcept>
 #include <assert.h>
 #include "Node.h"
 #include "AHC.h"
@@ -27,15 +28,7 @@ NodeIterator& AHCIterator::operator++() {
 }
 
 NodeIterator AHCIterator::operator++(int) {
-	 throw "not implemented";
-}
-
-bool AHCIterator::operator==(const NodeIterator& rhs) {
-	 throw "== not implemented";
-}
-
-bool AHCIterator::operator!=(const NodeIterator& rhs) {
-	 throw "!= not implemented";
+	 throw std::runtime_error("not implemented");
 }
 
 NodeAddressContent& AHCIterator::operator*() {

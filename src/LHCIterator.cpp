@@ -5,11 +5,13 @@
  *      Author: max
  */
 
+#include <assert.h>
 #include "LHCIterator.h"
 
 LHCIterator::LHCIterator(LHC& node) : NodeIterator() {
 	node_ = &node;
 	contentMapIt_ = node_->sortedContents_->begin();
+	address_ = contentMapIt_->first;
 }
 
 LHCIterator::LHCIterator(long address, LHC& node) : NodeIterator(address) {
@@ -20,7 +22,13 @@ LHCIterator::LHCIterator(long address, LHC& node) : NodeIterator(address) {
 LHCIterator::~LHCIterator() { }
 
 NodeIterator& LHCIterator::operator++() {
-	contentMapIt_++;
+
+	if (++contentMapIt_ != node_->sortedContents_->end()) {
+		address_ = contentMapIt_->first;
+	} else {
+		--contentMapIt_;
+		reachedEnd_ = true;
+	}
 	return *this;
 }
 
@@ -28,14 +36,7 @@ NodeIterator LHCIterator::operator++(int i) {
 	throw "++ i not implemented";
 }
 
-bool LHCIterator::operator==(const NodeIterator& rhs) {
-	 throw "== not implemented";
-}
-
-bool LHCIterator::operator!=(const NodeIterator& rhs) {
-	 throw "!= not implemented";
-}
-
-Node::NodeAddressContent& LHCIterator::operator*() {
+NodeAddressContent& LHCIterator::operator*() {
+	assert (contentMapIt_->second->address == address_);
 	return *(contentMapIt_->second);
 }

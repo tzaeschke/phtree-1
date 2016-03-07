@@ -6,33 +6,40 @@
  */
 
 #include "NodeIterator.h"
+#include <stdexcept>
 
 NodeIterator::NodeIterator() {
 	address_ = 0;
+	reachedEnd_ = false;
 }
 
 NodeIterator::NodeIterator(long address) {
 	address_ = address;
+	reachedEnd_ = false;
 }
 
 NodeIterator::~NodeIterator() { }
 
-NodeIterator& NodeIterator::operator++() {
-	 throw "not implemented";
-}
-
-NodeIterator NodeIterator::operator++(int) {
-	 throw "not implemented";
-}
-
 bool NodeIterator::operator==(const NodeIterator& rhs) {
-	 throw "not implemented";
+	 return address_ == rhs.address_;
 }
 
 bool NodeIterator::operator!=(const NodeIterator& rhs) {
-	 throw "not implemented";
+	 return address_ != rhs.address_;
+}
+
+bool NodeIterator::operator<=(const NodeIterator& rhs) {
+	 return address_ <= rhs.address_ && !reachedEnd_;
+}
+
+NodeIterator& NodeIterator::operator++() {
+	throw std::runtime_error("subclass should implement this");
+}
+
+NodeIterator NodeIterator::operator++(int) {
+	throw std::runtime_error("subclass should implement this");
 }
 
 NodeAddressContent& NodeIterator::operator*() {
-	 throw "not implemented";
+	throw std::runtime_error("subclass should implement this");
 }

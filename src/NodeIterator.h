@@ -9,7 +9,6 @@
 #define NODEITERATOR_H_
 
 #include <iterator>
-#include "Node.h"
 #include "NodeAddressContent.h"
 
 class NodeIterator : public std::iterator<std::input_iterator_tag, NodeAddressContent> {
@@ -17,15 +16,17 @@ public:
 	NodeIterator();
 	NodeIterator(long address);
 	virtual ~NodeIterator();
+	bool operator==(const NodeIterator& rhs);
+	bool operator!=(const NodeIterator& rhs);
+	bool operator<=(const NodeIterator& rhs);
 
 	virtual NodeIterator& operator++();
 	virtual NodeIterator operator++(int);
-	virtual bool operator==(const NodeIterator& rhs);
-	virtual bool operator!=(const NodeIterator& rhs);
 	virtual NodeAddressContent& operator*();
 
 protected:
 	long address_;
+	bool reachedEnd_;
 };
 
 #endif /* NODEITERATOR_H_ */

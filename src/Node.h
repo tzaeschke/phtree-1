@@ -12,22 +12,22 @@
 #include "Entry.h"
 #include "NodeIterator.h"
 #include "NodeAddressContent.h"
-#include "LHC.h"
-#include "AHC.h"
 
 class Node {
 	friend class NodeIterator;
+	friend std::ostream& operator<<(std::ostream& os, Node& node);
 
 public:
 
 	Node(size_t dim, size_t valueLength);
+	Node(Node* other);
 	virtual ~Node();
 	Node* insert(Entry* e, size_t depth, size_t index);
 	bool lookup(Entry* e, size_t depth, size_t index);
-	friend std::ostream& operator<<(std::ostream& os, Node& node);
-	virtual std::ostream& output(std::ostream& os, size_t depth);
-	virtual NodeIterator begin();
-	virtual NodeIterator end();
+
+	virtual std::ostream& output(std::ostream& os, size_t depth) = 0;
+	virtual NodeIterator* begin() = 0;
+	virtual NodeIterator* end() = 0;
 
 
 protected:
@@ -41,10 +41,10 @@ protected:
 	long interleaveBits(size_t index, Entry* e);
 	long interleaveBits(size_t index, std::vector<std::vector<bool> >* values);
 
-	virtual NodeAddressContent lookup(long address);
-	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix);
-	virtual void insertAtAddress(long hcAddress, Node* subnode);
-	virtual Node* adjustSize();
+	virtual NodeAddressContent* lookup(long address) = 0;
+	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) = 0;
+	virtual void insertAtAddress(long hcAddress, Node* subnode) = 0;
+	virtual Node* adjustSize() = 0;
 
 private:
 	void removeFirstBits(size_t nBitsToRemove, std::vector<std::vector<bool>> *values);

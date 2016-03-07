@@ -8,6 +8,8 @@
 #include "PHTree.h"
 #include "AHC.h"
 
+using namespace std;
+
 PHTree::PHTree(int dim, int valueLength) {
 	valueLength_ = valueLength;
 	dim_ = dim;
