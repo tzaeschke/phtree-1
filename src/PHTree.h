@@ -12,14 +12,16 @@
 
 class Entry;
 class Node;
+class Visitor;
 
 class PHTree {
+	friend std::ostream& operator<<(std::ostream& os, const PHTree& tree);
 public:
 	PHTree(int dim, int valueLength);
 	virtual ~PHTree();
 	void insert(Entry* e);
 	bool lookup(Entry* e);
-	friend std::ostream& operator<<(std::ostream& os, const PHTree& tree);
+	void accept(Visitor* visitor);
 
 protected:
 	Node* root_;

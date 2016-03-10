@@ -279,6 +279,15 @@ void Node::duplicateFirstBits(size_t nBitsToDuplicate, vector<vector<bool>>* fro
 	assert (to->at(0).size() == nBitsToDuplicate);
 }
 
+void Node::accept(Visitor* visitor) {
+	for (NodeIterator* it = this->begin(); (*it) <= *(this->end()); ++(*it)) {
+		NodeAddressContent content = *(*it);
+		if (content.hasSubnode) {
+			content.subnode->accept(visitor);
+		}
+	}
+}
+
 ostream& Node::output(ostream& os, size_t depth) {
 	return os << "subclass should overwrite this";
 }

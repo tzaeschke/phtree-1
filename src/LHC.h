@@ -20,6 +20,7 @@ public:
 	NodeIterator* begin() override;
 	NodeIterator* end() override;
 	std::ostream& output(std::ostream& os, size_t depth) override;
+	virtual void accept(Visitor* visitor);
 
 protected:
 	std::map<long, NodeAddressContent*>* sortedContents_;

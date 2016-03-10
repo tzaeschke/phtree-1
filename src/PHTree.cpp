@@ -33,6 +33,10 @@ bool PHTree::lookup(Entry* e) {
 	return root_->lookup(e, 0, 0);
 }
 
+void PHTree::accept(Visitor* visitor) {
+	root_->accept(visitor);
+}
+
 ostream& operator <<(ostream& os, const PHTree &tree) {
 	os << "PH-Tree (dim=" << tree.dim_ << ", value length=" << tree.valueLength_ << ")" << endl;
 	os << *tree.root_;

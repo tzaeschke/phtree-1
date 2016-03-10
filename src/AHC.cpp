@@ -9,6 +9,7 @@
 #include "AHCIterator.h"
 #include "NodeIterator.h"
 #include "NodeAddressContent.h"
+#include "visitors/Visitor.h"
 
 using namespace std;
 
@@ -86,6 +87,11 @@ NodeIterator* AHC::begin() {
 
 NodeIterator* AHC::end() {
 	return new AHCIterator(1<<dim_, *this);
+}
+
+void AHC::accept(Visitor* visitor) {
+	visitor->visit(this);
+	Node::accept(visitor);
 }
 
 ostream& AHC::output(ostream& os, size_t depth) {

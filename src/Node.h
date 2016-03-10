@@ -13,6 +13,8 @@
 #include "NodeIterator.h"
 #include "NodeAddressContent.h"
 
+class Visitor;
+
 class Node {
 	friend class NodeIterator;
 	friend std::ostream& operator<<(std::ostream& os, Node& node);
@@ -28,7 +30,7 @@ public:
 	virtual std::ostream& output(std::ostream& os, size_t depth) = 0;
 	virtual NodeIterator* begin() = 0;
 	virtual NodeIterator* end() = 0;
-
+	virtual void accept(Visitor* visitor);
 
 protected:
 	size_t dim_;

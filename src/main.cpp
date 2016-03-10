@@ -6,6 +6,7 @@
 #include "Entry.h"
 #include "PHTree.h"
 #include "PlotUtil.h"
+#include "visitors/CountNodeTypesVisitor.h"
 
 #define BIT_LENGTH 	8
 #define ENTRY_DIM 	2
@@ -24,22 +25,34 @@ int mainSimpleExample() {
 	Entry* e3 = new Entry(e3Values, BIT_LENGTH);
 	Entry* e4 = new Entry(e4Values, BIT_LENGTH);
 
+	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	PHTree* phtree = new PHTree(ENTRY_DIM, BIT_LENGTH);
 	phtree->insert(e1);
-	cout << *phtree << endl;
+	phtree->accept(visitor);
+	cout << *phtree;
+	cout << *visitor << endl;
 
 	phtree->insert(e2);
 	phtree->lookup(e1);
 	phtree->lookup(e3);
-	cout << *phtree << endl;
+	visitor->reset();
+	phtree->accept(visitor);
+	cout << *phtree;
+	cout << *visitor << endl;
 
 	phtree->insert(e3);
 	phtree->lookup(e3);
-	cout << *phtree << endl;
+	visitor->reset();
+	phtree->accept(visitor);
+	cout << *phtree;
+	cout << *visitor << endl;
 
 	phtree->insert(e4);
 	phtree->lookup(e4);
-	cout << *phtree << endl;
+	visitor->reset();
+	phtree->accept(visitor);
+	cout << *phtree;
+	cout << *visitor << endl;
 
 	delete phtree;
 	delete e1;
