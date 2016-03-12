@@ -69,18 +69,26 @@ void PlotUtil::plotAverageInsertTimePerDimension() {
 
 	// clock() -> insert all entries of one dim into the appropriate tree -> clock()
 	vector<unsigned int> insertTicks(N_RANDOM_ENTRIES_AVERAGE_INSERT);
+	vector<unsigned int> lookupTicks(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 	vector<unsigned int> nAHCNodes(dimTestsSize);
 	vector<unsigned int> nLHCNodes(dimTestsSize);
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	for (size_t test = 0; test < dimTestsSize; test++) {
-		unsigned int startTime = clock();
+		unsigned int startInsertTime = clock();
 		for (size_t iEntry = 0; iEntry < N_RANDOM_ENTRIES_AVERAGE_INSERT; iEntry++) {
 			Entry* entry = randomEntries[test][iEntry];
 			phtrees[test]->insert(entry);
 		}
-		unsigned int totalTicks = clock() - startTime;
+		unsigned int totalInsertTicks = clock() - startInsertTime;
+		unsigned int startLookupTime = clock();
+		for (size_t iEntry = 0; iEntry < N_RANDOM_ENTRIES_AVERAGE_INSERT; iEntry++) {
+			Entry* entry = randomEntries[test][iEntry];
+			phtrees[test]->lookup(entry);
+		}
+		unsigned int totalLookupTicks = clock() - startLookupTime;
 		phtrees[test]->accept(visitor);
-		insertTicks.at(test) = totalTicks;
+		insertTicks.at(test) = totalInsertTicks;
+		lookupTicks.at(test) = totalLookupTicks;
 		nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 		nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
 		visitor->reset();
@@ -92,6 +100,7 @@ void PlotUtil::plotAverageInsertTimePerDimension() {
 		(*plotFile) << test << "\t"
 				<< dimTests[test] << "\t"
 				<< (insertTicks[test] / N_RANDOM_ENTRIES_AVERAGE_INSERT) << "\t"
+				<< (lookupTicks[test] / N_RANDOM_ENTRIES_AVERAGE_INSERT) << "\t"
 				<< nAHCNodes.at(test) << "\t"
 				<< nLHCNodes.at(test) << "\n";
 	}

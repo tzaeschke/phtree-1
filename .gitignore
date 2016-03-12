@@ -1,7 +1,10 @@
 /Default/
 /Debug/
+/plot/data/
 .cproject
 .project
 .settings/
 
+# do not commit changes to data files
+*.dat
 *.swp

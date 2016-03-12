@@ -6,7 +6,7 @@
  */
 
 #include "PHTree.h"
-#include "AHC.h"
+#include "LHC.h"
 
 using namespace std;
 #define DEBUG false
@@ -14,7 +14,7 @@ using namespace std;
 PHTree::PHTree(int dim, int valueLength) {
 	valueLength_ = valueLength;
 	dim_ = dim;
-	root_ = new AHC(dim, valueLength);
+	root_ = new LHC(dim, valueLength);
 }
 
 PHTree::~PHTree() {
@@ -24,7 +24,7 @@ PHTree::~PHTree() {
 void PHTree::insert(Entry* e) {
 	if (DEBUG)
 		cout << "inserting: " << *e << endl;
-	root_->insert(e, 0, 0);
+	root_ = root_->insert(e, 0, 0);
 }
 
 bool PHTree::lookup(Entry* e) {

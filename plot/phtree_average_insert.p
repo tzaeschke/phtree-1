@@ -7,17 +7,22 @@ set ytic auto
 set xlabel "entry dimension"
 set terminal wxt size 1500,1000
 
-set multiplot layout 1,2 title "various dimensions - same number of insertions"
+set multiplot layout 1,2 title "various dimensions - same number of operations"
 
 set ylabel "insertion time [clock ticks]"
-set boxwidth 0.5
+set boxwidth 0.9
 set style fill solid
 set key left top
 set yrange[0:*]
+set style data histogram
+set style fill solid 1.0 border -1
+set xtic scale 0
 
-set title "PH-Tree insertion" 
+
+set title "PH-Tree operations" 
 plot \
-  "plot/data/phtree_average_insert.dat" using 1:3:xtic(2) title 'insert time' with boxes ls 1
+  "plot/data/phtree_average_insert.dat" using 3:xtic(2) t 'insert time',\
+  "" using 4 t 'lookup time'
 
 set key right top
 set style data histograms
@@ -28,8 +33,8 @@ set ylabel "number of nodes"
 set title "PH-Tree nodes"
 
 plot \
-  "plot/data/phtree_average_insert.dat" using 4 t '#AHC' ls 2,\
-  "" using 5:xticlabels(2) t '#LHC' ls 3
+  "plot/data/phtree_average_insert.dat" using 5 t '#AHC' ls 3,\
+  "" using 6:xticlabels(2) t '#LHC' ls 5
 
 unset multiplot
 unset output
