@@ -29,11 +29,11 @@ unsigned long CountNodeTypesVisitor::getNumberOfVisitedLHCNodes() {
 	return nLHCNodes_;
 }
 
-void CountNodeTypesVisitor::visit(LHC* node) {
+void CountNodeTypesVisitor::visit(LHC* node, unsigned int depth) {
 	nLHCNodes_++;
 }
 
-void CountNodeTypesVisitor::visit(AHC* node) {
+void CountNodeTypesVisitor::visit(AHC* node, unsigned int depth) {
 	nAHCNodes_++;
 }
 

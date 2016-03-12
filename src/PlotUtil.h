@@ -10,6 +10,7 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include <iostream>
 
 #define AVERAGE_INSERT_PLOT_NAME "phtree_average_insert"
@@ -22,17 +23,17 @@
 
 #define BIT_LENGTH 	8
 #define ENTRY_DIM 	2
-#define ENTRY_DIMS {2, 5, 10};
+#define ENTRY_DIMS {2, 5, 8, 11, 14, 17, 20};
 
 #define N_REPETITIONS 10
-#define N_RANDOM_ENTRIES_AVERAGE_INSERT 100
-#define N_RANDOM_ENTRIES_INSERT_SERIES 100
+#define N_RANDOM_ENTRIES_AVERAGE_INSERT 90
+#define N_RANDOM_ENTRIES_INSERT_SERIES 80
 
 class Entry;
 
 class PlotUtil {
 public:
-	static std::vector<Entry*> generateUniqueRandomEntries(size_t dim, size_t bitLength, size_t nUniqueEntries);
+	static std::set<Entry*> generateUniqueRandomEntries(size_t dim, size_t bitLength, size_t nUniqueEntries);
 	static void plotAverageInsertTimePerDimension();
 	static void plotTimeSeriesOfInserts();
 

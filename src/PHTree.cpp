@@ -34,7 +34,7 @@ bool PHTree::lookup(Entry* e) {
 }
 
 void PHTree::accept(Visitor* visitor) {
-	root_->accept(visitor);
+	root_->accept(visitor, 0);
 }
 
 ostream& operator <<(ostream& os, const PHTree &tree) {

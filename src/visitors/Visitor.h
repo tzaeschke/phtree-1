@@ -16,9 +16,8 @@ public:
 	Visitor();
 	virtual ~Visitor();
 
-	virtual void visit(LHC* node) =0;
-	virtual void visit(AHC* node) =0;
-
+	virtual void visit(LHC* node, unsigned int depth) =0;
+	virtual void visit(AHC* node, unsigned int depth) =0;
 	virtual void reset() =0;
 };
 

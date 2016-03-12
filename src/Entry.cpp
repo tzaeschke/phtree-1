@@ -57,7 +57,22 @@ ostream& operator <<(ostream& os, const Entry &e) {
 }
 
 bool operator ==(const Entry &entry1, const Entry &entry2) {
-	return entry1.values_ == entry2.values_;
+	if (entry1.values_.size() != entry2.values_.size()) {
+		return false;
+	}
+
+	for (size_t i = 0; i < entry1.values_.size(); i++) {
+		if (entry1.values_.at(i).size() != entry2.values_.at(i).size()) {
+			return false;
+		}
+		for (size_t j = 0; j < entry1.values_.at(i).size(); j++) {
+			if (entry1.values_.at(i).at(j) != entry2.values_.at(i).at(j)) {
+				return false;
+			}
+		}
+	}
+
+	return true;
 }
 
 bool operator !=(const Entry &entry1, const Entry &entry2) {

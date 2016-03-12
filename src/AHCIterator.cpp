@@ -13,6 +13,9 @@
 
 AHCIterator::AHCIterator(AHC& node) : NodeIterator() {
 	node_ = &node;
+
+	// find first valid address
+	for (; !node_->filled_[address_]; address_++) {}
 }
 
 AHCIterator::AHCIterator(long address, AHC& node) : NodeIterator(address) {

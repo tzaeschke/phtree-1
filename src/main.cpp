@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
 		PlotUtil::plotAverageInsertTimePerDimension();
-		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotTimeSeriesOfInserts();
 		return 0;
 	} else {
 		cerr << "Missing command line argument!" << endl;

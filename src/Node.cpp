@@ -26,7 +26,7 @@ Node::Node(Node* other) {
 }
 
 Node::~Node() {
-	delete &prefix_;
+	prefix_.clear();
 }
 
 Node* Node::insert(Entry* e, size_t depth, size_t index) {
@@ -35,6 +35,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 		size_t currentIndex = index + getPrefixLength();
 		long hcAddress = interleaveBits(currentIndex, e);
 		NodeAddressContent* content = lookup(hcAddress);
+
 		Node* adjustedNode = this;
 
 		if (content->contained && content->hasSubnode) {
@@ -133,18 +134,20 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 
 size_t Node::setLongestCommonPrefix(Node* nodeToSetTo, size_t startIndexEntry1,
 		vector<vector<bool>>* entry1, vector<vector<bool>>* entry2) {
-	assert (entry1->size() == entry2->size());
-	// the first entry must include the given index
-	assert (entry1->at(0).size() > startIndexEntry1);
-	assert (nodeToSetTo->prefix_.size() == dim_);
-	assert (nodeToSetTo->getPrefixLength() == 0);
+	assert (entry1->size() == entry2->size()
+			&& "both entries must have the same dimensions");
+	assert (entry1->at(0).size() > startIndexEntry1
+			&& "the first entry must include the given index");
+	assert (nodeToSetTo->prefix_.size() == dim_
+			&& "the prefix must already have the same dimensions as the node");
+	assert (nodeToSetTo->getPrefixLength() == 0
+			&& "the prefix must not have been set before");
 
 	bool allDimSame = true;
 	size_t prefixLength = 0;
 	for (size_t i = startIndexEntry1; i < valueLength_ && allDimSame; i++) {
 		for (size_t val = 0; val < dim_ && allDimSame; val++)
-			allDimSame = (*entry1)[val][i]
-					== (*entry2)[val][i - startIndexEntry1];
+			allDimSame = (*entry1)[val][i] == (*entry2)[val][i - startIndexEntry1];
 
 		if (allDimSame)
 			prefixLength++;
@@ -152,8 +155,10 @@ size_t Node::setLongestCommonPrefix(Node* nodeToSetTo, size_t startIndexEntry1,
 			nodeToSetTo->prefix_[val].push_back((*entry1)[val][i]);
 	}
 
-	assert (nodeToSetTo->prefix_.size() == dim_); // should have the same dimensionality
-	assert (nodeToSetTo->getPrefixLength() == prefixLength); // should have set the correct prefix
+	assert (nodeToSetTo->prefix_.size() == dim_
+			&& "afterwards the prefix should have the same dimensionality as the node");
+	assert (nodeToSetTo->getPrefixLength() == prefixLength
+			&& "should have set the correct prefix length");
 	return prefixLength;
 }
 
@@ -231,7 +236,7 @@ long Node::interleaveBits(size_t index, Entry* e) {
 
 long Node::interleaveBits(size_t index, vector<vector<bool>>* values) {
 	long hcAddress = 0;
-	int max = values->size() - 1;
+	size_t max = values->size() - 1;
 	for (size_t value = 0; value < values->size(); value++) {
 		hcAddress |= (*values)[value][index] << (max - value);
 	}
@@ -279,11 +284,11 @@ void Node::duplicateFirstBits(size_t nBitsToDuplicate, vector<vector<bool>>* fro
 	assert (to->at(0).size() == nBitsToDuplicate);
 }
 
-void Node::accept(Visitor* visitor) {
+void Node::accept(Visitor* visitor, size_t depth) {
 	for (NodeIterator* it = this->begin(); (*it) <= *(this->end()); ++(*it)) {
 		NodeAddressContent content = *(*it);
 		if (content.hasSubnode) {
-			content.subnode->accept(visitor);
+			content.subnode->accept(visitor, depth + 1);
 		}
 	}
 }

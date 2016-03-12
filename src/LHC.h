@@ -14,13 +14,14 @@
 
 class LHC: public Node {
 	friend class LHCIterator;
+	friend class AssertionVisitor;
 public:
 	LHC(size_t dim, size_t valueLength);
 	virtual ~LHC();
 	NodeIterator* begin() override;
 	NodeIterator* end() override;
 	std::ostream& output(std::ostream& os, size_t depth) override;
-	virtual void accept(Visitor* visitor);
+	virtual void accept(Visitor* visitor, size_t depth) override;
 
 protected:
 	std::map<long, NodeAddressContent*>* sortedContents_;

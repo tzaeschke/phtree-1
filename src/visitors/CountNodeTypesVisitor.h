@@ -17,9 +17,9 @@ public:
 	CountNodeTypesVisitor();
 	virtual ~CountNodeTypesVisitor();
 
-	virtual void visit(LHC* node);
-	virtual void visit(AHC* node);
-	virtual void reset();
+	virtual void visit(LHC* node, unsigned int depth) override;
+	virtual void visit(AHC* node, unsigned int depth) override;
+	virtual void reset() override;
 
 	unsigned long getNumberOfVisitedAHCNodes();
 	unsigned long getNumberOfVisitedLHCNodes();

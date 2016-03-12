@@ -30,7 +30,7 @@ public:
 	virtual std::ostream& output(std::ostream& os, size_t depth) = 0;
 	virtual NodeIterator* begin() = 0;
 	virtual NodeIterator* end() = 0;
-	virtual void accept(Visitor* visitor);
+	virtual void accept(Visitor* visitor, size_t depth);
 
 protected:
 	size_t dim_;

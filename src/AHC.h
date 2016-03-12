@@ -16,6 +16,7 @@
 
 class AHC: public Node {
 	friend class AHCIterator;
+	friend class AssertionVisitor;
 public:
 	AHC(size_t dim, size_t valueLength);
 	AHC(Node& node);
@@ -23,7 +24,7 @@ public:
 	NodeIterator* begin() override;
 	NodeIterator* end() override;
 	std::ostream& output(std::ostream& os, size_t depth) override;
-	virtual void accept(Visitor* visitor);
+	virtual void accept(Visitor* visitor, size_t depth) override;
 
 protected:
 	std::vector<bool> filled_;

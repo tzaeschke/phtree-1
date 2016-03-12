@@ -5,6 +5,7 @@
  *      Author: max
  */
 
+#include <assert.h>
 #include <utility>
 #include "AHC.h"
 #include "LHC.h"
@@ -23,23 +24,31 @@ LHC::LHC(size_t dim, size_t valueLength) :
 
 LHC::~LHC() {
 	for (auto const &entry : (*sortedContents_)) {
+		if (entry.second->hasSubnode) {
+			delete entry.second->subnode;
+		} else if (entry.second->contained) {
+			delete entry.second->suffix;
+		}
 		delete entry.second;
 	}
-	delete sortedContents_;
-	delete &prefix_;
+	sortedContents_->clear();
 }
 
 NodeAddressContent* LHC::lookup(long address) {
 	map<long, NodeAddressContent*>::iterator it = sortedContents_->find(
 			address);
 	bool contained = it != sortedContents_->end();
+	NodeAddressContent *content;
 	if (contained) {
-		return it->second;
+		content = it->second;
 	} else {
-		NodeAddressContent* content = new NodeAddressContent();
+		content = new NodeAddressContent();
 		content->contained = false;
-		return content;
 	}
+
+	assert ((!content->contained || (content->hasSubnode || content->suffix->size() == dim_))
+						&& "the suffix dimensionality should always be the same as the node's");
+	return content;
 }
 
 void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
@@ -63,6 +72,8 @@ void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 	if (hcAddress > highestAddress) {
 		highestAddress = hcAddress;
 	}
+
+	assert (lookup(hcAddress)->suffix->size() == dim_);
 }
 
 void LHC::insertAtAddress(long hcAddress, Node* subnode) {
@@ -91,7 +102,7 @@ void LHC::insertAtAddress(long hcAddress, Node* subnode) {
 
 			content->hasSubnode = true;
 			content->subnode = subnode;
-			delete content->suffix;
+// remove previous suffix memory			content->suffix->clear();
 		}
 
 		if (hcAddress > highestAddress) {
@@ -122,9 +133,9 @@ NodeIterator* LHC::end() {
 	return new LHCIterator(highestAddress, *this);
 }
 
-void LHC::accept(Visitor* visitor) {
-	visitor->visit(this);
-	Node::accept(visitor);
+void LHC::accept(Visitor* visitor, size_t depth) {
+	visitor->visit(this, depth);
+	Node::accept(visitor, depth);
 }
 
 ostream& LHC::output(ostream& os, size_t depth) {
