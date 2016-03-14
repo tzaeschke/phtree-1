@@ -7,7 +7,7 @@ set ytic auto
 set xlabel "entry dimension"
 set terminal wxt size 1500,1000
 
-set multiplot layout 1,2 title "various dimensions - same number of operations"
+set multiplot layout 1,2 title "various dimensions - same number of operations - same number of entries"
 
 set ylabel "insertion time [clock ticks]"
 set boxwidth 0.9
@@ -21,7 +21,7 @@ set xtic scale 0
 
 set title "PH-Tree operations" 
 plot \
-  "plot/data/phtree_average_insert.dat" using 3:xtic(2) t 'insert time',\
+  "plot/data/phtree_average_insert_dimensions.dat" using 3:xtic(2) t 'insert time',\
   "" using 4 t 'lookup time'
 
 set key right top
@@ -33,7 +33,7 @@ set ylabel "number of nodes"
 set title "PH-Tree nodes"
 
 plot \
-  "plot/data/phtree_average_insert.dat" using 5 t '#AHC' ls 3,\
+  "plot/data/phtree_average_insert_dimensions.dat" using 5 t '#AHC' ls 3,\
   "" using 6:xticlabels(2) t '#LHC' ls 5
 
 unset multiplot

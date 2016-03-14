@@ -45,16 +45,75 @@ void PlotUtil::plot(string gnuplotFileName) {
 }
 
 
+void PlotUtil::plotAverageInsertTimePerNumberOfEntries() {
+
+	size_t numberOfEntries[] = INSERT_ENTRY_NUMBERS;
+	size_t numberOfEntriesSize = sizeof(numberOfEntries) / sizeof(*numberOfEntries);
+
+	vector<unsigned int> insertTicks(numberOfEntriesSize);
+	vector<unsigned int> lookupTicks(numberOfEntriesSize);
+	vector<unsigned int> nAHCNodes(numberOfEntriesSize);
+	vector<unsigned int> nLHCNodes(numberOfEntriesSize);
+
+	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
+	for (size_t test = 0; test < numberOfEntriesSize; test++) {
+		cout << "Creating " << numberOfEntries[test]	<< " random entries..." << endl;
+		set<Entry*> uniqueEntries = generateUniqueRandomEntries(ENTRY_DIM_INSERT_SERIES, BIT_LENGTH, numberOfEntries[test]);
+		vector<Entry*> entries(uniqueEntries.begin(), uniqueEntries.end());
+		uniqueEntries.clear();
+		cout << "inserting all entries into a PH-Tree while logging the time per insertion..." << endl;
+		PHTree* tree = new PHTree(ENTRY_DIM_INSERT_SERIES, BIT_LENGTH);
+		unsigned int startInsertTime = clock();
+		for (size_t iEntry = 0; iEntry < entries.size(); iEntry++) {
+			Entry* entry = entries[iEntry];
+			tree->insert(entry);
+		}
+		unsigned int totalInsertTicks = clock() - startInsertTime;
+		unsigned int startLookupTime = clock();
+		for (size_t iEntry = 0; iEntry < entries.size(); iEntry++) {
+			Entry* entry = entries[iEntry];
+			tree->lookup(entry);
+		}
+		unsigned int totalLookupTicks = clock() - startLookupTime;
+		tree->accept(visitor);
+		insertTicks.at(test) = totalInsertTicks;
+		lookupTicks.at(test) = totalLookupTicks;
+		nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
+		nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
+		visitor->reset();
+		delete tree;
+	}
+
+	// write gathered data into a file
+	ofstream* plotFile = openPlotFile(AVERAGE_INSERT_ENTRIES_PLOT_NAME);
+	for (size_t test = 0; test < numberOfEntriesSize; test++) {
+		(*plotFile) << test << "\t"
+				<< numberOfEntries[test] << "\t"
+				<< (insertTicks[test] / numberOfEntries[test]) << "\t"
+				<< (lookupTicks[test] / numberOfEntries[test]) << "\t"
+				<< nAHCNodes.at(test) << "\t"
+				<< nLHCNodes.at(test) << "\n";
+	}
+	plotFile->close();
+
+	// step 2: call Gnuplot
+	cout << "calling gnuplot..." << endl;
+	plot(AVERAGE_INSERT_ENTRIES_PLOT_NAME);
+}
+
 void PlotUtil::plotAverageInsertTimePerDimension() {
 	// step 1: gather phtree data
 	// 1.1. create X random entries for Y different dimensions
-	cout << "Creating " << N_RANDOM_ENTRIES_AVERAGE_INSERT	<< " random entries per dimension..." << endl;
-	size_t dimTests[] = ENTRY_DIMS;
+	cout << "Creating " << N_RANDOM_ENTRIES_AVERAGE_INSERT
+			<< " random entries per dimension..." << endl;
+	size_t dimTests[] = INSERT_ENTRY_DIMS;
 	size_t dimTestsSize = sizeof(dimTests) / sizeof(*dimTests);
 	vector<vector<Entry*>> randomEntries;
 	for (size_t test = 0; test < dimTestsSize; test++) {
-		set<Entry*> randomDimEntriesSet = generateUniqueRandomEntries(dimTests[test], BIT_LENGTH, N_RANDOM_ENTRIES_AVERAGE_INSERT);
-		vector<Entry*> randomDimEntries(randomDimEntriesSet.begin(), randomDimEntriesSet.end());
+		set<Entry*> randomDimEntriesSet = generateUniqueRandomEntries(
+				dimTests[test], BIT_LENGTH, N_RANDOM_ENTRIES_AVERAGE_INSERT);
+		vector<Entry*> randomDimEntries(randomDimEntriesSet.begin(),
+				randomDimEntriesSet.end());
 		randomEntries.push_back(randomDimEntries);
 	}
 
@@ -75,7 +134,8 @@ void PlotUtil::plotAverageInsertTimePerDimension() {
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	for (size_t test = 0; test < dimTestsSize; test++) {
 		unsigned int startInsertTime = clock();
-		for (size_t iEntry = 0; iEntry < N_RANDOM_ENTRIES_AVERAGE_INSERT; iEntry++) {
+		for (size_t iEntry = 0; iEntry < N_RANDOM_ENTRIES_AVERAGE_INSERT;
+				iEntry++) {
 			Entry* entry = randomEntries[test][iEntry];
 			phtrees[test]->insert(entry);
 		}
@@ -94,22 +154,26 @@ void PlotUtil::plotAverageInsertTimePerDimension() {
 		visitor->reset();
 	}
 
-	// write gathered data into a file
-	ofstream* plotFile = openPlotFile(AVERAGE_INSERT_PLOT_NAME);
 	for (size_t test = 0; test < dimTestsSize; test++) {
-		(*plotFile) << test << "\t"
-				<< dimTests[test] << "\t"
-				<< (insertTicks[test] / N_RANDOM_ENTRIES_AVERAGE_INSERT) << "\t"
-				<< (lookupTicks[test] / N_RANDOM_ENTRIES_AVERAGE_INSERT) << "\t"
-				<< nAHCNodes.at(test) << "\t"
-				<< nLHCNodes.at(test) << "\n";
+		delete phtrees[test];
+	}
+
+	// write gathered data into a file
+	ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME);
+	for (size_t test = 0; test < dimTestsSize; test++) {
+		(*plotFile) << test
+			<< "\t" << dimTests[test]
+			<< "\t"	<< (insertTicks[test] / N_RANDOM_ENTRIES_AVERAGE_INSERT)
+			<< "\t" << (lookupTicks[test] / N_RANDOM_ENTRIES_AVERAGE_INSERT)
+			<< "\t"	<< nAHCNodes.at(test)
+			<< "\t" << nLHCNodes.at(test) << "\n";
 	}
 	plotFile->close();
 
 	// step 2: call Gnuplot
 	cout << "calling gnuplot..." << endl;
-	plot(AVERAGE_INSERT_PLOT_NAME);
-};
+	plot(AVERAGE_INSERT_DIM_PLOT_NAME);
+}
 
 ofstream* PlotUtil::openPlotFile(std::string dataFileName) {
 	std::string path = PLOT_DATA_PATH + dataFileName + PLOT_DATA_EXTENSION;
@@ -128,17 +192,21 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 	try {
 		size_t iEntry = 0;
 		for (auto entry : entries) {
-			cout << "inserting: " << *entry << endl;
+//			cout << "inserting: " << *entry << endl;
 			assert (!phtree.lookup(entry) && "should not contain the entry before insertion");
-			unsigned int startTime = clock();
+			unsigned int startInsertTime = clock();
 			phtree.insert(entry);
-			unsigned int totalTicks = clock() - startTime;
-			cout << phtree << endl;
+			unsigned int totalInsertTicks = clock() - startInsertTime;
+//			cout << phtree << endl;
 			phtree.accept(assertVisitor);
-			assert (phtree.lookup(entry) && "should contain the entry after insertion");
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
-			(*plotFile) << iEntry << "\t" << totalTicks;
+			unsigned int startLookupTime = clock();
+			bool contained = phtree.lookup(entry);
+			unsigned int totalLockupTicks = clock() - startLookupTime;
+			assert (contained && "should contain the entry after insertion");
+			(*plotFile) << iEntry << "\t" << totalInsertTicks;
+			(*plotFile) << "\t" << totalLockupTicks;
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedAHCNodes();
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedLHCNodes();
 			(*plotFile) << "\n";

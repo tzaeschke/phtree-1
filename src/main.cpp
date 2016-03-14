@@ -75,11 +75,12 @@ int main(int argc, char* argv[]) {
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotAverageInsertTimePerDimension();
 		PlotUtil::plotTimeSeriesOfInserts();
+		PlotUtil::plotAverageInsertTimePerDimension();
+		PlotUtil::plotAverageInsertTimePerNumberOfEntries();
 		return 0;
 	} else {
-		cerr << "Missing command line argument!" << endl;
+		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot'";
 		return 1;
 	}
 };

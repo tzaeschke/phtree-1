@@ -13,7 +13,8 @@
 #include <set>
 #include <iostream>
 
-#define AVERAGE_INSERT_PLOT_NAME "phtree_average_insert"
+#define AVERAGE_INSERT_DIM_PLOT_NAME "phtree_average_insert_dimensions"
+#define AVERAGE_INSERT_ENTRIES_PLOT_NAME "phtree_average_insert_entries"
 #define INSERT_SERIES_PLOT_NAME "phtree_insert_series"
 
 #define PLOT_DATA_PATH "./plot/data/"
@@ -21,13 +22,16 @@
 #define GNUPLOT_FILE_PATH "./plot/"
 #define GNUPLOT_FILE_EXTENSION ".p"
 
-#define BIT_LENGTH 	8
-#define ENTRY_DIM 	2
-#define ENTRY_DIMS {2, 5, 8, 11, 14, 17, 20};
+#define BIT_LENGTH 	16
+#define ENTRY_DIM 	3
+#define ENTRY_DIM_INSERT_SERIES 3
+
+#define INSERT_ENTRY_DIMS {3, 5, 8, 11};
+#define INSERT_ENTRY_NUMBERS {10000, 20000, 50000, 100000};
 
 #define N_REPETITIONS 10
-#define N_RANDOM_ENTRIES_AVERAGE_INSERT 90
-#define N_RANDOM_ENTRIES_INSERT_SERIES 80
+#define N_RANDOM_ENTRIES_AVERAGE_INSERT 20000
+#define N_RANDOM_ENTRIES_INSERT_SERIES 100
 
 class Entry;
 
@@ -35,6 +39,7 @@ class PlotUtil {
 public:
 	static std::set<Entry*> generateUniqueRandomEntries(size_t dim, size_t bitLength, size_t nUniqueEntries);
 	static void plotAverageInsertTimePerDimension();
+	static void plotAverageInsertTimePerNumberOfEntries();
 	static void plotTimeSeriesOfInserts();
 
 private:
