@@ -17,9 +17,13 @@ class Entry {
 	friend bool operator !=(const Entry &entry1, const Entry &entry2);
 
 public:
+
 	Entry(std::vector<int> values, int bitLength);
 	Entry(std::vector<std::vector<bool>> values);
 	~Entry();
+
+	size_t getBitLength();
+	size_t getDimensions();
 
 	// value -> bit
 	std::vector<std::vector<bool>> values_;

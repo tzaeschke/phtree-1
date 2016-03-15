@@ -7,6 +7,7 @@
 
 #include "PHTree.h"
 #include "LHC.h"
+#include <assert.h>
 
 using namespace std;
 #define DEBUG false
@@ -22,12 +23,18 @@ PHTree::~PHTree() {
 }
 
 void PHTree::insert(Entry* e) {
+	assert (e->getBitLength() == valueLength_ && "value length of new entries must match the tree's");
+	assert (e->getDimensions() == dim_ && "entry dimension must match the tree dimension");
+
 	if (DEBUG)
 		cout << "inserting: " << *e << endl;
 	root_ = root_->insert(e, 0, 0);
 }
 
 bool PHTree::lookup(Entry* e) {
+	assert (e->getBitLength() == valueLength_ && "value length of entries must match the tree's");
+	assert (e->getDimensions() == dim_ && "entry dimension must match the tree dimension");
+
 	if (DEBUG)
 		cout << "searching: " << *e << endl;
 	return root_->lookup(e, 0, 0);

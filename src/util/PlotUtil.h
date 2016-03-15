@@ -27,7 +27,7 @@
 #define ENTRY_DIM_INSERT_SERIES 3
 
 #define INSERT_ENTRY_DIMS {3, 5, 8, 11};
-#define INSERT_ENTRY_NUMBERS {10000, 20000, 50000, 100000};
+#define INSERT_ENTRY_NUMBERS {1000, 2000, 5000};
 
 #define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 20000
@@ -38,8 +38,15 @@ class Entry;
 class PlotUtil {
 public:
 	static std::set<Entry*> generateUniqueRandomEntries(size_t dim, size_t bitLength, size_t nUniqueEntries);
-	static void plotAverageInsertTimePerDimension();
-	static void plotAverageInsertTimePerNumberOfEntries();
+
+	static void plotAverageInsertTimePerDimension(std::vector<std::vector<Entry*>> entries, std::vector<size_t> dimensions, std::vector<size_t> bitLengths);
+	static void plotAverageInsertTimePerDimension(std::string file, size_t bitLength);
+	static void plotAverageInsertTimePerDimensionRandom();
+
+	static void plotAverageInsertTimePerNumberOfEntries(std::vector<std::vector<Entry*>> entries, std::vector<size_t> bitLengths);
+	static void plotAverageInsertTimePerNumberOfEntries(std::string file, size_t bitLength);
+	static void plotAverageInsertTimePerNumberOfEntriesRandom();
+
 	static void plotTimeSeriesOfInserts();
 
 private:

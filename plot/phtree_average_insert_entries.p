@@ -5,7 +5,7 @@ set xtic auto
 set ytic auto
 
 set xlabel "number of entries"
-set terminal wxt size 1500,1000
+set terminal qt size 1500,1000
 
 set multiplot layout 1,2 title "various number of entries - same number of operations - same dimension"
 

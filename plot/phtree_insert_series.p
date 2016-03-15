@@ -10,7 +10,7 @@ set y2label "node count"
 set xlabel "inserted entry number"
 set key left top
 
-set terminal wxt size 1300,1000
+set terminal qt size 1300,1000
 
 set title "PH-Tree insert series" 
 plot \

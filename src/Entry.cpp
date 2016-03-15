@@ -37,6 +37,14 @@ Entry::~Entry() {
 //TODO delete &values_;
 }
 
+size_t Entry::getBitLength() {
+	return values_.at(0).size();
+}
+
+size_t Entry::getDimensions() {
+	return values_.size();
+}
+
 ostream& operator <<(ostream& os, const Entry &e) {
 	os << "(";
 	for (size_t value = 0; value < e.values_.size(); value++) {

@@ -5,7 +5,7 @@
 
 #include "Entry.h"
 #include "PHTree.h"
-#include "PlotUtil.h"
+#include "util/PlotUtil.h"
 #include "visitors/CountNodeTypesVisitor.h"
 
 #define BIT_LENGTH 	8
@@ -76,8 +76,8 @@ int main(int argc, char* argv[]) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
 		PlotUtil::plotTimeSeriesOfInserts();
-		PlotUtil::plotAverageInsertTimePerDimension();
-		PlotUtil::plotAverageInsertTimePerNumberOfEntries();
+		PlotUtil::plotAverageInsertTimePerDimensionRandom();
+		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;
 	} else {
 		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot'";
