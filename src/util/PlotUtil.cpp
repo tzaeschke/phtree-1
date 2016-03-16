@@ -91,8 +91,8 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 		for (size_t test = 0; test < dimensions.size(); test++) {
 			(*plotFile) << test
 				<< "\t" << dimensions[test]
-				<< "\t"	<< (insertTicks[test] / entries[test].size())
-				<< "\t" << (lookupTicks[test] / entries[test].size())
+				<< "\t"	<< (float (insertTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000)
+				<< "\t" << (float (lookupTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000)
 				<< "\t"	<< nAHCNodes.at(test)
 				<< "\t" << nLHCNodes.at(test) << "\n";
 		}
@@ -167,8 +167,8 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		for (size_t test = 0; test < entries.size(); test++) {
 			(*plotFile) << test << "\t"
 					<< entries[test].size() << "\t"
-					<< (insertTicks[test] / entries[test].size()) << "\t"
-					<< (lookupTicks[test] / entries[test].size()) << "\t"
+					<< (float (insertTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000) << "\t"
+					<< (float (lookupTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000) << "\t"
 					<< nAHCNodes.at(test) << "\t"
 					<< nLHCNodes.at(test) << "\n";
 		}

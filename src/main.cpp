@@ -75,9 +75,10 @@ int main(int argc, char* argv[]) {
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotTimeSeriesOfInserts();
-		PlotUtil::plotAverageInsertTimePerDimensionRandom();
-		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+		PlotUtil::plotAverageInsertTimePerDimension("./plot/data/phtree_java_rand_unique_entries.dat", 32);
+//		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotAverageInsertTimePerDimensionRandom();
+//		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;
 	} else {
 		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot'";

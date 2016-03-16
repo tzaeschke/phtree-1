@@ -9,7 +9,7 @@ set terminal qt size 1500,1000
 
 set multiplot layout 1,2 title "various dimensions - same number of operations - same number of entries"
 
-set ylabel "insertion time [clock ticks]"
+set ylabel "insertion time [ms]"
 set boxwidth 0.9
 set style fill solid
 set key left top
