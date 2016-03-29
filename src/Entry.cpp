@@ -9,24 +9,15 @@
 #include <string>
 #include <vector>
 #include <assert.h>
+#include "util/MultiDimBitTool.h"
 
 using namespace std;
 
 #include "Entry.h"
 
-Entry::Entry(vector<int> values, int bitLength) {
-	values_.reserve(values.size());
-
-	for (size_t i = 0; i < values.size(); i++) {
-		vector<bool> value(bitLength);
-		for (int j = 0; j < bitLength; j++) {
-			// extract j-th least segnificant bit from int
-			int lsbIndex = bitLength - j - 1;
-			bool bit = ((values[i] & (1 << lsbIndex)) >> lsbIndex) == 1;
-			value[j] = bit;
-		}
-		values_.push_back(value);
-	}
+Entry::Entry(vector<long> values, int bitLength) {
+	values_.resize(values.size());
+	MultiDimBitTool::longsToBitsets(values_, values, bitLength);
 }
 
 Entry::Entry(vector<vector<bool>> values) {
@@ -35,6 +26,7 @@ Entry::Entry(vector<vector<bool>> values) {
 
 Entry::~Entry() {
 //TODO delete &values_;
+	values_.clear();
 }
 
 size_t Entry::getBitLength() {

@@ -9,12 +9,10 @@
 #include <stdexcept>
 
 NodeIterator::NodeIterator() {
-	address_ = 0;
 	reachedEnd_ = false;
 }
 
 NodeIterator::NodeIterator(long address) {
-	address_ = address;
 	reachedEnd_ = false;
 }
 
@@ -28,10 +26,6 @@ bool NodeIterator::operator!=(const NodeIterator& rhs) {
 	 return address_ != rhs.address_;
 }
 
-bool NodeIterator::operator<=(const NodeIterator& rhs) {
-	 return address_ <= rhs.address_ && !reachedEnd_;
-}
-
 NodeIterator& NodeIterator::operator++() {
 	throw std::runtime_error("subclass should implement this");
 }
@@ -41,5 +35,9 @@ NodeIterator NodeIterator::operator++(int) {
 }
 
 NodeAddressContent& NodeIterator::operator*() {
+	throw std::runtime_error("subclass should implement this");
+}
+
+void NodeIterator::setAddress(size_t address) {
 	throw std::runtime_error("subclass should implement this");
 }

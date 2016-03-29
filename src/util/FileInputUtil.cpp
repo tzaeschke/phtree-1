@@ -16,19 +16,12 @@
 
 using namespace std;
 
-FileInputUtil::FileInputUtil() {
-}
-
-FileInputUtil::~FileInputUtil() {
-}
-
-
-inline vector<int> getNextLineTokens(ifstream& stream) {
+inline vector<long> getNextLineTokens(ifstream& stream) {
 	string line;
 	getline(stream, line);
 	stringstream lineStream(line);
 	string cell;
-	vector<int> tokens;
+	vector<long> tokens;
 
 	while (getline(lineStream, cell, ',')) {
 		int parsedToken = stoi(cell);
@@ -44,7 +37,7 @@ vector<Entry*> FileInputUtil::readEntries(string fileLocation, size_t bitLength)
 		std::vector<Entry*>   result;
 	if (myfile.is_open()) {
 		while (!myfile.eof()) {
-			vector<int> values = getNextLineTokens(myfile);
+			vector<long> values = getNextLineTokens(myfile);
 			if (!values.empty()) {
 				Entry* entry = new Entry(values, bitLength);
 				assert (entry->getBitLength() == bitLength);

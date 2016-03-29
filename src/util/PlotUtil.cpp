@@ -26,7 +26,7 @@ set<Entry*> PlotUtil::generateUniqueRandomEntries(size_t dim, size_t bitLength, 
 	srand(time(NULL));
 	set<Entry*> randomDimEntries;
 	for (size_t nEntry = 0; nEntry < nUniqueEntries; nEntry++) {
-		vector<int>* entryValues = new vector<int>(dim);
+		vector<long>* entryValues = new vector<long>(dim);
 		for (size_t d = 0; d < dim; d++) {
 			entryValues->at(d) = rand() % (2 << bitLength);
 		}

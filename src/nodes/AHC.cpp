@@ -7,10 +7,10 @@
 
 #include <assert.h>
 #include "AHC.h"
-#include "AHCIterator.h"
-#include "NodeIterator.h"
+#include "../iterators/AHCIterator.h"
+#include "../iterators/NodeIterator.h"
 #include "NodeAddressContent.h"
-#include "visitors/Visitor.h"
+#include "../visitors/Visitor.h"
 
 using namespace std;
 
@@ -30,7 +30,7 @@ AHC::AHC(Node& other) : Node(other) {
 	hasSubnode_ = vector<bool>(maxElements, false);
 	subnodes_ = vector<Node*>(maxElements);
 	suffixes_ = vector<vector<vector<bool>>>(maxElements);
-	for (NodeIterator* it = other.begin(); (*it) <= *(other.end()); ++(*it)) {
+	for (NodeIterator* it = other.begin(); (*it) != *(other.end()); ++(*it)) {
 		NodeAddressContent content = *(*it);
 		filled_[content.address] = true;
 		if (content.hasSubnode) {

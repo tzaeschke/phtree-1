@@ -10,16 +10,28 @@
 
 LHCIterator::LHCIterator(LHC& node) : NodeIterator() {
 	node_ = &node;
-	contentMapIt_ = node_->sortedContents_->begin();
-	address_ = contentMapIt_->first;
+	setAddress(0);
 }
 
 LHCIterator::LHCIterator(long address, LHC& node) : NodeIterator(address) {
 	node_ = &node;
-	contentMapIt_ = node_->sortedContents_->begin();
+	setAddress(address);
 }
 
 LHCIterator::~LHCIterator() { }
+
+void LHCIterator::setAddress(size_t address) {
+	// find first filled address if the given one is not filled
+	// TODO implement without starting at the front
+	if (address >= node_->dim_) {
+		address_ = 1 << node_->dim_;
+	} else {
+		contentMapIt_ = node_->sortedContents_->begin();
+		for (address_ = contentMapIt_->first; address_ < address && contentMapIt_ != node_->sortedContents_->end(); contentMapIt_++) {
+			address_ = contentMapIt_->first;
+		}
+	}
+}
 
 NodeIterator& LHCIterator::operator++() {
 
@@ -28,6 +40,7 @@ NodeIterator& LHCIterator::operator++() {
 	} else {
 		--contentMapIt_;
 		reachedEnd_ = true;
+		address_ = 1 << node_->dim_;
 	}
 	return *this;
 }

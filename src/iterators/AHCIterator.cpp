@@ -7,26 +7,36 @@
 
 #include <stdexcept>
 #include <assert.h>
-#include "Node.h"
-#include "AHC.h"
-#include "AHCIterator.h"
+#include "../nodes/Node.h"
+#include "../nodes/AHC.h"
+#include "../iterators/AHCIterator.h"
 
 AHCIterator::AHCIterator(AHC& node) : NodeIterator() {
 	node_ = &node;
-
-	// find first valid address
-	for (; !node_->filled_[address_]; address_++) {}
+	setAddress(0);
 }
 
 AHCIterator::AHCIterator(long address, AHC& node) : NodeIterator(address) {
 	node_ = &node;
+	setAddress(address);
 }
 
 AHCIterator::~AHCIterator() {}
 
+void AHCIterator::setAddress(size_t address) {
+	if (address >= (1 << node_->dim_)) {
+		address_ = (1 << node_->dim_);
+	} else {
+		// find first filled address if the given one is not filled
+		for (address_ = address; !node_->filled_[address_] && address <=(1 << node_->dim_); address_++) {}
+		if ((address_ == (1<< node_->dim_) - 1) && !node_->filled_[address_]) address_++;
+	}
+}
+
 NodeIterator& AHCIterator::operator++() {
-	// skip all unfilled fields
-	for (address_++; !node_->filled_[address_];	address_++) {}
+	// skip all unfilled fields until the highest address is reached
+	for (address_++; !node_->filled_[address_] && address_ < (1 << node_->dim_); address_++) {}
+	if ((address_ == (1<< node_->dim_) - 1) && !node_->filled_[address_]) address_++;
 	return *this;
 }
 
@@ -37,6 +47,7 @@ NodeIterator AHCIterator::operator++(int) {
 NodeAddressContent& AHCIterator::operator*() {
 
 	NodeAddressContent* content = new NodeAddressContent;
+	content->address = address_;
 	content->contained = node_->filled_[address_];
 	assert (content->contained);
 	content->hasSubnode = node_->hasSubnode_[address_];

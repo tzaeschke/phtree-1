@@ -11,7 +11,7 @@
 #include <vector>
 #include <iostream>
 #include "Node.h"
-#include "NodeIterator.h"
+#include "../iterators/NodeIterator.h"
 #include "NodeAddressContent.h"
 
 class AHC: public Node {

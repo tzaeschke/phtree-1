@@ -8,7 +8,7 @@
 #ifndef AHCITERATOR_H_
 #define AHCITERATOR_H_
 
-#include "AHC.h"
+#include "../nodes/AHC.h"
 #include "NodeIterator.h"
 
 class AHCIterator: public NodeIterator {
@@ -17,6 +17,7 @@ public:
 	AHCIterator(long address, AHC& node);
 	virtual ~AHCIterator();
 
+	void setAddress(size_t address) override;
 	NodeIterator& operator++() override;
 	NodeIterator operator++(int) override;
 	NodeAddressContent& operator*() override;

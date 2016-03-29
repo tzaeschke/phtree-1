@@ -13,6 +13,7 @@
 class Entry;
 class Node;
 class Visitor;
+class RangeQueryIterator;
 
 class PHTree {
 	friend std::ostream& operator<<(std::ostream& os, const PHTree& tree);
@@ -21,6 +22,8 @@ public:
 	virtual ~PHTree();
 	void insert(Entry* e);
 	bool lookup(Entry* e);
+	RangeQueryIterator* rangeQuery(Entry* lowerLeft, Entry* upperRight);
+
 	void accept(Visitor* visitor);
 
 protected:

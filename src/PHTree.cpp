@@ -6,7 +6,7 @@
  */
 
 #include "PHTree.h"
-#include "LHC.h"
+#include "nodes/LHC.h"
 #include <assert.h>
 
 using namespace std;
@@ -37,7 +37,16 @@ bool PHTree::lookup(Entry* e) {
 
 	if (DEBUG)
 		cout << "searching: " << *e << endl;
-	return root_->lookup(e, 0, 0);
+	return root_->lookup(e, 0, 0, NULL);
+}
+
+RangeQueryIterator* PHTree::rangeQuery(Entry* lowerLeft, Entry* upperRight) {
+	assert (lowerLeft->getBitLength() == valueLength_ && "value length of the lower left corner must match the tree's");
+	assert (upperRight->getBitLength() == valueLength_ && "value length of the upper right corner must match the tree's");
+	assert (lowerLeft->getDimensions() == dim_ && upperRight->getDimensions() == dim_ && "entry dimension must match the tree dimension");
+	// TODO check of lower left and upper right corners are correctly set
+
+	return root_->rangeQuery(lowerLeft, upperRight, 0, 0);
 }
 
 void PHTree::accept(Visitor* visitor) {

@@ -10,7 +10,7 @@
 
 #include <map>
 #include "NodeIterator.h"
-#include "LHC.h"
+#include "../nodes/LHC.h"
 
 struct NodeAddressContent;
 
@@ -20,6 +20,7 @@ public:
 	LHCIterator(long address, LHC& node);
 	virtual ~LHCIterator();
 
+	void setAddress(size_t address) override;
 	NodeIterator& operator++() override;
 	NodeIterator operator++(int) override;
 	NodeAddressContent& operator*() override;

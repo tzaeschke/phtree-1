@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include "Node.h"
 #include "LHC.h"
+#include "../util/MultiDimBitTool.h"
+#include "../iterators/RangeQueryIterator.h"
 
 using namespace std;
 
@@ -33,7 +35,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 		if (DEBUG)
 			cout << "(depth " << depth << "): ";
 		size_t currentIndex = index + getPrefixLength();
-		long hcAddress = interleaveBits(currentIndex, e);
+		long hcAddress = MultiDimBitTool::interleaveBits(currentIndex, e);
 		NodeAddressContent* content = lookup(hcAddress);
 
 		Node* adjustedNode = this;
@@ -70,15 +72,15 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 				Node* oldSubnode = content->subnode;
 				Node* newSubnode = determineNodeType(dim_, valueLength_, 2);
 
-				long newSubnodeEntryHCAddress = interleaveBits(currentIndex + 1 + differentBitAtPrefixIndex, e);
-				long newSubnodePrefixDiffHCAddress = interleaveBits(differentBitAtPrefixIndex, &(oldSubnode->prefix_));
+				long newSubnodeEntryHCAddress = MultiDimBitTool::interleaveBits(currentIndex + 1 + differentBitAtPrefixIndex, e);
+				long newSubnodePrefixDiffHCAddress = MultiDimBitTool::interleaveBits(differentBitAtPrefixIndex, &(oldSubnode->prefix_));
 
 				// move A part of old prefix to new subnode and remove [A | d] from old prefix
-				duplicateFirstBits(differentBitAtPrefixIndex, &(oldSubnode->prefix_), &(newSubnode->prefix_));
-				removeFirstBits(differentBitAtPrefixIndex + 1, &(oldSubnode->prefix_));
+				MultiDimBitTool::duplicateFirstBits(differentBitAtPrefixIndex, &(oldSubnode->prefix_), &(newSubnode->prefix_));
+				MultiDimBitTool::removeFirstBits(differentBitAtPrefixIndex + 1, &(oldSubnode->prefix_));
 
 				vector<vector<bool>>* newSubnodeEntryPrefix = new vector<vector<bool>>(dim_);
-				removeFirstBits(currentIndex + 1 + differentBitAtPrefixIndex + 1, &(e->values_), newSubnodeEntryPrefix);
+				MultiDimBitTool::removeFirstBits(currentIndex + 1 + differentBitAtPrefixIndex + 1, &(e->values_), newSubnodeEntryPrefix);
 
 				insertAtAddress(hcAddress, newSubnode);
 				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix);
@@ -94,18 +96,18 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			Node* subnode = determineNodeType(dim_, valueLength_, 2);
 
 			// set longest common prefix in subnode
-			int prefixLength = setLongestCommonPrefix(subnode, currentIndex + 1, &e->values_, content->suffix);
+			int prefixLength = MultiDimBitTool::setLongestCommonPrefix(&subnode->prefix_, currentIndex + 1, &e->values_, content->suffix);
 
 			// address in subnode starts after common prefix
-			long insertEntryHCAddress = interleaveBits(currentIndex + 1 + prefixLength, e);
-			long existingEntryHCAddress = interleaveBits(prefixLength, content->suffix);
+			long insertEntryHCAddress = MultiDimBitTool::interleaveBits(currentIndex + 1 + prefixLength, e);
+			long existingEntryHCAddress = MultiDimBitTool::interleaveBits(prefixLength, content->suffix);
 			assert (insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 			// add remaining bits after prefix and addresses as suffixes
 			vector<vector<bool>>* insertEntryPrefix = new vector<vector<bool>>(dim_);
 			vector<vector<bool>>* exisitingEntryPrefix = new vector<vector<bool>>(dim_);
-			removeFirstBits(currentIndex + 1 + prefixLength + 1, &(e->values_), insertEntryPrefix);
-			removeFirstBits(prefixLength + 1, content->suffix, exisitingEntryPrefix);
+			MultiDimBitTool::removeFirstBits(currentIndex + 1 + prefixLength + 1, &(e->values_), insertEntryPrefix);
+			MultiDimBitTool::removeFirstBits(prefixLength + 1, content->suffix, exisitingEntryPrefix);
 
 			insertAtAddress(hcAddress, subnode);
 			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix);
@@ -117,7 +119,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			// node entry does not exist:
 			// insert entry + suffix
 			vector<vector<bool>>* suffix = new vector<vector<bool>>(dim_);
-			removeFirstBits(currentIndex + 1, &(e->values_), suffix);
+			MultiDimBitTool::removeFirstBits(currentIndex + 1, &(e->values_), suffix);
 			insertAtAddress(hcAddress, suffix);
 			assert (lookup(hcAddress)->contained);
 
@@ -132,44 +134,13 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 		return adjustedNode;
 }
 
-size_t Node::setLongestCommonPrefix(Node* nodeToSetTo, size_t startIndexEntry1,
-		vector<vector<bool>>* entry1, vector<vector<bool>>* entry2) {
-	assert (entry1->size() == entry2->size()
-			&& "both entries must have the same dimensions");
-	assert (entry1->at(0).size() > startIndexEntry1
-			&& "the first entry must include the given index");
-	assert (nodeToSetTo->prefix_.size() == dim_
-			&& "the prefix must already have the same dimensions as the node");
-	assert (nodeToSetTo->getPrefixLength() == 0
-			&& "the prefix must not have been set before");
-
-	bool allDimSame = true;
-	size_t prefixLength = 0;
-	for (size_t i = startIndexEntry1; i < valueLength_ && allDimSame; i++) {
-		for (size_t val = 0; val < dim_ && allDimSame; val++)
-			allDimSame = (*entry1)[val][i] == (*entry2)[val][i - startIndexEntry1];
-
-		if (allDimSame)
-			prefixLength++;
-		for (size_t val = 0; val < dim_ && allDimSame; val++)
-			nodeToSetTo->prefix_[val].push_back((*entry1)[val][i]);
-	}
-
-	assert (nodeToSetTo->prefix_.size() == dim_
-			&& "afterwards the prefix should have the same dimensionality as the node");
-	assert (nodeToSetTo->getPrefixLength() == prefixLength
-			&& "should have set the correct prefix length");
-	return prefixLength;
-}
-
-
 Node* Node::determineNodeType(size_t dim, size_t valueLength, size_t nDirectInserts) {
 	// TODO determine node type dynamically depending on dim and #inserts
 	LHC* node = new LHC(dim, valueLength);
 	return node;
 }
 
-bool Node::lookup(Entry* e, size_t depth, size_t index) {
+bool Node::lookup(Entry* e, size_t depth, size_t index, vector<Node*>* visitedNodes) {
 	if (DEBUG)
 		cout << "depth " << depth << " -> ";
 
@@ -186,8 +157,10 @@ bool Node::lookup(Entry* e, size_t depth, size_t index) {
 
 		// validate HC address
 		int currentIndex = index + getPrefixLength();
-		long hcAddress = interleaveBits(currentIndex, e);
+		long hcAddress = MultiDimBitTool::interleaveBits(currentIndex, e);
 		NodeAddressContent* content = lookup(hcAddress);
+		if (visitedNodes != NULL)
+			visitedNodes->push_back(this);
 
 		if (!content->contained) {
 			if (DEBUG)
@@ -197,7 +170,7 @@ bool Node::lookup(Entry* e, size_t depth, size_t index) {
 
 		// validate suffix or recurse
 		if (content->hasSubnode) {
-			return content->subnode->lookup(e, depth + 1, currentIndex + 1);
+			return content->subnode->lookup(e, depth + 1, currentIndex + 1, visitedNodes);
 		} else {
 			for (size_t bit = 0; bit < getSuffixSize(content); bit++) {
 				for (size_t value = 0; value < e->values_.size(); value++) {
@@ -215,6 +188,13 @@ bool Node::lookup(Entry* e, size_t depth, size_t index) {
 		}
 }
 
+RangeQueryIterator* Node::rangeQuery(Entry* lowerLeft, Entry* upperRight, size_t depth, size_t index) {
+	vector<Node*>* visitedNodes = new vector<Node*>();
+	this->lookup(lowerLeft, depth, index, visitedNodes);
+	RangeQueryIterator* iterator = new RangeQueryIterator(visitedNodes, dim_, valueLength_, lowerLeft, upperRight);
+	return iterator;
+}
+
 size_t Node::getSuffixSize(NodeAddressContent* content) {
 	if (content->hasSubnode || content->suffix->empty()) {
 		return 0;
@@ -230,62 +210,8 @@ size_t Node::getPrefixLength() {
 		return prefix_[0].size();
 }
 
-long Node::interleaveBits(size_t index, Entry* e) {
-	return interleaveBits(index, &(e->values_));
-}
-
-long Node::interleaveBits(size_t index, vector<vector<bool>>* values) {
-	long hcAddress = 0;
-	size_t max = values->size() - 1;
-	for (size_t value = 0; value < values->size(); value++) {
-		hcAddress |= (*values)[value][index] << (max - value);
-	}
-	return hcAddress;
-}
-
-void Node::removeFirstBits(size_t nBitsToRemove, vector<vector<bool>> *valuesFrom, vector<vector<bool>>* valuesTo) {
-	assert (valuesTo->size() == dim_);
-	assert (valuesTo->at(0).empty());
-
-	for (size_t valueIndex = 0; valueIndex < valuesFrom->size(); valueIndex++) {
-		size_t newLength = (*valuesFrom)[valueIndex].size() - nBitsToRemove;
-		vector<bool>* value = new vector<bool>(newLength);
-		value->reserve(newLength);
-		valuesTo->at(valueIndex) = *value;
-		for (size_t bit = 0; bit < newLength; bit++) {
-			bool copiedBit = valuesFrom->at(valueIndex).at(nBitsToRemove + bit);
-			valuesTo->at(valueIndex).at(bit) = copiedBit;
-			//value->at(bit) = copiedBit;
-		}
-	}
-
-	assert (valuesTo->size() == dim_); // should retain the dimension
-	assert (valuesTo->at(0).size() == valuesFrom->at(0).size() - nBitsToRemove);
-}
-
-void Node::removeFirstBits(size_t nBitsToRemove, vector<vector<bool>> *values) {
-	for (size_t i = 0; i < values->size(); i++) {
-			values->at(i).erase(values->at(i).begin(),
-					values->at(i).begin() + nBitsToRemove);
-	}
-
-	assert (values->size() == dim_);
-}
-
-void Node::duplicateFirstBits(size_t nBitsToDuplicate, vector<vector<bool>>* from,
-		vector<vector<bool>>* to) {
-	for (size_t i = 0; i < from->size(); i++) {
-		for (size_t j = 0; j < nBitsToDuplicate; j++) {
-			to->at(i).push_back(from->at(i).at(j));
-		}
-	}
-
-	assert (to->size() == dim_);
-	assert (to->at(0).size() == nBitsToDuplicate);
-}
-
 void Node::accept(Visitor* visitor, size_t depth) {
-	for (NodeIterator* it = this->begin(); (*it) <= *(this->end()); ++(*it)) {
+	for (NodeIterator* it = this->begin(); (*it) != *(this->end()); ++(*it)) {
 		NodeAddressContent content = *(*it);
 		if (content.hasSubnode) {
 			content.subnode->accept(visitor, depth + 1);

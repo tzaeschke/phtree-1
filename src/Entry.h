@@ -18,7 +18,7 @@ class Entry {
 
 public:
 
-	Entry(std::vector<int> values, int bitLength);
+	Entry(std::vector<long> values, int bitLength);
 	Entry(std::vector<std::vector<bool>> values);
 	~Entry();
 

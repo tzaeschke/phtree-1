@@ -7,9 +7,9 @@
 
 #include <assert.h>
 #include "AssertionVisitor.h"
-#include "../NodeIterator.h"
-#include "../LHC.h"
-#include "../AHC.h"
+#include "../iterators/NodeIterator.h"
+#include "../nodes/LHC.h"
+#include "../nodes/AHC.h"
 
 AssertionVisitor::AssertionVisitor() {
 }
@@ -19,7 +19,7 @@ AssertionVisitor::~AssertionVisitor() {
 
 void AssertionVisitor::visit(LHC* node, unsigned int depth) {
 	long suffixLength = -1;
-	for (NodeIterator* it = node->begin(); (*it) <= *(node->end()); ++(*it)) {
+	for (NodeIterator* it = node->begin(); (*it) != *(node->end()); ++(*it)) {
 		assert(node->prefix_.size() == node->dim_);
 		NodeAddressContent content = *(*it);
 		if (suffixLength < 0 && content.contained && !content.hasSubnode) {
@@ -36,7 +36,7 @@ void AssertionVisitor::visit(LHC* node, unsigned int depth) {
 
 void AssertionVisitor::visit(AHC* node, unsigned int depth) {
 	long suffixLength = -1;
-	for (NodeIterator* it = node->begin(); (*it) <= *(node->end()); ++(*it)) {
+	for (NodeIterator* it = node->begin(); (*it) != *(node->end()); ++(*it)) {
 		assert(node->prefix_.size() == node->dim_);
 		NodeAddressContent content = *(*it);
 		if (suffixLength < 0 && content.contained && !content.hasSubnode) {

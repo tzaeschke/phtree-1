@@ -9,8 +9,8 @@
 #include <utility>
 #include "AHC.h"
 #include "LHC.h"
-#include "LHCIterator.h"
-#include "visitors/Visitor.h"
+#include "../iterators/LHCIterator.h"
+#include "../visitors/Visitor.h"
 
 using namespace std;
 
@@ -130,7 +130,7 @@ NodeIterator* LHC::begin() {
 }
 
 NodeIterator* LHC::end() {
-	return new LHCIterator(highestAddress, *this);
+	return new LHCIterator(1<<dim_, *this);
 }
 
 void LHC::accept(Visitor* visitor, size_t depth) {
