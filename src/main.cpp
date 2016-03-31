@@ -6,6 +6,7 @@
 #include "Entry.h"
 #include "PHTree.h"
 #include "util/PlotUtil.h"
+#include "util/rdtsc.h"
 #include "visitors/CountNodeTypesVisitor.h"
 #include "iterators/RangeQueryIterator.h"
 
@@ -28,12 +29,16 @@ int mainSimpleExample() {
 
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	PHTree* phtree = new PHTree(ENTRY_DIM, BIT_LENGTH);
+	uint64_t sta = RDTSC();
 	phtree->insert(e1);
+	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	cout << *phtree;
 	phtree->accept(visitor);
 	cout << *visitor << endl;
 
+	sta = RDTSC();
 	phtree->insert(e2);
+	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	assert (phtree->lookup(e1));
 	assert (!phtree->lookup(e3));
 	cout << *phtree;
@@ -41,14 +46,18 @@ int mainSimpleExample() {
 	phtree->accept(visitor);
 	cout << *visitor << endl;
 
+	sta = RDTSC();
 	phtree->insert(e3);
+	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	assert (phtree->lookup(e3));
 	cout << *phtree;
 	visitor->reset();
 	phtree->accept(visitor);
 	cout << *visitor << endl;
 
+	sta = RDTSC();
 	phtree->insert(e4);
+	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	assert (phtree->lookup(e4));
 	cout << *phtree;
 	visitor->reset();
