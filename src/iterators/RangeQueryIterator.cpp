@@ -72,7 +72,6 @@ Entry RangeQueryIterator::next() {
 	}
 
 	// found a valid suffix in the range
-	// TODO copy and combine current suffix + current address (+ suffix)
 	Entry entry = MultiDimBitTool::createEntryFrom(currentPrefix_, currentHCAddress_, content.suffix);
 	assert (entry.getDimensions() == dim_);
 	assert (entry.getBitLength() == bitLength_);

@@ -71,7 +71,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 			unsigned int startLookupTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
 				Entry* entry = entries[test][iEntry];
-				phtrees[test]->lookup(entry);
+				assert (phtrees[test]->lookup(entry));
 			}
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			phtrees[test]->accept(visitor);
@@ -88,13 +88,17 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME);
+		cout << "\tdim\tinsert [ms]\t\tlookup [ms]" << endl;
 		for (size_t test = 0; test < dimensions.size(); test++) {
+			float insertMs = (float (insertTicks[test]) / entries[test].size() / (CLOCKS_PER_SEC / 1000));
+			float lookupMs = (float (lookupTicks[test]) / entries[test].size() / (CLOCKS_PER_SEC / 1000));
 			(*plotFile) << test
 				<< "\t" << dimensions[test]
-				<< "\t"	<< (float (insertTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000)
-				<< "\t" << (float (lookupTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000)
+				<< "\t"	<< insertMs
+				<< "\t" << lookupMs
 				<< "\t"	<< nAHCNodes.at(test)
 				<< "\t" << nLHCNodes.at(test) << "\n";
+			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs << endl;
 		}
 		plotFile->close();
 

@@ -13,6 +13,7 @@
 #include "FileInputUtil.h"
 #include "../Entry.h"
 #include <assert.h>
+#include <stdexcept>
 
 using namespace std;
 
@@ -45,6 +46,8 @@ vector<Entry*> FileInputUtil::readEntries(string fileLocation, size_t bitLength)
 				result.push_back(entry);
 			}
 		}
+	} else {
+		throw runtime_error("cannot open the file " + fileLocation);
 	}
 
 	return result;

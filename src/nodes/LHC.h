@@ -26,7 +26,6 @@ public:
 protected:
 	std::map<long, NodeAddressContent*>* sortedContents_;
 	size_t longestSuffix_;
-	long highestAddress;
 
 	NodeAddressContent* lookup(long address) override;
 	void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;

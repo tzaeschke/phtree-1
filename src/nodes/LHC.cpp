@@ -19,7 +19,6 @@ LHC::LHC(size_t dim, size_t valueLength) :
 	sortedContents_ = new map<long, NodeAddressContent*>();
 	prefix_ = vector<vector<bool>>(dim_);
 	longestSuffix_ = 0;
-	highestAddress = -1;
 }
 
 LHC::~LHC() {
@@ -69,9 +68,6 @@ void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 	if (suffix->at(0).size() > longestSuffix_) {
 		longestSuffix_ = suffix->at(0).size();
 	}
-	if (hcAddress > highestAddress) {
-		highestAddress = hcAddress;
-	}
 
 	assert (lookup(hcAddress)->suffix->size() == dim_);
 }
@@ -102,12 +98,9 @@ void LHC::insertAtAddress(long hcAddress, Node* subnode) {
 
 			content->hasSubnode = true;
 			content->subnode = subnode;
-// remove previous suffix memory			content->suffix->clear();
+//TODO remove previous suffix memory			content->suffix->clear();
 		}
 
-		if (hcAddress > highestAddress) {
-			highestAddress = hcAddress;
-		}
 }
 
 Node* LHC::adjustSize() {
