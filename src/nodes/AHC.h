@@ -25,6 +25,7 @@ public:
 	NodeIterator* end() override;
 	std::ostream& output(std::ostream& os, size_t depth) override;
 	virtual void accept(Visitor* visitor, size_t depth) override;
+	virtual void recursiveDelete() override;
 
 protected:
 	std::vector<bool> filled_;
@@ -33,7 +34,7 @@ protected:
 	// entry -> value -> bit
 	std::vector<std::vector<std::vector<bool>>> suffixes_;
 
-	virtual NodeAddressContent* lookup(long address) override;
+	virtual NodeAddressContent lookup(long address) override;
 	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;
 	virtual void insertAtAddress(long hcAddress, Node* subnode) override;
 	virtual Node* adjustSize() override;

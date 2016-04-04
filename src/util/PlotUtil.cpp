@@ -32,6 +32,8 @@ set<Entry*> PlotUtil::generateUniqueRandomEntries(size_t dim, size_t bitLength, 
 		}
 		Entry* entry = new Entry(*entryValues, bitLength);
 		bool inserted = randomDimEntries.insert(entry).second;
+		delete entryValues;
+		delete entry;
 		if (!inserted) {
 			nEntry--;
 		}
@@ -162,9 +164,15 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 			lookupTicks.at(test) = totalLookupTicks;
 			nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
+
 			visitor->reset();
 			delete tree;
+			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
+				Entry* entry = entries[test][iEntry];
+				delete entry;
+			}
 		}
+		delete visitor;
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_ENTRIES_PLOT_NAME);

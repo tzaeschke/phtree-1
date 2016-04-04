@@ -23,7 +23,7 @@ public:
 	void setAddress(size_t address) override;
 	NodeIterator& operator++() override;
 	NodeIterator operator++(int) override;
-	NodeAddressContent& operator*() override;
+	NodeAddressContent operator*() override;
 
 private:
 	LHC* node_;

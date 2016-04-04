@@ -30,7 +30,11 @@ Entry::~Entry() {
 }
 
 size_t Entry::getBitLength() {
-	return values_.at(0).size();
+	if (values_.empty()) {
+		return 0;
+	} else {
+		return values_[0].size();
+	}
 }
 
 size_t Entry::getDimensions() {

@@ -22,7 +22,7 @@ public:
 	virtual void setAddress(size_t address);
 	virtual NodeIterator& operator++();
 	virtual NodeIterator operator++(int);
-	virtual NodeAddressContent& operator*();
+	virtual NodeAddressContent operator*();
 
 protected:
 	long address_;

@@ -49,7 +49,7 @@ NodeIterator LHCIterator::operator++(int i) {
 	throw "++ i not implemented";
 }
 
-NodeAddressContent& LHCIterator::operator*() {
+NodeAddressContent LHCIterator::operator*() {
 	assert (contentMapIt_->second->address == address_);
 	return *(contentMapIt_->second);
 }

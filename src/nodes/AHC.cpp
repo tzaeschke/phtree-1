@@ -30,8 +30,12 @@ AHC::AHC(Node& other) : Node(other) {
 	hasSubnode_ = vector<bool>(maxElements, false);
 	subnodes_ = vector<Node*>(maxElements);
 	suffixes_ = vector<vector<vector<bool>>>(maxElements);
-	for (NodeIterator* it = other.begin(); (*it) != *(other.end()); ++(*it)) {
+
+	NodeIterator* it;
+	NodeIterator* endIt = other.end();
+	for (it = other.begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent content = *(*it);
+		assert (content.exists);
 		filled_[content.address] = true;
 		if (content.hasSubnode) {
 			hasSubnode_[content.address] = true;
@@ -41,6 +45,9 @@ AHC::AHC(Node& other) : Node(other) {
 			suffixes_[content.address] = *content.suffix;
 		}
 	}
+
+	delete it;
+	delete endIt;
 }
 
 AHC::~AHC() {
@@ -53,18 +60,30 @@ AHC::~AHC() {
 	suffixes_.clear();
 }
 
-NodeAddressContent* AHC::lookup(long address) {
-	NodeAddressContent* content = new NodeAddressContent();
-	content->address = address;
-	content->contained = filled_[address];
-	content->hasSubnode = hasSubnode_[address];
-	if (content->hasSubnode) {
-		content->subnode = subnodes_[address];
-	} else {
-		content->suffix = &suffixes_[address];
+void AHC::recursiveDelete() {
+	for (size_t i = 0; i < subnodes_.size(); i++) {
+			subnodes_.at(i)->recursiveDelete();
 	}
 
-	assert ((!content->contained || (content->hasSubnode || content->suffix->size() == dim_))
+	delete this;
+}
+
+NodeAddressContent AHC::lookup(long address) {
+
+	NodeAddressContent content;
+	content.exists = filled_[address];
+	content.address = address;
+
+	if (content.exists) {
+		content.hasSubnode = hasSubnode_[address];
+		if (content.hasSubnode) {
+			content.subnode = subnodes_[address];
+		} else {
+			content.suffix = &suffixes_[address];
+		}
+	}
+
+	assert ((!content.exists || (content.hasSubnode || content.suffix->size() == dim_))
 					&& "the suffix dimensionality should always be the same as the node's");
 	return content;
 }
@@ -74,7 +93,7 @@ void AHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 	hasSubnode_[hcAddress] = false;
 	suffixes_[hcAddress] = *suffix;
 
-	assert(lookup(hcAddress)->suffix->size() == dim_);
+	assert(lookup(hcAddress).suffix->size() == dim_);
 }
 
 void AHC::insertAtAddress(long hcAddress, Node* subnode) {

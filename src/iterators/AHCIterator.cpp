@@ -44,18 +44,21 @@ NodeIterator AHCIterator::operator++(int) {
 	 throw std::runtime_error("not implemented");
 }
 
-NodeAddressContent& AHCIterator::operator*() {
+NodeAddressContent AHCIterator::operator*() {
 
-	NodeAddressContent* content = new NodeAddressContent;
-	content->address = address_;
-	content->contained = node_->filled_[address_];
-	assert (content->contained);
-	content->hasSubnode = node_->hasSubnode_[address_];
-	if (content->hasSubnode) {
-		content->subnode = node_->subnodes_[address_];
+	NodeAddressContent content;
+	if (!node_->filled_[address_]) {
+		content.exists = false;
 	} else {
-		content->suffix = &(node_->suffixes_[address_]);
+		content.exists = true;
+		content.address = address_;
+		content.hasSubnode = node_->hasSubnode_[address_];
+		if (content.hasSubnode) {
+			content.subnode = node_->subnodes_[address_];
+		} else {
+			content.suffix = &(node_->suffixes_[address_]);
+		}
 	}
 
-	return *content;
+	return content;
 }
