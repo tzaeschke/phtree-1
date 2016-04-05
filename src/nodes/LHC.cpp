@@ -23,7 +23,8 @@ LHC::LHC(size_t dim, size_t valueLength) :
 
 LHC::~LHC() {
 	for (auto const &entry : (*sortedContents_)) {
-		delete entry.second;
+		if (entry.second)
+			delete entry.second;
 	}
 	sortedContents_->clear();
 	delete sortedContents_;
@@ -38,8 +39,6 @@ void LHC::recursiveDelete() {
 			entry.second->suffix->clear();
 			delete entry.second->suffix;
 		}
-
-		delete entry.second;
 	}
 	delete this;
 }
@@ -51,6 +50,7 @@ NodeAddressContent LHC::lookup(long address) {
 		content = *contentRef;
 	} else {
 		content.exists = false;
+		content.hasSubnode = false;
 	}
 
 	assert ((!content.exists || (content.hasSubnode || content.suffix->size() == dim_))
@@ -137,11 +137,9 @@ void LHC::insertAtAddress(long hcAddress, Node* subnode) {
 				}
 			}
 
-			// clear previously stored data if present
-			clearPresentContentData(content);
-
 			content->hasSubnode = true;
 			content->subnode = subnode;
+			content->suffix = NULL;
 		}
 
 }
@@ -156,7 +154,6 @@ Node* LHC::adjustSize() {
 		return this;
 	} else {
 		AHC* convertedNode = new AHC(*this);
-		delete this;
 		return convertedNode;
 	}
 }

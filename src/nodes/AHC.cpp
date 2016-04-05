@@ -54,7 +54,8 @@ AHC::~AHC() {
 	hasSubnode_.clear();
 	filled_.clear();
 	for (size_t i = 0; i < subnodes_.size(); i++) {
-		delete subnodes_.at(i);
+		if (subnodes_.at(i))
+			delete subnodes_.at(i);
 	}
 	subnodes_.clear();
 	suffixes_.clear();
@@ -62,6 +63,7 @@ AHC::~AHC() {
 
 void AHC::recursiveDelete() {
 	for (size_t i = 0; i < subnodes_.size(); i++) {
+		if (subnodes_.at(i))
 			subnodes_.at(i)->recursiveDelete();
 	}
 
@@ -73,6 +75,7 @@ NodeAddressContent AHC::lookup(long address) {
 	NodeAddressContent content;
 	content.exists = filled_[address];
 	content.address = address;
+	content.hasSubnode = false;
 
 	if (content.exists) {
 		content.hasSubnode = hasSubnode_[address];

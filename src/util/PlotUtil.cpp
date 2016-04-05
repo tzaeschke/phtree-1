@@ -103,6 +103,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs << endl;
 		}
 		plotFile->close();
+		delete plotFile;
 
 		// step 2: call Gnuplot
 		cout << "calling gnuplot..." << endl;
@@ -185,6 +186,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 					<< nLHCNodes.at(test) << "\n";
 		}
 		plotFile->close();
+		delete plotFile;
 
 		// step 2: call Gnuplot
 		cout << "calling gnuplot..." << endl;
@@ -261,6 +263,8 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 	}
 
 	plotFile->close();
+	delete plotFile;
 	delete visitor;
+
 	plot(INSERT_SERIES_PLOT_NAME);
 }

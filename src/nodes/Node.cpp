@@ -49,7 +49,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			size_t subnodePrefixLength = content.subnode->getPrefixLength();
 			bool prefixIncluded = true;
 			long differentBitAtPrefixIndex = -1;
-			for (int i = 0; i < subnodePrefixLength && prefixIncluded; i++) {
+			for (size_t i = 0; i < subnodePrefixLength && prefixIncluded; i++) {
 				for (size_t value = 0; value < dim_ && prefixIncluded; value++) {
 					prefixIncluded = e->values_[value][currentIndex + 1 + i]
 							== content.subnode->prefix_[value][i];
@@ -63,8 +63,11 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 				if (DEBUG)
 					cout << "recurse -> ";
 				Node* adjustedSubnode = content.subnode->insert(e, depth + 1, currentIndex + 1);
-				// TODO more efficient if index is passed for LHC!
-				insertAtAddress(hcAddress, adjustedSubnode);
+				if (adjustedSubnode != content.subnode) {
+					// the subnode changed: store the new one and delete the old
+					insertAtAddress(hcAddress, adjustedSubnode);
+					delete content.subnode;
+				}
 			} else {
 				if (DEBUG)
 					cout << "split subnode prefix" << endl;
@@ -126,13 +129,17 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			assert (lookup(hcAddress).exists);
 
 			adjustedNode = adjustSize();
+			assert (adjustedNode);
 		}
 
-		// after insertion the entry is always contained
-		assert (this->lookup(hcAddress).exists);
-		// if there is a suffix for the entry the index + the current bit + suffix + prefix equals total bit width
-		assert (this->lookup(hcAddress).hasSubnode
-				|| (index + this->getPrefixLength() + 1 + this->getSuffixSize(this->lookup(hcAddress)) == this->valueLength_));
+		// lookup again for validation
+		content = this->lookup(hcAddress);
+		assert (content.exists && "after insertion the entry is always contained");
+		assert (((content.subnode && !content.suffix) || (!content.subnode && content.suffix))
+				&& "after insertion there is either a subnode XOR a suffix at the address");
+		assert ((content.hasSubnode
+				|| (index + this->getPrefixLength() + 1 + this->getSuffixSize(this->lookup(hcAddress)) == this->valueLength_))
+				&& "if there is a suffix for the entry the index + the current bit + suffix + prefix equals total bit width");
 		return adjustedNode;
 }
 
