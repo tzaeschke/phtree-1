@@ -81,6 +81,7 @@ int main(int argc, char* argv[]) {
 	string debug = "debug";
 	string plot = "plot";
 	string rand = "rand";
+	string benchmark = "benchmark";
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
@@ -92,8 +93,11 @@ int main(int argc, char* argv[]) {
 		return 0;
 	} else if (rand.compare(argv[1]) == 0) {
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+	} else if (benchmark.compare(argv[1]) == 0) {
+		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
+		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_3D_32bit.dat", 32);
 	} else {
-		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand'";
+		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand', 'benchmark'";
 		return 1;
 	}
 };

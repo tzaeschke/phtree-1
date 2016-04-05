@@ -110,6 +110,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 }
 
 void PlotUtil::plotAverageInsertTimePerDimension(std::string file, size_t bitLength) {
+	cout << "loading entries from file...";
 	vector<Entry*> entries = FileInputUtil::readEntries(file, bitLength);
 	vector<vector<Entry*>> singleColumnEntries(1);
 	singleColumnEntries.at(0) = entries;
@@ -117,6 +118,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(std::string file, size_t bitLen
 	dimensions.at(0) = entries.at(0)->values_.size();
 	vector<size_t> bitLengths(1);
 	bitLengths.at(0) = bitLength;
+	cout << " ok" << endl;
 
 	plotAverageInsertTimePerDimension(singleColumnEntries, dimensions, bitLengths);
 }
@@ -144,6 +146,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		vector<unsigned int> nAHCNodes(entries.size());
 		vector<unsigned int> nLHCNodes(entries.size());
 
+		cout << "start insertions...";
 		CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 		for (size_t test = 0; test < entries.size(); test++) {
 			PHTree* tree = new PHTree(ENTRY_DIM_INSERT_SERIES, bitLengths[test]);
@@ -174,6 +177,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		}
 		delete visitor;
 
+		cout << " ok" << endl;
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_ENTRIES_PLOT_NAME);
 		for (size_t test = 0; test < entries.size(); test++) {
@@ -188,8 +192,9 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		delete plotFile;
 
 		// step 2: call Gnuplot
-		cout << "calling gnuplot..." << endl;
+		cout << "calling gnuplot...";
 		plot(AVERAGE_INSERT_ENTRIES_PLOT_NAME);
+		cout << " ok" << endl;
 }
 
 void PlotUtil::plotAverageInsertTimePerNumberOfEntries(std::string file, size_t bitLength) {
