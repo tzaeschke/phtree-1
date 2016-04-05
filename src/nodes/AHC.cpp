@@ -53,10 +53,6 @@ AHC::AHC(Node& other) : Node(other) {
 AHC::~AHC() {
 	hasSubnode_.clear();
 	filled_.clear();
-	for (size_t i = 0; i < subnodes_.size(); i++) {
-		if (subnodes_.at(i))
-			delete subnodes_.at(i);
-	}
 	subnodes_.clear();
 	suffixes_.clear();
 }
@@ -81,7 +77,12 @@ NodeAddressContent AHC::lookup(long address) {
 		content.hasSubnode = hasSubnode_[address];
 		if (content.hasSubnode) {
 			content.subnode = subnodes_[address];
+			content.suffix = NULL;
+		} else if (suffixes_[address].empty()) {
+			content.subnode = NULL;
+			content.suffix = NULL;
 		} else {
+			content.subnode = NULL;
 			content.suffix = &suffixes_[address];
 		}
 	}
@@ -94,6 +95,7 @@ NodeAddressContent AHC::lookup(long address) {
 void AHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = false;
+	subnodes_[hcAddress] = NULL;
 	suffixes_[hcAddress] = *suffix;
 
 	assert(lookup(hcAddress).suffix->size() == dim_);
@@ -103,6 +105,7 @@ void AHC::insertAtAddress(long hcAddress, Node* subnode) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = true;
 	subnodes_[hcAddress] = subnode;
+	suffixes_[hcAddress].clear();
 }
 
 Node* AHC::adjustSize() {
