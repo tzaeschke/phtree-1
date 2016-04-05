@@ -35,7 +35,7 @@ void AHCIterator::setAddress(size_t address) {
 
 NodeIterator& AHCIterator::operator++() {
 	// skip all unfilled fields until the highest address is reached
-	for (address_++; !node_->filled_[address_] && address_ < (1 << node_->dim_); address_++) {}
+	for (address_++; address_ < (1 << node_->dim_) && !node_->filled_[address_]; address_++) {}
 	if ((address_ == (1<< node_->dim_) - 1) && !node_->filled_[address_]) address_++;
 	return *this;
 }

@@ -20,8 +20,7 @@ Entry::Entry(vector<long> values, int bitLength) {
 	MultiDimBitTool::longsToBitsets(values_, values, bitLength);
 }
 
-Entry::Entry(vector<vector<bool>> values) {
-	values_ = values;
+Entry::Entry(vector<vector<bool>> values) : values_(values) {
 }
 
 Entry::~Entry() {

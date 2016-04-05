@@ -15,21 +15,13 @@
 using namespace std;
 
 AHC::AHC(size_t dim, size_t valueLength) :
-		Node(dim, valueLength) {
-	long maxElements = 1 << dim;
-	filled_ = vector<bool>(maxElements, false);
-	hasSubnode_ = vector<bool>(maxElements, false);
-	subnodes_ = vector<Node*>(maxElements);
-	suffixes_ = vector<vector<vector<bool>>>(maxElements);
+		Node(dim, valueLength),
+		filled_(1<<dim, false), hasSubnode_(1<<dim, false), subnodes_(1<<dim), suffixes_(1<<dim) {
 	prefix_ = vector<vector<bool>>(dim_);
 }
 
-AHC::AHC(Node& other) : Node(other) {
-	long maxElements = 1 << dim_;
-	filled_ = vector<bool>(maxElements, false);
-	hasSubnode_ = vector<bool>(maxElements, false);
-	subnodes_ = vector<Node*>(maxElements);
-	suffixes_ = vector<vector<vector<bool>>>(maxElements);
+AHC::AHC(Node& other) : Node(other),
+		filled_(1<<dim_, false), hasSubnode_(1<<dim_, false), subnodes_(1<<dim_), suffixes_(1<<dim_){
 
 	NodeIterator* it;
 	NodeIterator* endIt = other.end();

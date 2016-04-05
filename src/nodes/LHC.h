@@ -11,6 +11,7 @@
 #include <map>
 #include <vector>
 #include "Node.h"
+#include "LHCAddressContent.h"
 
 class LHC: public Node {
 	friend class LHCIterator;
@@ -25,8 +26,7 @@ public:
 	virtual void recursiveDelete() override;
 
 protected:
-	// TODO no need to actually store the address and the exists field per entry as both are implicit by the map
-	std::map<long, NodeAddressContent*>* sortedContents_;
+	std::map<long, LHCAddressContent> sortedContents_;
 	size_t longestSuffix_;
 
 	NodeAddressContent lookup(long address) override;
@@ -35,7 +35,7 @@ protected:
 	Node* adjustSize() override;
 
 private:
-	NodeAddressContent* lookupReference(long hcAddress);
+	LHCAddressContent* lookupReference(long hcAddress);
 };
 
 #endif /* LHC_H_ */

@@ -16,38 +16,39 @@ using namespace std;
 
 LHC::LHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
-	sortedContents_ = new map<long, NodeAddressContent*>();
 	prefix_ = vector<vector<bool>>(dim_);
 	longestSuffix_ = 0;
 }
 
 LHC::~LHC() {
-	for (auto const &entry : (*sortedContents_)) {
-		if (entry.second)
-			delete entry.second;
+	for (auto entry : sortedContents_) {
+		entry.second.suffix.clear();
 	}
-	sortedContents_->clear();
-	delete sortedContents_;
+
+	sortedContents_.clear();
 }
 
 void LHC::recursiveDelete() {
-	for (auto const &entry : (*sortedContents_)) {
-		if (entry.second->subnode) {
-			entry.second->subnode->recursiveDelete();
-		}
-		if (entry.second->suffix) {
-			entry.second->suffix->clear();
-			delete entry.second->suffix;
+	for (auto entry : sortedContents_) {
+		if (entry.second.subnode) {
+			entry.second.subnode->recursiveDelete();
 		}
 	}
+
 	delete this;
 }
 
 NodeAddressContent LHC::lookup(long address) {
-	NodeAddressContent* contentRef = lookupReference(address);
+	LHCAddressContent* contentRef = lookupReference(address);
 	NodeAddressContent content;
 	if (contentRef) {
-		content = *contentRef;
+		content.exists = true;
+		content.address = address;
+		content.hasSubnode = contentRef->hasSubnode;
+		content.subnode = contentRef->subnode;
+		content.suffix = NULL;
+		if (!contentRef->suffix.empty())
+			content.suffix = &(contentRef->suffix);
 	} else {
 		content.exists = false;
 		content.hasSubnode = false;
@@ -58,95 +59,73 @@ NodeAddressContent LHC::lookup(long address) {
 	return content;
 }
 
-NodeAddressContent* LHC::lookupReference(long hcAddress) {
-	map<long, NodeAddressContent*>::iterator it = sortedContents_->find(
+LHCAddressContent* LHC::lookupReference(long hcAddress) {
+	map<long, LHCAddressContent>::iterator it = sortedContents_.find(
 			hcAddress);
-	bool contained = it != sortedContents_->end();
+	bool contained = it != sortedContents_.end();
 	if (contained) {
-		return it->second;
+		return &((*it).second);
 	} else {
 		return NULL;
 	}
 }
 
-inline void clearPresentContentData(NodeAddressContent* content) {
-	assert ((content->subnode && !content->suffix) || (!content->subnode && content->suffix));
-
-	if (content->hasSubnode && content->subnode) {
-		delete content->subnode;
-		content->subnode = NULL;
-	} else if (!content->hasSubnode && content->suffix) {
-		content->suffix->clear();
-		delete content->suffix;
-		content->suffix = NULL;
-	}
-	assert (!content->subnode && !content->suffix);
-}
-
 void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
-	NodeAddressContent* content = lookupReference(hcAddress);
+	LHCAddressContent* content = lookupReference(hcAddress);
 	if (!content) {
-		NodeAddressContent* newContent = new NodeAddressContent();
-		newContent->exists = true;
-		newContent->address = hcAddress;
+		LHCAddressContent* newContent = new LHCAddressContent();
 		newContent->hasSubnode = false;
-		newContent->suffix = suffix;
-		sortedContents_->insert(
-				pair<long, NodeAddressContent*>(hcAddress, newContent));
+		newContent->suffix = *suffix;
+		sortedContents_.insert(
+				pair<long, LHCAddressContent>(hcAddress, *newContent));
 	} else {
-		assert (content->exists);
 		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
 
-		// clear previously stored data if present
-		clearPresentContentData(content);
-
 		content->hasSubnode = false;
-		content->suffix = suffix;
+		content->suffix = *suffix;
+		content->subnode = NULL;
 	}
 
 	if (suffix->at(0).size() > longestSuffix_) {
 		longestSuffix_ = suffix->at(0).size();
 	}
 
+	assert (lookup(hcAddress).address == hcAddress);
 	assert (lookup(hcAddress).suffix->size() == dim_);
 }
 
 void LHC::insertAtAddress(long hcAddress, Node* subnode) {
-	NodeAddressContent* content = lookupReference(hcAddress);
+	LHCAddressContent* content = lookupReference(hcAddress);
 		if (!content) {
-			NodeAddressContent* newContent = new NodeAddressContent();
-			newContent->exists = true;
-			newContent->address = hcAddress;
+			LHCAddressContent* newContent = new LHCAddressContent();
 			newContent->hasSubnode = true;
 			newContent->subnode = subnode;
-			sortedContents_->insert(
-					pair<long, NodeAddressContent*>(hcAddress, newContent));
+			sortedContents_.insert(
+					pair<long, LHCAddressContent>(hcAddress, *newContent));
 		} else {
-			assert (content->exists);
-
-			if (!content->hasSubnode && content->suffix->size() == longestSuffix_) {
+			if (!content->hasSubnode && content->suffix.size() == longestSuffix_) {
 				// before insertion this was the longest suffix
 				// TODO efficiently find longest remaining suffix
 				longestSuffix_ = 0;
-				for (auto const &content : (*sortedContents_)) {
-					if (content.second
-							&& !content.second->hasSubnode
-							&& content.second->suffix->at(0).size() > longestSuffix_) {
-						longestSuffix_ = content.second->suffix->at(0).size();
+				for (auto const content : sortedContents_) {
+					if (!content.second.hasSubnode
+							&& content.second.suffix.at(0).size() > longestSuffix_) {
+						longestSuffix_ = content.second.suffix.at(0).size();
 					}
 				}
 			}
 
 			content->hasSubnode = true;
 			content->subnode = subnode;
-			content->suffix = NULL;
+			content->suffix.clear();
 		}
 
+		assert (lookup(hcAddress).address == hcAddress);
 }
 
 Node* LHC::adjustSize() {
 	// TODO find more precise threshold depending on AHC and LHC representation!
-	size_t n = sortedContents_->size();
+	size_t n = sortedContents_.size();
 	size_t k = dim_;
 	size_t ls = longestSuffix_;
 	double conversionThreshold = (1<<k) * ls / (k + ls);
@@ -176,16 +155,16 @@ ostream& LHC::output(ostream& os, size_t depth) {
 	Entry prefix(prefix_);
 	os << " | prefix: " << prefix << endl;
 
-	for (auto const &content : (*sortedContents_)) {
+	for (auto const content : sortedContents_) {
 		for (size_t i = 0; i < depth; i++) {os << "-";}
 		os << " " << content.first << ": ";
 
-		if (content.second->hasSubnode) {
+		if (content.second.hasSubnode) {
 			// print subnode
-			content.second->subnode->output(os, depth + 1);
+			content.second.subnode->output(os, depth + 1);
 		} else {
 			// print suffix
-			Entry suffix(*(content.second->suffix));
+			Entry suffix(content.second.suffix);
 			os << " suffix: " << suffix << endl;
 		}
 	}

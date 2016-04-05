@@ -21,10 +21,9 @@ Node::Node(size_t dim, size_t valueLength) {
 	valueLength_ = valueLength;
 }
 
-Node::Node(Node* other) {
+Node::Node(Node* other) : prefix_(other->prefix_) {
 	dim_ = other->dim_;
 	valueLength_ = other->valueLength_;
-	prefix_ = other->prefix_;
 }
 
 Node::~Node() {
@@ -37,6 +36,8 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 		size_t currentIndex = index + getPrefixLength();
 		long hcAddress = MultiDimBitTool::interleaveBits(currentIndex, e);
 		NodeAddressContent content = lookup(hcAddress);
+		assert ((!content.exists || (content.subnode && !content.suffix) || (!content.subnode && content.suffix))
+				&& "before insertion there is either a subnode XOR a suffix at the address or the content does not exist");
 
 		Node* adjustedNode = this;
 
@@ -117,6 +118,12 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			insertAtAddress(hcAddress, subnode);
 			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix);
 			subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix);
+
+			// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
+			insertEntryPrefix->clear();
+			delete insertEntryPrefix;
+			exisitingEntryPrefix->clear();
+			delete exisitingEntryPrefix;
 			// no need to adjust size because the correct node type was already provided
 		} else {
 			if (DEBUG)
@@ -128,13 +135,17 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			insertAtAddress(hcAddress, suffix);
 			assert (lookup(hcAddress).exists);
 
+			// TODO the suffix is stored locally so it was copied: better use a pointer to the correct memory location in the node
+			suffix->clear();
+			delete suffix;
+
 			adjustedNode = adjustSize();
 			assert (adjustedNode);
 		}
 
 		// lookup again for validation
 		content = this->lookup(hcAddress);
-		assert (content.exists && "after insertion the entry is always contained");
+		assert (content.exists && content.address == hcAddress && "after insertion the entry is always contained at the address");
 		assert (((content.subnode && !content.suffix) || (!content.subnode && content.suffix))
 				&& "after insertion there is either a subnode XOR a suffix at the address");
 		assert ((content.hasSubnode
