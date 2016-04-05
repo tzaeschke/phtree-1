@@ -145,9 +145,7 @@ void MultiDimBitTool::removeFirstBits(unsigned int nBitsToRemove,
 
 	for (size_t valueIndex = 0; valueIndex < valuesFrom->size(); valueIndex++) {
 		size_t newLength = (*valuesFrom)[valueIndex].size() - nBitsToRemove;
-		vector<bool>* value = new vector<bool>(newLength);
-		value->reserve(newLength);
-		valuesTo->at(valueIndex) = *value;
+		valuesTo->at(valueIndex) = vector<bool>(newLength);
 		for (size_t bit = 0; bit < newLength; bit++) {
 			bool copiedBit = valuesFrom->at(valueIndex).at(nBitsToRemove + bit);
 			valuesTo->at(valueIndex).at(bit) = copiedBit;

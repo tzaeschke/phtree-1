@@ -11,6 +11,7 @@
 #include <map>
 #include <vector>
 #include "Node.h"
+#include "LHCAddressContent.h"
 
 class LHC: public Node {
 	friend class LHCIterator;
@@ -22,15 +23,19 @@ public:
 	NodeIterator* end() override;
 	std::ostream& output(std::ostream& os, size_t depth) override;
 	virtual void accept(Visitor* visitor, size_t depth) override;
+	virtual void recursiveDelete() override;
 
 protected:
-	std::map<long, NodeAddressContent*>* sortedContents_;
+	std::map<long, LHCAddressContent> sortedContents_;
 	size_t longestSuffix_;
 
-	NodeAddressContent* lookup(long address) override;
-	void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;
-	void insertAtAddress(long hcAddress, Node* subnode) override;
+	NodeAddressContent lookup(unsigned long address) override;
+	void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) override;
+	void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	Node* adjustSize() override;
+
+private:
+	LHCAddressContent* lookupReference(unsigned long hcAddress);
 };
 
 #endif /* LHC_H_ */

@@ -14,8 +14,8 @@ class Node;
 
 // TODO use union to differentiate between subnode and suffix contents
 struct NodeAddressContent {
-	long address;
-	bool contained;
+	unsigned long address;
+	bool exists;
 	bool hasSubnode;
 	Node* subnode;
 	std::vector<std::vector<bool>>* suffix;

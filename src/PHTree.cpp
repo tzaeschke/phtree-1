@@ -19,7 +19,7 @@ PHTree::PHTree(int dim, int valueLength) {
 }
 
 PHTree::~PHTree() {
-	delete root_;
+	root_->recursiveDelete();
 }
 
 void PHTree::insert(Entry* e) {
@@ -28,7 +28,11 @@ void PHTree::insert(Entry* e) {
 
 	if (DEBUG)
 		cout << "inserting: " << *e << endl;
-	root_ = root_->insert(e, 0, 0);
+	Node* updatedRoot = root_->insert(e, 0, 0);
+	if (updatedRoot != root_) {
+		delete root_;
+		root_ = updatedRoot;
+	}
 }
 
 bool PHTree::lookup(Entry* e) {

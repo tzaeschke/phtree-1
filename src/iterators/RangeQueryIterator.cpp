@@ -65,7 +65,7 @@ Entry RangeQueryIterator::next() {
 		content = *(*currentStartIterator_);
 	}
 
-	assert(content.contained);
+	assert(content.exists);
 	currentHCAddress_ = content.address;
 	while (content.hasSubnode) {
 		stepDown(content.subnode);

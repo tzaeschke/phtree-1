@@ -11,6 +11,7 @@
 #include <map>
 #include "NodeIterator.h"
 #include "../nodes/LHC.h"
+#include "../nodes/LHCAddressContent.h"
 
 struct NodeAddressContent;
 
@@ -23,11 +24,11 @@ public:
 	void setAddress(size_t address) override;
 	NodeIterator& operator++() override;
 	NodeIterator operator++(int) override;
-	NodeAddressContent& operator*() override;
+	NodeAddressContent operator*() override;
 
 private:
 	LHC* node_;
-	std::map<long,NodeAddressContent*>::iterator contentMapIt_;
+	std::map<long,LHCAddressContent>::iterator contentMapIt_;
 };
 
 #endif /* LHCITERATOR_H_ */

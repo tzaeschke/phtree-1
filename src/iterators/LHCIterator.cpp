@@ -26,8 +26,8 @@ void LHCIterator::setAddress(size_t address) {
 	if (address >= node_->dim_) {
 		address_ = 1 << node_->dim_;
 	} else {
-		contentMapIt_ = node_->sortedContents_->begin();
-		for (address_ = contentMapIt_->first; address_ < address && contentMapIt_ != node_->sortedContents_->end(); contentMapIt_++) {
+		contentMapIt_ = node_->sortedContents_.begin();
+		for (address_ = contentMapIt_->first; address_ < address && contentMapIt_ != node_->sortedContents_.end(); ++contentMapIt_) {
 			address_ = contentMapIt_->first;
 		}
 	}
@@ -35,7 +35,7 @@ void LHCIterator::setAddress(size_t address) {
 
 NodeIterator& LHCIterator::operator++() {
 
-	if (++contentMapIt_ != node_->sortedContents_->end()) {
+	if (++contentMapIt_ != node_->sortedContents_.end()) {
 		address_ = contentMapIt_->first;
 	} else {
 		--contentMapIt_;
@@ -49,7 +49,17 @@ NodeIterator LHCIterator::operator++(int i) {
 	throw "++ i not implemented";
 }
 
-NodeAddressContent& LHCIterator::operator*() {
-	assert (contentMapIt_->second->address == address_);
-	return *(contentMapIt_->second);
+NodeAddressContent LHCIterator::operator*() {
+	assert (contentMapIt_->first == address_);
+	NodeAddressContent content;
+	content.exists = true;
+	content.address = contentMapIt_->first;
+	content.hasSubnode = contentMapIt_->second.hasSubnode;
+	content.subnode = contentMapIt_->second.subnode;
+	content.suffix = NULL;
+	if (!contentMapIt_->second.suffix.empty()) {
+		content.suffix = &(contentMapIt_->second.suffix);
+	}
+
+	return content;
 }

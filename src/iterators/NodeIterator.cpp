@@ -34,7 +34,7 @@ NodeIterator NodeIterator::operator++(int) {
 	throw std::runtime_error("subclass should implement this");
 }
 
-NodeAddressContent& NodeIterator::operator*() {
+NodeAddressContent NodeIterator::operator*() {
 	throw std::runtime_error("subclass should implement this");
 }
 

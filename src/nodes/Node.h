@@ -35,6 +35,7 @@ public:
 	virtual NodeIterator* begin() = 0;
 	virtual NodeIterator* end() = 0;
 	virtual void accept(Visitor* visitor, size_t depth);
+	virtual void recursiveDelete() = 0;
 
 protected:
 	size_t dim_;
@@ -42,14 +43,15 @@ protected:
 	// value -> bit
 	std::vector<std::vector<bool>> prefix_;
 
-	size_t getSuffixSize(NodeAddressContent*);
+	size_t getSuffixSize(NodeAddressContent);
 	size_t getPrefixLength();
 
 
-	virtual NodeAddressContent* lookup(long address) = 0;
-	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) = 0;
-	virtual void insertAtAddress(long hcAddress, Node* subnode) = 0;
+	virtual NodeAddressContent lookup(unsigned long address) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
+
 
 private:
 	Node* determineNodeType(size_t dim, size_t valueLength, size_t nDirectInserts);

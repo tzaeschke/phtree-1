@@ -15,23 +15,19 @@
 using namespace std;
 
 AHC::AHC(size_t dim, size_t valueLength) :
-		Node(dim, valueLength) {
-	long maxElements = 1 << dim;
-	filled_ = vector<bool>(maxElements, false);
-	hasSubnode_ = vector<bool>(maxElements, false);
-	subnodes_ = vector<Node*>(maxElements);
-	suffixes_ = vector<vector<vector<bool>>>(maxElements);
+		Node(dim, valueLength),
+		filled_(1<<dim, false), hasSubnode_(1<<dim, false), subnodes_(1<<dim), suffixes_(1<<dim) {
 	prefix_ = vector<vector<bool>>(dim_);
 }
 
-AHC::AHC(Node& other) : Node(other) {
-	long maxElements = 1 << dim_;
-	filled_ = vector<bool>(maxElements, false);
-	hasSubnode_ = vector<bool>(maxElements, false);
-	subnodes_ = vector<Node*>(maxElements);
-	suffixes_ = vector<vector<vector<bool>>>(maxElements);
-	for (NodeIterator* it = other.begin(); (*it) != *(other.end()); ++(*it)) {
+AHC::AHC(Node& other) : Node(other),
+		filled_(1<<dim_, false), hasSubnode_(1<<dim_, false), subnodes_(1<<dim_), suffixes_(1<<dim_){
+
+	NodeIterator* it;
+	NodeIterator* endIt = other.end();
+	for (it = other.begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent content = *(*it);
+		assert (content.exists);
 		filled_[content.address] = true;
 		if (content.hasSubnode) {
 			hasSubnode_[content.address] = true;
@@ -41,46 +37,67 @@ AHC::AHC(Node& other) : Node(other) {
 			suffixes_[content.address] = *content.suffix;
 		}
 	}
+
+	delete it;
+	delete endIt;
 }
 
 AHC::~AHC() {
 	hasSubnode_.clear();
 	filled_.clear();
-	for (size_t i = 0; i < subnodes_.size(); i++) {
-		delete subnodes_.at(i);
-	}
 	subnodes_.clear();
 	suffixes_.clear();
 }
 
-NodeAddressContent* AHC::lookup(long address) {
-	NodeAddressContent* content = new NodeAddressContent();
-	content->address = address;
-	content->contained = filled_[address];
-	content->hasSubnode = hasSubnode_[address];
-	if (content->hasSubnode) {
-		content->subnode = subnodes_[address];
-	} else {
-		content->suffix = &suffixes_[address];
+void AHC::recursiveDelete() {
+	for (size_t i = 0; i < subnodes_.size(); i++) {
+		if (subnodes_.at(i))
+			subnodes_.at(i)->recursiveDelete();
 	}
 
-	assert ((!content->contained || (content->hasSubnode || content->suffix->size() == dim_))
+	delete this;
+}
+
+NodeAddressContent AHC::lookup(unsigned long address) {
+
+	NodeAddressContent content;
+	content.exists = filled_[address];
+	content.address = address;
+	content.hasSubnode = false;
+
+	if (content.exists) {
+		content.hasSubnode = hasSubnode_[address];
+		if (content.hasSubnode) {
+			content.subnode = subnodes_[address];
+			content.suffix = NULL;
+		} else if (suffixes_[address].empty()) {
+			content.subnode = NULL;
+			content.suffix = NULL;
+		} else {
+			content.subnode = NULL;
+			content.suffix = &suffixes_[address];
+		}
+	}
+
+	assert ((!content.exists || (content.hasSubnode || content.suffix->size() == dim_))
 					&& "the suffix dimensionality should always be the same as the node's");
 	return content;
 }
 
-void AHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
+void AHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = false;
+	subnodes_[hcAddress] = NULL;
 	suffixes_[hcAddress] = *suffix;
 
-	assert(lookup(hcAddress)->suffix->size() == dim_);
+	assert(lookup(hcAddress).suffix->size() == dim_);
 }
 
-void AHC::insertAtAddress(long hcAddress, Node* subnode) {
+void AHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = true;
 	subnodes_[hcAddress] = subnode;
+	suffixes_[hcAddress].clear();
 }
 
 Node* AHC::adjustSize() {

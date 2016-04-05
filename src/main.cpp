@@ -11,13 +11,10 @@
 #include "iterators/RangeQueryIterator.h"
 
 #define BIT_LENGTH 	8
-#define ENTRY_DIM 	2
 
 using namespace std;
 
 int mainSimpleExample() {
-	// TODO: add range query
-
 	vector<long> e1Values { 10, 5 };
 	vector<long> e2Values { 11, 12 };
 	vector<long> e3Values { 60, 7 };
@@ -28,8 +25,8 @@ int mainSimpleExample() {
 	Entry* e4 = new Entry(e4Values, BIT_LENGTH);
 
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
-	PHTree* phtree = new PHTree(ENTRY_DIM, BIT_LENGTH);
 	uint64_t sta = RDTSC();
+	PHTree* phtree = new PHTree(2, BIT_LENGTH);
 	phtree->insert(e1);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	cout << *phtree;
@@ -69,15 +66,16 @@ int mainSimpleExample() {
 	while (it->hasNext()) {
 		Entry entryInRange = it->next();
 		cout << entryInRange << endl;
-	}*/
+	}
 
 	cout << "The following entries are in the range (1,2) - (100,10):" << endl;
 	RangeQueryIterator* it = phtree->rangeQuery(new Entry({1,2}, BIT_LENGTH), new Entry( {100,10}, BIT_LENGTH));
 	while (it->hasNext()) {
 		Entry entryInRange = it->next();
 		cout << entryInRange << endl;
-	}
+	}*/
 
+	delete visitor;
 	delete phtree;
 	delete e1;
 	delete e2;
@@ -89,12 +87,10 @@ int mainSimpleExample() {
 
 int main(int argc, char* argv[]) {
 
-	for (int i = 0; i < argc; i++) {
-		cout << "argv[" << i << "]= " << argv[i] << endl;
-	}
-
 	string debug = "debug";
 	string plot = "plot";
+	string rand = "rand";
+	string benchmark = "benchmark";
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
@@ -104,8 +100,13 @@ int main(int argc, char* argv[]) {
 //		PlotUtil::plotAverageInsertTimePerDimensionRandom();
 //		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;
+	} else if (rand.compare(argv[1]) == 0) {
+		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+	} else if (benchmark.compare(argv[1]) == 0) {
+		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
+		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_3D_32bit.dat", 32);
 	} else {
-		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot'";
+		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand', 'benchmark'";
 		return 1;
 	}
 };
