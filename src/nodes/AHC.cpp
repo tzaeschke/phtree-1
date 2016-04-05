@@ -58,7 +58,7 @@ void AHC::recursiveDelete() {
 	delete this;
 }
 
-NodeAddressContent AHC::lookup(long address) {
+NodeAddressContent AHC::lookup(unsigned long address) {
 
 	NodeAddressContent content;
 	content.exists = filled_[address];
@@ -84,7 +84,7 @@ NodeAddressContent AHC::lookup(long address) {
 	return content;
 }
 
-void AHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
+void AHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = false;
 	subnodes_[hcAddress] = NULL;
@@ -93,7 +93,7 @@ void AHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 	assert(lookup(hcAddress).suffix->size() == dim_);
 }
 
-void AHC::insertAtAddress(long hcAddress, Node* subnode) {
+void AHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = true;
 	subnodes_[hcAddress] = subnode;

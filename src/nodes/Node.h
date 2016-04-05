@@ -47,9 +47,9 @@ protected:
 	size_t getPrefixLength();
 
 
-	virtual NodeAddressContent lookup(long address) = 0;
-	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) = 0;
-	virtual void insertAtAddress(long hcAddress, Node* subnode) = 0;
+	virtual NodeAddressContent lookup(unsigned long address) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
 
 

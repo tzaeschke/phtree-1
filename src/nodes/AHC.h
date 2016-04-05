@@ -34,9 +34,9 @@ protected:
 	// entry -> value -> bit
 	std::vector<std::vector<std::vector<bool>>> suffixes_;
 
-	virtual NodeAddressContent lookup(long address) override;
-	virtual void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;
-	virtual void insertAtAddress(long hcAddress, Node* subnode) override;
+	virtual NodeAddressContent lookup(unsigned long address) override;
+	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) override;
+	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	virtual Node* adjustSize() override;
 };
 

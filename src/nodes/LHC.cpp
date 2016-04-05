@@ -38,7 +38,7 @@ void LHC::recursiveDelete() {
 	delete this;
 }
 
-NodeAddressContent LHC::lookup(long address) {
+NodeAddressContent LHC::lookup(unsigned long address) {
 	LHCAddressContent* contentRef = lookupReference(address);
 	NodeAddressContent content;
 	if (contentRef) {
@@ -59,7 +59,7 @@ NodeAddressContent LHC::lookup(long address) {
 	return content;
 }
 
-LHCAddressContent* LHC::lookupReference(long hcAddress) {
+LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
 	map<long, LHCAddressContent>::iterator it = sortedContents_.find(
 			hcAddress);
 	bool contained = it != sortedContents_.end();
@@ -70,14 +70,10 @@ LHCAddressContent* LHC::lookupReference(long hcAddress) {
 	}
 }
 
-void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
+void LHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix) {
 	LHCAddressContent* content = lookupReference(hcAddress);
 	if (!content) {
-		LHCAddressContent* newContent = new LHCAddressContent();
-		newContent->hasSubnode = false;
-		newContent->suffix = *suffix;
-		sortedContents_.insert(
-				pair<long, LHCAddressContent>(hcAddress, *newContent));
+		sortedContents_.emplace(hcAddress, suffix);
 	} else {
 		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
 
@@ -94,14 +90,10 @@ void LHC::insertAtAddress(long hcAddress, vector<vector<bool>>* suffix) {
 	assert (lookup(hcAddress).suffix->size() == dim_);
 }
 
-void LHC::insertAtAddress(long hcAddress, Node* subnode) {
+void LHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
 	LHCAddressContent* content = lookupReference(hcAddress);
 		if (!content) {
-			LHCAddressContent* newContent = new LHCAddressContent();
-			newContent->hasSubnode = true;
-			newContent->subnode = subnode;
-			sortedContents_.insert(
-					pair<long, LHCAddressContent>(hcAddress, *newContent));
+			sortedContents_.emplace(hcAddress, subnode);
 		} else {
 			if (!content->hasSubnode && content->suffix.size() == longestSuffix_) {
 				// before insertion this was the longest suffix

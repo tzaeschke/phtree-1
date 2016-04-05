@@ -33,7 +33,6 @@ set<Entry*> PlotUtil::generateUniqueRandomEntries(size_t dim, size_t bitLength, 
 		Entry* entry = new Entry(*entryValues, bitLength);
 		bool inserted = randomDimEntries.insert(entry).second;
 		delete entryValues;
-		delete entry;
 		if (!inserted) {
 			nEntry--;
 		}

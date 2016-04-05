@@ -17,6 +17,11 @@ struct LHCAddressContent {
 	bool hasSubnode;
 	Node* subnode;
 	std::vector<std::vector<bool>> suffix;
+
+	LHCAddressContent();
+	LHCAddressContent(Node* subnode);
+	LHCAddressContent(std::vector<std::vector<bool>>* suffix);
+	LHCAddressContent(std::vector<std::vector<bool>> suffix);
 };
 
 #endif /* SRC_NODES_LHCADDRESSCONTENT_H_ */

@@ -90,6 +90,10 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 				insertAtAddress(hcAddress, newSubnode);
 				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix);
 				newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
+
+				// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
+				newSubnodeEntryPrefix->clear();
+				delete newSubnodeEntryPrefix;
 				// no need to adjust size because the old node remains and the new one already
 				// has the correct size
 			}

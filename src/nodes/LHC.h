@@ -29,13 +29,13 @@ protected:
 	std::map<long, LHCAddressContent> sortedContents_;
 	size_t longestSuffix_;
 
-	NodeAddressContent lookup(long address) override;
-	void insertAtAddress(long hcAddress, std::vector<std::vector<bool>>* suffix) override;
-	void insertAtAddress(long hcAddress, Node* subnode) override;
+	NodeAddressContent lookup(unsigned long address) override;
+	void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) override;
+	void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	Node* adjustSize() override;
 
 private:
-	LHCAddressContent* lookupReference(long hcAddress);
+	LHCAddressContent* lookupReference(unsigned long hcAddress);
 };
 
 #endif /* LHC_H_ */
