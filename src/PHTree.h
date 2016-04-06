@@ -21,7 +21,7 @@ public:
 	PHTree(int dim, int valueLength);
 	virtual ~PHTree();
 	void insert(Entry* e);
-	bool lookup(Entry* e);
+	std::pair<bool,int> lookup(Entry* e);
 	RangeQueryIterator* rangeQuery(Entry* lowerLeft, Entry* upperRight);
 
 	void accept(Visitor* visitor);

@@ -10,23 +10,22 @@
 #include "visitors/CountNodeTypesVisitor.h"
 #include "iterators/RangeQueryIterator.h"
 
-#define BIT_LENGTH 	8
-
 using namespace std;
 
 int mainSimpleExample() {
+	const unsigned int bitLength = 8;
 	vector<long> e1Values { 10, 5 };
 	vector<long> e2Values { 11, 12 };
 	vector<long> e3Values { 60, 7 };
 	vector<long> e4Values { 1, 3 };
-	Entry* e1 = new Entry(e1Values, BIT_LENGTH);
-	Entry* e2 = new Entry(e2Values, BIT_LENGTH);
-	Entry* e3 = new Entry(e3Values, BIT_LENGTH);
-	Entry* e4 = new Entry(e4Values, BIT_LENGTH);
+	Entry* e1 = new Entry(e1Values, bitLength, 1);
+	Entry* e2 = new Entry(e2Values, bitLength, 2);
+	Entry* e3 = new Entry(e3Values, bitLength, 3);
+	Entry* e4 = new Entry(e4Values, bitLength, 4);
 
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	uint64_t sta = RDTSC();
-	PHTree* phtree = new PHTree(2, BIT_LENGTH);
+	PHTree* phtree = new PHTree(2, bitLength);
 	phtree->insert(e1);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	cout << *phtree;
@@ -36,8 +35,8 @@ int mainSimpleExample() {
 	sta = RDTSC();
 	phtree->insert(e2);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
-	assert (phtree->lookup(e1));
-	assert (!phtree->lookup(e3));
+	assert (phtree->lookup(e1).second == 1);
+	assert (!phtree->lookup(e3).first);
 	cout << *phtree;
 	visitor->reset();
 	phtree->accept(visitor);
@@ -46,7 +45,7 @@ int mainSimpleExample() {
 	sta = RDTSC();
 	phtree->insert(e3);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
-	assert (phtree->lookup(e3));
+	assert (phtree->lookup(e3).second == 3);
 	cout << *phtree;
 	visitor->reset();
 	phtree->accept(visitor);
@@ -55,7 +54,8 @@ int mainSimpleExample() {
 	sta = RDTSC();
 	phtree->insert(e4);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
-	assert (phtree->lookup(e4));
+	assert (phtree->lookup(e2).second == 2);
+	assert (phtree->lookup(e4).second == 4);
 	cout << *phtree;
 	visitor->reset();
 	phtree->accept(visitor);
@@ -95,8 +95,8 @@ int main(int argc, char* argv[]) {
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotAverageInsertTimePerDimension("./plot/data/phtree_java_rand_unique_entries.dat", 32);
-//		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotAverageInsertTimePerDimension("./plot/data/phtree_java_rand_unique_entries.dat", 32);
+		PlotUtil::plotTimeSeriesOfInserts();
 //		PlotUtil::plotAverageInsertTimePerDimensionRandom();
 //		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;

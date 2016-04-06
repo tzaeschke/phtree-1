@@ -15,16 +15,15 @@ using namespace std;
 
 #include "Entry.h"
 
-Entry::Entry(vector<long> values, int bitLength) {
+Entry::Entry(vector<long> values, int bitLength, int id) : id_(id) {
 	values_.resize(values.size());
 	MultiDimBitTool::longsToBitsets(values_, values, bitLength);
 }
 
-Entry::Entry(vector<vector<bool>> values) : values_(values) {
+Entry::Entry(vector<vector<bool>> values, int id) : values_(values), id_(id) {
 }
 
 Entry::~Entry() {
-//TODO delete &values_;
 	values_.clear();
 }
 

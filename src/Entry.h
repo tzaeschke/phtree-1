@@ -18,8 +18,8 @@ class Entry {
 
 public:
 
-	Entry(std::vector<long> values, int bitLength);
-	Entry(std::vector<std::vector<bool>> values);
+	Entry(std::vector<long> values, int bitLength, int id);
+	Entry(std::vector<std::vector<bool>> values, int id);
 	~Entry();
 
 	size_t getBitLength();
@@ -27,6 +27,7 @@ public:
 
 	// value -> bit
 	std::vector<std::vector<bool>> values_;
+	int id_;
 
 };
 

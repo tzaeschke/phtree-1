@@ -30,7 +30,7 @@ Node::~Node() {
 	prefix_.clear();
 }
 
-Node* Node::insert(Entry* e, size_t depth, size_t index) {
+Node* Node::insert(const Entry* e, size_t depth, size_t index) {
 		if (DEBUG)
 			cout << "(depth " << depth << "): ";
 		size_t currentIndex = index + getPrefixLength();
@@ -88,7 +88,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 				MultiDimBitTool::removeFirstBits(currentIndex + 1 + differentBitAtPrefixIndex + 1, &(e->values_), newSubnodeEntryPrefix);
 
 				insertAtAddress(hcAddress, newSubnode);
-				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix);
+				newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix, e->id_);
 				newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
 
 				// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
@@ -120,8 +120,8 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			MultiDimBitTool::removeFirstBits(prefixLength + 1, content.suffix, exisitingEntryPrefix);
 
 			insertAtAddress(hcAddress, subnode);
-			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix);
-			subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix);
+			subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix, e->id_);
+			subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix, content.id);
 
 			// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
 			insertEntryPrefix->clear();
@@ -136,7 +136,7 @@ Node* Node::insert(Entry* e, size_t depth, size_t index) {
 			// insert entry + suffix
 			vector<vector<bool>>* suffix = new vector<vector<bool>>(dim_);
 			MultiDimBitTool::removeFirstBits(currentIndex + 1, &(e->values_), suffix);
-			insertAtAddress(hcAddress, suffix);
+			insertAtAddress(hcAddress, suffix, e->id_);
 			assert (lookup(hcAddress).exists);
 
 			// TODO the suffix is stored locally so it was copied: better use a pointer to the correct memory location in the node
@@ -164,11 +164,11 @@ Node* Node::determineNodeType(size_t dim, size_t valueLength, size_t nDirectInse
 	return node;
 }
 
-bool Node::lookup(Entry* e, size_t depth, size_t index, vector<Node*>* visitedNodes) {
+pair<bool, int> Node::lookup(const Entry* e, size_t depth, size_t index, vector<Node*>* visitedNodes) {
 	if (DEBUG)
 		cout << "depth " << depth << " -> ";
 
-	if (visitedNodes != NULL)
+	if (visitedNodes)
 		visitedNodes->push_back(this);
 
 		// validate prefix
@@ -177,7 +177,7 @@ bool Node::lookup(Entry* e, size_t depth, size_t index, vector<Node*>* visitedNo
 				if (e->values_[value][index + bit] != prefix_[value][bit]) {
 					if (DEBUG)
 						cout << "prefix missmatch" << endl;
-					return false;
+					return pair<bool,int>(false, 0);
 				}
 			}
 		}
@@ -191,7 +191,7 @@ bool Node::lookup(Entry* e, size_t depth, size_t index, vector<Node*>* visitedNo
 		if (!content.exists) {
 			if (DEBUG)
 				cout << "HC address missmatch" << endl;
-			return false;
+			return pair<bool,int>(false, 0);
 		}
 
 		// validate suffix or recurse
@@ -203,18 +203,18 @@ bool Node::lookup(Entry* e, size_t depth, size_t index, vector<Node*>* visitedNo
 					if (e->values_[value][currentIndex + 1 + bit] != (*content.suffix)[value][bit]) {
 						if (DEBUG)
 							cout << "suffix missmatch" << endl;
-						return false;
+						return pair<bool,int>(false, 0);
 					}
 				}
 			}
 
 			if (DEBUG)
 				cout << "found" << endl;
-			return true;
+			return pair<bool,int>(true, content.id);
 		}
 }
 
-RangeQueryIterator* Node::rangeQuery(Entry* lowerLeft, Entry* upperRight, size_t depth, size_t index) {
+RangeQueryIterator* Node::rangeQuery(const Entry* lowerLeft, const Entry* upperRight, size_t depth, size_t index) {
 	vector<Node*>* visitedNodes = new vector<Node*>();
 	this->lookup(lowerLeft, depth, index, visitedNodes);
 	RangeQueryIterator* iterator = new RangeQueryIterator(visitedNodes, dim_, valueLength_, lowerLeft, upperRight);

@@ -17,7 +17,7 @@ class Node;
 
 class RangeQueryIterator {
 public:
-	RangeQueryIterator(std::vector<Node*>* nodeStack, size_t dim, size_t bitLength, Entry* lowerLeft, Entry* upperRight);
+	RangeQueryIterator(std::vector<Node*>* nodeStack, size_t dim, size_t bitLength, const Entry* lowerLeft, const Entry* upperRight);
 	virtual ~RangeQueryIterator();
 
 	Entry next();
@@ -36,8 +36,8 @@ private:
 	NodeIterator* currentEndIterator_;
 	size_t currentLowerMask_;
 	size_t currentUpperMask_;
-	Entry* upperRightCorner_;
-	Entry* lowerLeftCorner_;
+	const Entry* upperRightCorner_;
+	const Entry* lowerLeftCorner_;
 	bool hasNext_;
 
 

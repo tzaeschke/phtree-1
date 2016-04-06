@@ -11,7 +11,7 @@
 
 using namespace std;
 
-unsigned long MultiDimBitTool::bitsetToLong(vector<bool>* bitset) {
+unsigned long MultiDimBitTool::bitsetToLong(const vector<bool>* bitset) {
 	unsigned long numericalValue = 0;
 	for (size_t bit = 0; bit < bitset->size(); ++bit) {
 		if (bitset->at(bit)) {
@@ -32,7 +32,7 @@ vector<unsigned long>* MultiDimBitTool::bitsetsToLongs(vector<vector<bool>>* bit
 }
 
 void MultiDimBitTool::duplicateFirstBits(unsigned int nBitsToDuplicate,
-		vector<vector<bool>>* from,
+		const vector<vector<bool>>* from,
 		vector<vector<bool>>* to) {
 	for (size_t i = 0; i < from->size(); i++) {
 		for (size_t j = 0; j < nBitsToDuplicate; j++) {
@@ -45,7 +45,7 @@ void MultiDimBitTool::duplicateFirstBits(unsigned int nBitsToDuplicate,
 }
 
 void MultiDimBitTool::pushBitsToBack(vector<vector<bool>> *valuesToPushTo,
-		vector<vector<bool>> *valuesToAdd) {
+		const vector<vector<bool>> *valuesToAdd) {
 	assert (valuesToAdd->size() == valuesToPushTo->size());
 	for (size_t dim = 0; dim < valuesToAdd->size(); ++dim) {
 		for (size_t bit = 0; bit < valuesToAdd->at(dim).size(); ++bit) {
@@ -54,9 +54,9 @@ void MultiDimBitTool::pushBitsToBack(vector<vector<bool>> *valuesToPushTo,
 	}
 }
 
-Entry MultiDimBitTool::createEntryFrom(vector<vector<bool>>* prefix,
+Entry MultiDimBitTool::createEntryFrom(const vector<vector<bool>>* prefix,
 		unsigned long hcAddress,
-			vector<vector<bool>>* suffix) {
+		const vector<vector<bool>>* suffix, int id) {
 	assert (prefix->size() == suffix->size());
 	assert (prefix->size() > 0);
 
@@ -78,13 +78,13 @@ Entry MultiDimBitTool::createEntryFrom(vector<vector<bool>>* prefix,
 		}
 	}
 
-	Entry entry(valuesAppended);
+	Entry entry(valuesAppended, id);
 	return entry;
 }
 
 vector<bool> MultiDimBitTool::longToBitset(unsigned long value, size_t bitLength) {
 	vector<bool> convertedValue(bitLength);
-	for (int i = 0; i < bitLength; i++) {
+	for (size_t i = 0; i < bitLength; i++) {
 		// extract j-th least segnificant bit from int
 		int lsbIndex = bitLength - i - 1;
 		bool bit = ((value & (1 << lsbIndex)) >> lsbIndex) == 1;
@@ -94,7 +94,7 @@ vector<bool> MultiDimBitTool::longToBitset(unsigned long value, size_t bitLength
 }
 
 void MultiDimBitTool::longsToBitsets(vector<vector<bool>>& target,
-		vector<long>& values, size_t bitLength) {
+		const vector<long>& values, size_t bitLength) {
 	assert (target.size() == values.size());
 
 	for (size_t i = 0; i < values.size(); ++i) {
@@ -113,12 +113,12 @@ void MultiDimBitTool::pushValueToBack(vector<vector<bool>> *pushTo, unsigned lon
 	}
 }
 
-long MultiDimBitTool::interleaveBits(unsigned int index, Entry* e) {
+long MultiDimBitTool::interleaveBits(unsigned int index, const Entry* e) {
 	return interleaveBits(index, &(e->values_));
 }
 
 long MultiDimBitTool::interleaveBits(unsigned int index,
-		vector<vector<bool>>* values) {
+		const vector<vector<bool>>* values) {
 	long hcAddress = 0;
 	size_t max = values->size() - 1;
 	for (size_t value = 0; value < values->size(); value++) {
@@ -138,7 +138,7 @@ void MultiDimBitTool::removeFirstBits(unsigned int nBitsToRemove,
 }
 
 void MultiDimBitTool::removeFirstBits(unsigned int nBitsToRemove,
-		vector<vector<bool>>* valuesFrom,
+		const vector<vector<bool>>* valuesFrom,
 		vector<vector<bool>>* valuesTo) {
 //	assert (valuesTo->size() == dim_);
 	assert (valuesTo->at(0).empty());
@@ -159,8 +159,8 @@ void MultiDimBitTool::removeFirstBits(unsigned int nBitsToRemove,
 
 unsigned int MultiDimBitTool::setLongestCommonPrefix(vector<vector<bool>>* entryToSetTo,
 		unsigned int startIndexEntry1,
-		vector<vector<bool>>* entry1,
-		vector<vector<bool>>* entry2) {
+		const vector<vector<bool>>* entry1,
+		const vector<vector<bool>>* entry2) {
 
 	assert (entry1->size() == entry2->size()
 			&& "both entries must have the same dimensions");

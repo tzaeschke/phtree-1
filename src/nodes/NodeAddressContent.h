@@ -19,6 +19,7 @@ struct NodeAddressContent {
 	bool hasSubnode;
 	Node* subnode;
 	std::vector<std::vector<bool>>* suffix;
+	int id;
 };
 
 

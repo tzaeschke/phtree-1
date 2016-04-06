@@ -35,7 +35,7 @@ void PHTree::insert(Entry* e) {
 	}
 }
 
-bool PHTree::lookup(Entry* e) {
+std::pair<bool,int> PHTree::lookup(Entry* e) {
 	assert (e->getBitLength() == valueLength_ && "value length of entries must match the tree's");
 	assert (e->getDimensions() == dim_ && "entry dimension must match the tree dimension");
 

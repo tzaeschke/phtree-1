@@ -7,20 +7,20 @@
 
 #include "LHCAddressContent.h"
 
-LHCAddressContent::LHCAddressContent() {
+LHCAddressContent::LHCAddressContent() : id(0) {
 	hasSubnode = false;
 	subnode = ((Node *) 0);
 }
-LHCAddressContent::LHCAddressContent(Node* subnode) {
+LHCAddressContent::LHCAddressContent(Node* subnode) : id(0) {
 	hasSubnode = true;
 	this->subnode = subnode;
 }
-LHCAddressContent::LHCAddressContent(std::vector<std::vector<bool>> s) : suffix(s) {
+LHCAddressContent::LHCAddressContent(std::vector<std::vector<bool>> s, int i) : suffix(s), id(i) {
 	hasSubnode = false;
 	subnode = ((Node *) 0);
 }
 
-LHCAddressContent::LHCAddressContent(std::vector<std::vector<bool>>* s) : suffix(*s) {
+LHCAddressContent::LHCAddressContent(std::vector<std::vector<bool>>* s, int i) : suffix(*s), id(i) {
 	hasSubnode = false;
 	subnode = ((Node *) 0);
 }

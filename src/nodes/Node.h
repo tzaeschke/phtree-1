@@ -27,9 +27,9 @@ public:
 	Node(size_t dim, size_t valueLength);
 	Node(Node* other);
 	virtual ~Node();
-	Node* insert(Entry* e, size_t depth, size_t index);
-	bool lookup(Entry* e, size_t depth, size_t index, std::vector<Node*>* visitedNodes);
-	RangeQueryIterator* rangeQuery(Entry* lowerLeft, Entry* upperRight, size_t depth, size_t index);
+	Node* insert(const Entry* e, size_t depth, size_t index);
+	std::pair<bool,int> lookup(const Entry* e, size_t depth, size_t index, std::vector<Node*>* visitedNodes);
+	RangeQueryIterator* rangeQuery(const Entry* lowerLeft, const Entry* upperRight, size_t depth, size_t index);
 
 	virtual std::ostream& output(std::ostream& os, size_t depth) = 0;
 	virtual NodeIterator* begin() = 0;
@@ -48,7 +48,7 @@ protected:
 
 
 	virtual NodeAddressContent lookup(unsigned long address) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
 

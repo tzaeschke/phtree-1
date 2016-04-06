@@ -59,6 +59,7 @@ NodeAddressContent LHCIterator::operator*() {
 	content.suffix = NULL;
 	if (!contentMapIt_->second.suffix.empty()) {
 		content.suffix = &(contentMapIt_->second.suffix);
+		content.id = contentMapIt_->second.id;
 	}
 
 	return content;

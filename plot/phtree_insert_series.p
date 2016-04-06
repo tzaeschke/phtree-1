@@ -5,7 +5,7 @@ set xrange[0:*]
 set xtic auto
 set y2tic auto
 set ytic auto
-set ylabel "operation time [clock ticks]"
+set ylabel "operation time [CPU cycles]"
 set y2label "node count"
 set xlabel "inserted entry number"
 set key left top

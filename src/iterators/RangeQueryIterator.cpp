@@ -13,7 +13,7 @@
 using namespace std;
 
 // TODO also provide addresses per node that were followed during the lookup!
-RangeQueryIterator::RangeQueryIterator(vector<Node*>* nodeStack, size_t dim, size_t bitLength, Entry* lowerLeft, Entry* upperRight) {
+RangeQueryIterator::RangeQueryIterator(vector<Node*>* nodeStack, size_t dim, size_t bitLength, const Entry* lowerLeft, const Entry* upperRight) {
 	assert (nodeStack->size() > 0 && "Should at least contain the root node");
 	lowerLeftCorner_ = lowerLeft;
 	upperRightCorner_ = upperRight;
@@ -72,7 +72,7 @@ Entry RangeQueryIterator::next() {
 	}
 
 	// found a valid suffix in the range
-	Entry entry = MultiDimBitTool::createEntryFrom(currentPrefix_, currentHCAddress_, content.suffix);
+	Entry entry = MultiDimBitTool::createEntryFrom(currentPrefix_, currentHCAddress_, content.suffix, content.id);
 	assert (entry.getDimensions() == dim_);
 	assert (entry.getBitLength() == bitLength_);
 

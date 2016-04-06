@@ -57,6 +57,8 @@ NodeAddressContent AHCIterator::operator*() {
 			content.subnode = node_->subnodes_[address_];
 		} else {
 			content.suffix = &(node_->suffixes_[address_]);
+			assert (node_->ids_);
+			content.id = (*node_->ids_)[address_];
 		}
 	}
 

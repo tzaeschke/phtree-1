@@ -19,6 +19,7 @@
 #include "../visitors/CountNodeTypesVisitor.h"
 #include "../visitors/AssertionVisitor.h"
 #include "FileInputUtil.h"
+#include "rdtsc.h"
 
 using namespace std;
 
@@ -30,7 +31,7 @@ set<Entry*> PlotUtil::generateUniqueRandomEntries(size_t dim, size_t bitLength, 
 		for (size_t d = 0; d < dim; d++) {
 			entryValues->at(d) = rand() % (2 << bitLength);
 		}
-		Entry* entry = new Entry(*entryValues, bitLength);
+		Entry* entry = new Entry(*entryValues, bitLength, nEntry);
 		bool inserted = randomDimEntries.insert(entry).second;
 		delete entryValues;
 		if (!inserted) {
@@ -72,7 +73,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 			unsigned int startLookupTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
 				Entry* entry = entries[test][iEntry];
-				assert (phtrees[test]->lookup(entry));
+				assert (phtrees[test]->lookup(entry).first);
 			}
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			phtrees[test]->accept(visitor);
@@ -237,24 +238,26 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	AssertionVisitor* assertVisitor = new AssertionVisitor();
+	uint64_t startInsert;
+	uint64_t startLookup;
 	try {
 		size_t iEntry = 0;
 		for (auto entry : entries) {
 //			cout << "inserting: " << *entry << endl;
-			assert (!phtree.lookup(entry) && "should not contain the entry before insertion");
-			unsigned int startInsertTime = clock();
+			assert (!phtree.lookup(entry).first && "should not contain the entry before insertion");
+			startInsert = RDTSC();
 			phtree.insert(entry);
-			unsigned int totalInsertTicks = clock() - startInsertTime;
+			uint64_t totalInsertTicks = RDTSC() - startInsert;
 //			cout << phtree << endl;
 			phtree.accept(assertVisitor);
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
-			unsigned int startLookupTime = clock();
-			bool contained = phtree.lookup(entry);
-			unsigned int totalLockupTicks = clock() - startLookupTime;
-			assert (contained && "should contain the entry after insertion");
+			startLookup = RDTSC();
+			pair<bool, int> contained = phtree.lookup(entry);
+			uint64_t totalLookupTicks = RDTSC() - startLookup;
+			assert (contained.first && contained.second == entry->id_ && "should contain the entry after insertion");
 			(*plotFile) << iEntry << "\t" << totalInsertTicks;
-			(*plotFile) << "\t" << totalLockupTicks;
+			(*plotFile) << "\t" << totalLookupTicks;
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedAHCNodes();
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedLHCNodes();
 			(*plotFile) << "\n";

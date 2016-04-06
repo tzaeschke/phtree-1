@@ -30,7 +30,7 @@ protected:
 	size_t longestSuffix_;
 
 	NodeAddressContent lookup(unsigned long address) override;
-	void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix) override;
+	void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	Node* adjustSize() override;
 

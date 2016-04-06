@@ -12,16 +12,17 @@
 
 class Node;
 
-// TODO use union to differentiate between subnode and suffix contents
+// TODO use union to differentiate between subnode and suffix contents and leaf ids
 struct LHCAddressContent {
 	bool hasSubnode;
 	Node* subnode;
 	std::vector<std::vector<bool>> suffix;
+	int id;
 
 	LHCAddressContent();
 	LHCAddressContent(Node* subnode);
-	LHCAddressContent(std::vector<std::vector<bool>>* suffix);
-	LHCAddressContent(std::vector<std::vector<bool>> suffix);
+	LHCAddressContent(std::vector<std::vector<bool>>* suffix, int id);
+	LHCAddressContent(std::vector<std::vector<bool>> suffix, int id);
 };
 
 #endif /* SRC_NODES_LHCADDRESSCONTENT_H_ */

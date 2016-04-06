@@ -47,8 +47,10 @@ NodeAddressContent LHC::lookup(unsigned long address) {
 		content.hasSubnode = contentRef->hasSubnode;
 		content.subnode = contentRef->subnode;
 		content.suffix = NULL;
-		if (!contentRef->suffix.empty())
+		if (!contentRef->suffix.empty()) {
 			content.suffix = &(contentRef->suffix);
+			content.id = contentRef->id;
+		}
 	} else {
 		content.exists = false;
 		content.hasSubnode = false;
@@ -70,10 +72,12 @@ LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
 	}
 }
 
-void LHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix) {
+void LHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix, int id) {
 	LHCAddressContent* content = lookupReference(hcAddress);
 	if (!content) {
-		sortedContents_.emplace(hcAddress, suffix);
+		sortedContents_.emplace(piecewise_construct,
+				forward_as_tuple(hcAddress),
+				forward_as_tuple(suffix, id));
 	} else {
 		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
 
@@ -144,7 +148,7 @@ void LHC::accept(Visitor* visitor, size_t depth) {
 
 ostream& LHC::output(ostream& os, size_t depth) {
 	os << "LHC";
-	Entry prefix(prefix_);
+	Entry prefix(prefix_, 0);
 	os << " | prefix: " << prefix << endl;
 
 	for (auto const content : sortedContents_) {
@@ -156,7 +160,7 @@ ostream& LHC::output(ostream& os, size_t depth) {
 			content.second.subnode->output(os, depth + 1);
 		} else {
 			// print suffix
-			Entry suffix(content.second.suffix);
+			Entry suffix(content.second.suffix, 0);
 			os << " suffix: " << suffix << endl;
 		}
 	}
