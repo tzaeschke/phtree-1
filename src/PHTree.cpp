@@ -7,6 +7,8 @@
 
 #include "PHTree.h"
 #include "nodes/LHC.h"
+#include "util/DynamicNodeOperationsUtil.h"
+#include "util/SpatialSelectionOperationsUtil.h"
 #include <assert.h>
 
 using namespace std;
@@ -28,7 +30,8 @@ void PHTree::insert(Entry* e) {
 
 	if (DEBUG)
 		cout << "inserting: " << *e << endl;
-	Node* updatedRoot = root_->insert(e, 0, 0);
+
+	Node* updatedRoot = DynamicNodeOperationsUtil::insert(e, root_, dim_, valueLength_);
 	if (updatedRoot != root_) {
 		delete root_;
 		root_ = updatedRoot;
@@ -41,7 +44,7 @@ std::pair<bool,int> PHTree::lookup(Entry* e) {
 
 	if (DEBUG)
 		cout << "searching: " << *e << endl;
-	return root_->lookup(e, 0, 0, NULL);
+	return SpatialSelectionOperationsUtil::lookup(e, root_, NULL);
 }
 
 RangeQueryIterator* PHTree::rangeQuery(Entry* lowerLeft, Entry* upperRight) {

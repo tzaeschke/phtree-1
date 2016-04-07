@@ -27,6 +27,7 @@ public:
 	void accept(Visitor* visitor);
 
 protected:
+	// TODO no pointer for better locality
 	Node* root_;
 	size_t dim_; // dimensions (k)
 	size_t valueLength_;

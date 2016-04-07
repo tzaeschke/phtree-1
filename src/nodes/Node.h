@@ -21,14 +21,14 @@ class Node {
 	friend class NodeIterator;
 	friend std::ostream& operator<<(std::ostream& os, Node& node);
 	friend class RangeQueryIterator;
+	friend class DynamicNodeOperationsUtil;
+	friend class SpatialSelectionOperationsUtil;
 
 public:
 
 	Node(size_t dim, size_t valueLength);
 	Node(Node* other);
 	virtual ~Node();
-	Node* insert(const Entry* e, size_t depth, size_t index);
-	std::pair<bool,int> lookup(const Entry* e, size_t depth, size_t index, std::vector<Node*>* visitedNodes);
 	RangeQueryIterator* rangeQuery(const Entry* lowerLeft, const Entry* upperRight, size_t depth, size_t index);
 
 	virtual std::ostream& output(std::ostream& os, size_t depth) = 0;
@@ -51,10 +51,6 @@ protected:
 	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
-
-
-private:
-	Node* determineNodeType(size_t dim, size_t valueLength, size_t nDirectInserts);
 };
 
 #endif /* SRC_NODE_H_ */
