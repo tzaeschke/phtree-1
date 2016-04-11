@@ -73,7 +73,8 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 			unsigned int startLookupTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
 				Entry* entry = entries[test][iEntry];
-				assert (phtrees[test]->lookup(entry).first);
+				bool contained = phtrees[test]->lookup(entry).first;
+				assert (contained);
 			}
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			phtrees[test]->accept(visitor);

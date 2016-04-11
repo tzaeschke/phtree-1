@@ -92,6 +92,10 @@ int main(int argc, char* argv[]) {
 	string rand = "rand";
 	string benchmark = "benchmark";
 
+	#ifndef NDEBUG
+		cout << "assertions enabled!" << endl;
+	#endif
+
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
