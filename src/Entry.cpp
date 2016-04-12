@@ -15,12 +15,13 @@ using namespace std;
 
 #include "Entry.h"
 
-Entry::Entry(vector<long> values, int bitLength, int id) : id_(id) {
-	values_.resize(values.size());
-	MultiDimBitTool::longsToBitsets(values_, values, bitLength);
+Entry::Entry(vector<long> values, int bitLength, int id) : id_(id), dim_(values.size()) {
+	MultiDimBitTool::longsToBitsets(values_, values, bitLength, dim_);
+	assert (values_.size() == getBitLength() * getDimensions());
 }
 
-Entry::Entry(vector<vector<bool>> values, int id) : values_(values), id_(id) {
+Entry::Entry(vector<bool> values, size_t dim, int id) : values_(values), id_(id), dim_(dim) {
+	assert (values_.size() == getBitLength() * getDimensions());
 }
 
 Entry::~Entry() {
@@ -28,33 +29,30 @@ Entry::~Entry() {
 }
 
 size_t Entry::getBitLength() {
-	if (values_.empty()) {
-		return 0;
-	} else {
-		return values_[0].size();
-	}
+	return values_.size() / dim_;
 }
 
 size_t Entry::getDimensions() {
-	return values_.size();
+	return dim_;
 }
 
 ostream& operator <<(ostream& os, const Entry &e) {
 	os << "(";
-	for (size_t value = 0; value < e.values_.size(); value++) {
-		assert (e.values_[value].size() == e.values_[0].size());
+	const size_t dim = e.dim_;
+	const size_t bitLength = e.values_.size() / dim;
+	for (size_t d = 0; d < dim; ++d) {
 		os << "(";
-		for (size_t bit = 0; bit < e.values_[value].size(); bit++) {
-			int bitNumber = (e.values_[value][bit]) ? 1 : 0;
+		for (size_t i = 0; i < bitLength; ++i) {
+			const int bitNumber = (e.values_[i * dim + d]) ? 1 : 0;
 			os << bitNumber;
 		}
-
 		os << ")";
-		if (value != e.values_.size() -1)
+		if (d < dim - 1) {
 			os << ", ";
+		}
 	}
-	os << ")";
 
+	os << ")";
 	return os;
 }
 
@@ -64,13 +62,8 @@ bool operator ==(const Entry &entry1, const Entry &entry2) {
 	}
 
 	for (size_t i = 0; i < entry1.values_.size(); i++) {
-		if (entry1.values_.at(i).size() != entry2.values_.at(i).size()) {
+		if (entry1.values_.at(i) != entry2.values_.at(i)) {
 			return false;
-		}
-		for (size_t j = 0; j < entry1.values_.at(i).size(); j++) {
-			if (entry1.values_.at(i).at(j) != entry2.values_.at(i).at(j)) {
-				return false;
-			}
 		}
 	}
 

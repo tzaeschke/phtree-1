@@ -41,14 +41,14 @@ protected:
 	size_t dim_;
 	size_t valueLength_;
 	// value -> bit
-	std::vector<std::vector<bool>> prefix_;
+	std::vector<bool> prefix_;
 
 	size_t getSuffixSize(NodeAddressContent);
 	size_t getPrefixLength();
 
 
 	virtual NodeAddressContent lookup(unsigned long address) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, std::vector<std::vector<bool>>* suffix, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, std::vector<bool>* suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
 };

@@ -39,18 +39,15 @@ RangeQueryIterator* Node::rangeQuery(const Entry* lowerLeft, const Entry* upperR
 }
 
 size_t Node::getSuffixSize(NodeAddressContent content) {
-	if (content.hasSubnode || content.suffix->empty()) {
+	if (content.hasSubnode) {
 		return 0;
 	} else {
-		return content.suffix->at(0).size();
+		return content.suffix->size() / dim_;
 	}
 }
 
 size_t Node::getPrefixLength() {
-	if (prefix_.size() == 0)
-		return 0;
-	else
-		return prefix_[0].size();
+	return prefix_.size() / dim_;
 }
 
 void Node::accept(Visitor* visitor, size_t depth) {

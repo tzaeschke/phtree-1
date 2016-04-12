@@ -19,14 +19,15 @@ class Entry {
 public:
 
 	Entry(std::vector<long> values, int bitLength, int id);
-	Entry(std::vector<std::vector<bool>> values, int id);
+	Entry(std::vector<bool> values, size_t dim, int id);
 	~Entry();
 
 	size_t getBitLength();
 	size_t getDimensions();
 
 	// value -> bit
-	std::vector<std::vector<bool>> values_;
+	size_t dim_;
+	std::vector<bool> values_;
 	int id_;
 
 };

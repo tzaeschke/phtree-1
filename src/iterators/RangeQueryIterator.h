@@ -30,7 +30,7 @@ private:
 	unsigned long currentHCAddress_;
 	std::stack<Node*>* nodeStack_;
 	std::stack<unsigned long>* lastAddressStack_;
-	std::vector<std::vector<bool>>* currentPrefix_;
+	std::vector<bool>* currentPrefix_;
 	Node* currentNode_;
 	NodeIterator* currentStartIterator_;
 	NodeIterator* currentEndIterator_;

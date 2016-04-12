@@ -16,7 +16,7 @@ using namespace std;
 
 LHC::LHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
-	prefix_ = vector<vector<bool>>(dim_);
+	prefix_ = vector<bool>();
 	longestSuffix_ = 0;
 }
 
@@ -39,6 +39,7 @@ void LHC::recursiveDelete() {
 }
 
 NodeAddressContent LHC::lookup(unsigned long address) {
+	assert (address < 1<<dim_);
 	LHCAddressContent* contentRef = lookupReference(address);
 	NodeAddressContent content;
 	if (contentRef) {
@@ -47,7 +48,7 @@ NodeAddressContent LHC::lookup(unsigned long address) {
 		content.hasSubnode = contentRef->hasSubnode;
 		content.subnode = contentRef->subnode;
 		content.suffix = NULL;
-		if (!contentRef->suffix.empty()) {
+		if (!contentRef->hasSubnode) {
 			content.suffix = &(contentRef->suffix);
 			content.id = contentRef->id;
 		}
@@ -56,12 +57,13 @@ NodeAddressContent LHC::lookup(unsigned long address) {
 		content.hasSubnode = false;
 	}
 
-	assert ((!content.exists || (content.hasSubnode || content.suffix->size() == dim_))
+	assert ((!content.exists || (content.hasSubnode || content.suffix->size() % dim_ == 0))
 						&& "the suffix dimensionality should always be the same as the node's");
 	return content;
 }
 
 LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
+	assert (hcAddress < 1<<dim_);
 	map<long, LHCAddressContent>::iterator it = sortedContents_.find(
 			hcAddress);
 	bool contained = it != sortedContents_.end();
@@ -72,7 +74,10 @@ LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
 	}
 }
 
-void LHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix, int id) {
+void LHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id) {
+	assert (hcAddress < 1<<dim_);
+	assert (suffix);
+
 	LHCAddressContent* content = lookupReference(hcAddress);
 	if (!content) {
 		sortedContents_.emplace(piecewise_construct,
@@ -86,15 +91,18 @@ void LHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix,
 		content->subnode = NULL;
 	}
 
-	if (suffix->at(0).size() > longestSuffix_) {
-		longestSuffix_ = suffix->at(0).size();
+	if (suffix->size() / dim_ > longestSuffix_) {
+		longestSuffix_ = suffix->size() / dim_;
 	}
 
 	assert (lookup(hcAddress).address == hcAddress);
-	assert (lookup(hcAddress).suffix->size() == dim_);
+	assert (lookup(hcAddress).suffix->size() % dim_ == 0);
 }
 
 void LHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
+	assert (hcAddress < 1<<dim_);
+	assert (subnode);
+
 	LHCAddressContent* content = lookupReference(hcAddress);
 		if (!content) {
 			sortedContents_.emplace(hcAddress, subnode);
@@ -105,8 +113,8 @@ void LHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
 				longestSuffix_ = 0;
 				for (auto const content : sortedContents_) {
 					if (!content.second.hasSubnode
-							&& content.second.suffix.at(0).size() > longestSuffix_) {
-						longestSuffix_ = content.second.suffix.at(0).size();
+							&& (content.second.suffix.size() / dim_) > longestSuffix_) {
+						longestSuffix_ = content.second.suffix.size() / dim_;
 					}
 				}
 			}
@@ -148,7 +156,7 @@ void LHC::accept(Visitor* visitor, size_t depth) {
 
 ostream& LHC::output(ostream& os, size_t depth) {
 	os << "LHC";
-	Entry prefix(prefix_, 0);
+	Entry prefix(prefix_, dim_, 0);
 	os << " | prefix: " << prefix << endl;
 
 	for (auto const content : sortedContents_) {
@@ -160,7 +168,7 @@ ostream& LHC::output(ostream& os, size_t depth) {
 			content.second.subnode->output(os, depth + 1);
 		} else {
 			// print suffix
-			Entry suffix(content.second.suffix, 0);
+			Entry suffix(content.second.suffix, dim_, 0);
 			os << " suffix: " << suffix << endl;
 		}
 	}

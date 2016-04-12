@@ -18,10 +18,12 @@ int mainSimpleExample() {
 	vector<long> e2Values { 11, 12 };
 	vector<long> e3Values { 60, 7 };
 	vector<long> e4Values { 1, 3 };
+	vector<long> e5Values { 11, 5 };
 	Entry* e1 = new Entry(e1Values, bitLength, 1);
 	Entry* e2 = new Entry(e2Values, bitLength, 2);
 	Entry* e3 = new Entry(e3Values, bitLength, 3);
 	Entry* e4 = new Entry(e4Values, bitLength, 4);
+	Entry* e5 = new Entry(e5Values, bitLength, 5);
 
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	uint64_t sta = RDTSC();
@@ -61,6 +63,15 @@ int mainSimpleExample() {
 	phtree->accept(visitor);
 	cout << *visitor << endl;
 
+	sta = RDTSC();
+	phtree->insert(e5);
+	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
+	assert (phtree->lookup(e5).second == 5);
+	cout << *phtree;
+	visitor->reset();
+	phtree->accept(visitor);
+	cout << *visitor << endl;
+
 	/*cout << "The following entries are in the range (0,0) - (20,20):" << endl;
 	RangeQueryIterator* it = phtree->rangeQuery(new Entry({0,0}, BIT_LENGTH), new Entry({20,20}, BIT_LENGTH));
 	while (it->hasNext()) {
@@ -81,6 +92,7 @@ int mainSimpleExample() {
 	delete e2;
 	delete e3;
 	delete e4;
+	delete e5;
 
 	return 0;
 }
@@ -101,8 +113,8 @@ int main(int argc, char* argv[]) {
 	} else if (plot.compare(argv[1]) == 0) {
 //		PlotUtil::plotAverageInsertTimePerDimension("./plot/data/phtree_java_rand_unique_entries.dat", 32);
 		PlotUtil::plotTimeSeriesOfInserts();
-//		PlotUtil::plotAverageInsertTimePerDimensionRandom();
-//		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+		PlotUtil::plotAverageInsertTimePerDimensionRandom();
+		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;
 	} else if (rand.compare(argv[1]) == 0) {
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();

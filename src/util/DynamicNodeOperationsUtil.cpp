@@ -25,22 +25,22 @@ void DynamicNodeOperationsUtil::createSubnodeWithExistingSuffix(size_t dim,
 
 	// set longest common prefix in subnode
 	int prefixLength = MultiDimBitTool::setLongestCommonPrefix(
-			&subnode->prefix_, currentIndex + 1, &entry->values_,
+			&subnode->prefix_, dim, currentIndex + 1, &entry->values_,
 			content.suffix);
 
 	// address in subnode starts after common prefix
 	long insertEntryHCAddress = MultiDimBitTool::interleaveBits(
 			currentIndex + 1 + prefixLength, entry);
-	long existingEntryHCAddress = MultiDimBitTool::interleaveBits(prefixLength,
+	long existingEntryHCAddress = MultiDimBitTool::interleaveBits(prefixLength, dim,
 			content.suffix);
 	assert(insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 	// add remaining bits after prefix and addresses as suffixes
-	vector<vector<bool>>* insertEntryPrefix = new vector<vector<bool>>(dim);
-	vector<vector<bool>>* exisitingEntryPrefix = new vector<vector<bool>>(dim);
-	MultiDimBitTool::removeFirstBits(currentIndex + 1 + prefixLength + 1,
+	vector<bool>* insertEntryPrefix = new vector<bool>();
+	vector<bool>* exisitingEntryPrefix = new vector<bool>();
+	MultiDimBitTool::removeFirstBits(currentIndex + 1 + prefixLength + 1, dim,
 			&(entry->values_), insertEntryPrefix);
-	MultiDimBitTool::removeFirstBits(prefixLength + 1, content.suffix,
+	MultiDimBitTool::removeFirstBits(prefixLength + 1, dim, content.suffix,
 			exisitingEntryPrefix);
 
 	currentNode->insertAtAddress(content.address, subnode);
@@ -49,28 +49,34 @@ void DynamicNodeOperationsUtil::createSubnodeWithExistingSuffix(size_t dim,
 	subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix,
 			content.id);
 
+	// no need to adjust size because the correct node type was already provided
+	assert (currentNode->lookup(content.address).subnode == subnode);
+	assert (*subnode->lookup(existingEntryHCAddress).suffix == *exisitingEntryPrefix);
+	assert (*subnode->lookup(insertEntryHCAddress).suffix == *insertEntryPrefix);
+
 	// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
 	insertEntryPrefix->clear();
 	delete insertEntryPrefix;
 	exisitingEntryPrefix->clear();
 	delete exisitingEntryPrefix;
-	// no need to adjust size because the correct node type was already provided
 }
 
 Node* DynamicNodeOperationsUtil::insertSuffix(size_t dim, size_t currentIndex,
 		size_t hcAddress, Node* currentNode, const Entry* entry) {
-	vector<vector<bool>>* suffix = new vector<vector<bool>>(dim);
-	MultiDimBitTool::removeFirstBits(currentIndex + 1, &(entry->values_),
+	vector<bool>* suffix = new vector<bool>();
+	MultiDimBitTool::removeFirstBits(currentIndex + 1, dim, &(entry->values_),
 			suffix);
 	currentNode->insertAtAddress(hcAddress, suffix, entry->id_);
-	assert(currentNode->lookup(hcAddress).exists);
+
+	Node* adjustedNode = currentNode->adjustSize();
+	assert(adjustedNode);
+	assert(adjustedNode->lookup(hcAddress).exists);
+	assert (*adjustedNode->lookup(hcAddress).suffix == *suffix);
+	assert (adjustedNode->lookup(hcAddress).id == entry->id_);
 
 	// TODO the suffix is stored locally so it was copied: better use a pointer to the correct memory location in the node
 	suffix->clear();
 	delete suffix;
-
-	Node* adjustedNode = currentNode->adjustSize();
-	assert(adjustedNode);
 	return adjustedNode;
 }
 
@@ -80,19 +86,20 @@ void DynamicNodeOperationsUtil::splitSubnodePrefix(size_t dim, size_t bitLength,
 	Node* oldSubnode = content.subnode;
 	Node* newSubnode = NodeTypeUtil::determineNodeType(dim, bitLength, 2);
 
-	long newSubnodeEntryHCAddress = MultiDimBitTool::interleaveBits(
+	unsigned long newSubnodeEntryHCAddress = MultiDimBitTool::interleaveBits(
 			currentIndex + 1 + differentAtIndex, entry);
-	long newSubnodePrefixDiffHCAddress = MultiDimBitTool::interleaveBits(
-			differentAtIndex, &(oldSubnode->prefix_));
+	unsigned long newSubnodePrefixDiffHCAddress = MultiDimBitTool::interleaveBits(
+			differentAtIndex, dim, &(oldSubnode->prefix_));
+	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
 
 	// move A part of old prefix to new subnode and remove [A | d] from old prefix
-	MultiDimBitTool::duplicateFirstBits(differentAtIndex,
+	MultiDimBitTool::duplicateFirstBits(differentAtIndex, dim,
 			&(oldSubnode->prefix_), &(newSubnode->prefix_));
-	MultiDimBitTool::removeFirstBits(differentAtIndex + 1,
+	MultiDimBitTool::removeFirstBits(differentAtIndex + 1, dim,
 			&(oldSubnode->prefix_));
 
-	vector<vector<bool>>* newSubnodeEntryPrefix = new vector<vector<bool>>(dim);
-	MultiDimBitTool::removeFirstBits(currentIndex + 1 + differentAtIndex + 1,
+	vector<bool>* newSubnodeEntryPrefix = new vector<bool>();
+	MultiDimBitTool::removeFirstBits(currentIndex + 1 + differentAtIndex + 1, dim,
 			&(entry->values_), newSubnodeEntryPrefix);
 
 	currentNode->insertAtAddress(content.address, newSubnode);
@@ -100,11 +107,17 @@ void DynamicNodeOperationsUtil::splitSubnodePrefix(size_t dim, size_t bitLength,
 			entry->id_);
 	newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
 
+	// no need to adjust size because the old node remains and the new one already
+	// has the correct size
+	assert (currentNode->lookup(content.address).hasSubnode);
+	assert (currentNode->lookup(content.address).subnode == newSubnode);
+	assert (!newSubnode->lookup(newSubnodeEntryHCAddress).hasSubnode);
+	assert (*newSubnode->lookup(newSubnodeEntryHCAddress).suffix == *newSubnodeEntryPrefix);
+	assert (newSubnode->lookup(newSubnodePrefixDiffHCAddress).hasSubnode);
+	assert (newSubnode->lookup(newSubnodePrefixDiffHCAddress).subnode == oldSubnode);
 	// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
 	newSubnodeEntryPrefix->clear();
 	delete newSubnodeEntryPrefix;
-	// no need to adjust size because the old node remains and the new one already
-	// has the correct size
 }
 
 Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
@@ -121,10 +134,9 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 		if (DEBUG)
 			cout << "(depth " << depth << "): ";
 
-		size_t currentIndex = index + currentNode->getPrefixLength();
-		unsigned long hcAddress = MultiDimBitTool::interleaveBits(currentIndex,
-				entry);
-		NodeAddressContent content = currentNode->lookup(hcAddress);
+		const size_t currentIndex = index + currentNode->getPrefixLength();
+		const unsigned long hcAddress = MultiDimBitTool::interleaveBits(currentIndex, entry);
+		const NodeAddressContent content = currentNode->lookup(hcAddress);
 		assert(!content.exists || content.address == hcAddress);
 		assert(
 				(!content.exists || (content.subnode && !content.suffix)
@@ -139,16 +151,15 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 			// validate prefix of subnode
 			// case 1 (entry contains prefix): recurse on subnode
 			// case 2 (otherwise): split prefix at difference into two subnodes
-			size_t subnodePrefixLength = content.subnode->getPrefixLength();
+			const size_t subnodePrefixLength = content.subnode->getPrefixLength();
 			bool prefixIncluded = true;
-			long differentBitAtPrefixIndex = -1;
-			for (size_t i = 0; i < subnodePrefixLength && prefixIncluded; i++) {
-				for (size_t value = 0; value < dim && prefixIncluded; value++) {
-					prefixIncluded = entry->values_[value][currentIndex + 1 + i]
-							== content.subnode->prefix_[value][i];
-					if (!prefixIncluded)
-						differentBitAtPrefixIndex = i;
-				}
+			size_t differentBitAtPrefixIndex = 0;
+			for (size_t i = 0; i < subnodePrefixLength * dim && prefixIncluded; ++i) {
+				prefixIncluded = entry->values_[(currentIndex + 1) * dim + i]
+									== content.subnode->prefix_[i];
+				if (!prefixIncluded)
+					differentBitAtPrefixIndex = i / dim;
+
 			}
 
 			if (prefixIncluded) {
@@ -167,6 +178,7 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 				// create new node with prefix A and only leave prefix B in old subnode
 				splitSubnodePrefix(dim, bitLength, currentIndex,
 						differentBitAtPrefixIndex, currentNode, content, entry);
+
 				break;
 			}
 
@@ -180,6 +192,7 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 			// convert suffix to new node with prefix (longest common) + insert
 			createSubnodeWithExistingSuffix(dim, bitLength, currentIndex,
 					currentNode, content, entry);
+
 			break;
 		} else {
 			if (DEBUG)

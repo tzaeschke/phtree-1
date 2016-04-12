@@ -17,7 +17,7 @@ using namespace std;
 AHC::AHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength),
 		filled_(1<<dim, false), hasSubnode_(1<<dim, false), subnodes_(1<<dim), suffixes_(1<<dim) {
-	prefix_ = vector<vector<bool>>(dim_);
+	prefix_ = vector<bool>();
 	ids_ = ((vector<int>*)0);
 }
 
@@ -70,6 +70,7 @@ void AHC::recursiveDelete() {
 }
 
 NodeAddressContent AHC::lookup(unsigned long address) {
+	assert (address < 1<<dim_);
 
 	NodeAddressContent content;
 	content.exists = filled_[address];
@@ -81,9 +82,6 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 		if (content.hasSubnode) {
 			content.subnode = subnodes_[address];
 			content.suffix = NULL;
-		} else if (suffixes_[address].empty()) {
-			content.subnode = NULL;
-			content.suffix = NULL;
 		} else {
 			content.subnode = NULL;
 			content.suffix = &suffixes_[address];
@@ -93,12 +91,15 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 		}
 	}
 
-	assert ((!content.exists || (content.hasSubnode || content.suffix->size() == dim_))
+	assert ((!content.exists || (content.hasSubnode || content.suffix->size() % dim_ == 0))
 					&& "the suffix dimensionality should always be the same as the node's");
 	return content;
 }
 
-void AHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix, int id) {
+void AHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id) {
+	assert (hcAddress < 1<<dim_);
+	assert (suffix->size() % dim_ == 0);
+
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = false;
 	subnodes_[hcAddress] = NULL;
@@ -109,10 +110,12 @@ void AHC::insertAtAddress(unsigned long hcAddress, vector<vector<bool>>* suffix,
 	}
 	(*ids_)[hcAddress] = id;
 
-	assert(lookup(hcAddress).suffix->size() == dim_);
+	assert(*lookup(hcAddress).suffix == (*suffix));
+	assert(lookup(hcAddress).id == id);
 }
 
 void AHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
+	assert (hcAddress < 1<<dim_);
 	filled_[hcAddress] = true;
 	hasSubnode_[hcAddress] = true;
 	subnodes_[hcAddress] = subnode;
@@ -139,7 +142,7 @@ void AHC::accept(Visitor* visitor, size_t depth) {
 
 ostream& AHC::output(ostream& os, size_t depth) {
 	os << "AHC";
-	Entry prefix(prefix_, 0);
+	Entry prefix(prefix_, dim_, 0);
 	os << " | prefix: " << prefix << endl;
 
 	for (long address = 0; address < (2L << dim_); address++) {
@@ -153,7 +156,7 @@ ostream& AHC::output(ostream& os, size_t depth) {
 		if (hasSubnode_[address]) {
 			subnodes_[address]->output(os, depth + 1);
 		} else if (filled_[address]) {
-			Entry suffix(suffixes_[address], 0);
+			Entry suffix(suffixes_[address], dim_, 0);
 			os << " suffix: " << suffix << endl;
 		}
 	}

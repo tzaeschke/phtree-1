@@ -117,9 +117,10 @@ void PlotUtil::plotAverageInsertTimePerDimension(std::string file, size_t bitLen
 	vector<vector<Entry*>> singleColumnEntries(1);
 	singleColumnEntries.at(0) = entries;
 	vector<size_t> dimensions(1);
-	dimensions.at(0) = entries.at(0)->values_.size();
+	dimensions.at(0) = entries.at(0)->getDimensions();
 	vector<size_t> bitLengths(1);
 	bitLengths.at(0) = bitLength;
+	assert (entries.at(0)->getBitLength() == bitLength);
 	cout << " ok" << endl;
 
 	plotAverageInsertTimePerDimension(singleColumnEntries, dimensions, bitLengths);
@@ -251,7 +252,6 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 			uint64_t totalInsertTicks = RDTSC() - startInsert;
 //			cout << phtree << endl;
 			phtree.accept(assertVisitor);
-			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
 			startLookup = RDTSC();
 			pair<bool, int> contained = phtree.lookup(entry);
@@ -262,6 +262,7 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedAHCNodes();
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedLHCNodes();
 			(*plotFile) << "\n";
+			assertVisitor->reset();
 			visitor->reset();
 			plotFile->flush();
 			iEntry++;

@@ -5,6 +5,7 @@
  *      Author: max
  */
 
+#include <assert.h>
 #include "SpatialSelectionOperationsUtil.h"
 #include "MultiDimBitTool.h"
 #include "../nodes/Node.h"
@@ -20,6 +21,7 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 	Node* currentNode = rootNode;
 	size_t depth = 0;
 	size_t index = 0;
+	size_t dim = e->dim_;
 
 	while (true) {
 
@@ -30,14 +32,12 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 			visitedNodes->push_back(currentNode);
 
 		// validate prefix
-		for (size_t bit = 0; bit < currentNode->getPrefixLength(); bit++) {
-			for (size_t value = 0; value < e->values_.size(); value++) {
-				if (e->values_[value][index + bit]
-						!= currentNode->prefix_[value][bit]) {
-					if (DEBUG)
-						cout << "prefix missmatch" << endl;
-					return pair<bool, int>(false, 0);
-				}
+		// TODO move to multi dim bit util
+		for (size_t i = 0; i < currentNode->prefix_.size(); ++i) {
+			if (currentNode->prefix_.at(i) != e->values_.at(dim * index + i)) {
+				if (DEBUG)
+					cout << "prefix missmatch" << endl;
+				return pair<bool, int>(false, 0);
 			}
 		}
 
@@ -58,15 +58,13 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 			index = currentIndex + 1;
 			currentNode = content.subnode;
 		} else {
-			for (size_t bit = 0; bit < currentNode->getSuffixSize(content);
-					bit++) {
-				for (size_t value = 0; value < e->values_.size(); value++) {
-					if (e->values_[value][currentIndex + 1 + bit]
-							!= (*content.suffix)[value][bit]) {
-						if (DEBUG)
-							cout << "suffix missmatch" << endl;
-						return pair<bool, int>(false, 0);
-					}
+			// TODO move to multi dim bit util
+			assert (content.suffix->size() == e->values_.size() - dim * (currentIndex + 1));
+			for (size_t i = 0; i < content.suffix->size(); ++i) {
+				if ((*content.suffix).at(i) != e->values_.at(dim * (currentIndex + 1) + i)) {
+					if (DEBUG)
+						cout << "suffix missmatch" << endl;
+					return pair<bool, int>(false, 0);
 				}
 			}
 

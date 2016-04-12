@@ -22,10 +22,7 @@ RangeQueryIterator::RangeQueryIterator(vector<Node*>* nodeStack, size_t dim, siz
 	// TODO check of range is empty
 	hasNext_ = true;
 
-	currentPrefix_ = new vector<vector<bool>>(dim);
-	for (size_t i = 0; i < currentPrefix_->size(); ++i) {
-		currentPrefix_->at(i) = vector<bool>();
-	}
+	currentPrefix_ = new vector<bool>();
 
 	nodeStack_ = new stack<Node*>();
 	lastAddressStack_ = new stack<unsigned long>();
@@ -45,17 +42,14 @@ RangeQueryIterator::RangeQueryIterator(vector<Node*>* nodeStack, size_t dim, siz
 }
 
 RangeQueryIterator::~RangeQueryIterator() {
-	for (size_t i = 0; i < currentPrefix_->size(); i++) {
-		currentPrefix_->at(i).clear();
-	}
 	currentPrefix_->clear();
 	// TODO how to clear stacks
 }
 
 Entry RangeQueryIterator::next() {
 	assert (hasNext());
-	assert (currentPrefix_->size() == dim_);
-	assert (currentPrefix_->at(0).size() == currentIndex_);
+	assert (currentPrefix_->size() % dim_ == 0);
+	assert (currentPrefix_->size() / dim_ == currentIndex_);
 
 	// extract the next entry from a suffix
 	// (potentially need to descend into subnodes)
@@ -72,7 +66,7 @@ Entry RangeQueryIterator::next() {
 	}
 
 	// found a valid suffix in the range
-	Entry entry = MultiDimBitTool::createEntryFrom(currentPrefix_, currentHCAddress_, content.suffix, content.id);
+	Entry entry = MultiDimBitTool::createEntryFrom(dim_, currentPrefix_, currentHCAddress_, content.suffix, content.id);
 	assert (entry.getDimensions() == dim_);
 	assert (entry.getBitLength() == bitLength_);
 
@@ -112,6 +106,7 @@ void RangeQueryIterator::calculateRangeMasks() {
 	// compare the lower left / upper right corner of the current node (including previous prefixes)
 	// with the lower left / upper right corner of the range (i.e. only bit stings of same length)
 	// for each dimension
+	/*
 	for (size_t d = 0; d < dim_; ++d)
 	{
 		// TODO compare center of current node to lower left / upper right!!!
@@ -131,6 +126,9 @@ void RangeQueryIterator::calculateRangeMasks() {
 			currentUpperMask_ |= 1 << d;
 		}
 	}
+	*/
+	// TODO implement with new format
+	assert (false);
 
 	assert (currentLowerMask_ <= currentUpperMask_);
 }
@@ -146,7 +144,7 @@ void RangeQueryIterator::stepUp() {
 		hasNext_ = false;
 	} else {
 		// remove the prefix of the last node
-		MultiDimBitTool::removeFirstBits(currentNode_->getPrefixLength() + 1, currentPrefix_);
+		MultiDimBitTool::removeFirstBits(currentNode_->getPrefixLength() + 1, dim_, currentPrefix_);
 		currentIndex_ -= (currentNode_->getPrefixLength() + 1);
 		// restore the node and the HC address from the stack
 		currentNode_ = nodeStack_->top();
@@ -164,10 +162,10 @@ void RangeQueryIterator::stepUp() {
 
 void RangeQueryIterator::stepDown(Node* nextNode) {
 	// add the prefix of the next node to the current prefix
-	MultiDimBitTool::pushValueToBack(currentPrefix_, currentHCAddress_);
+	MultiDimBitTool::pushValueToBack(currentPrefix_, dim_, currentHCAddress_);
 	currentIndex_ += 1;
 
-	MultiDimBitTool::pushBitsToBack(currentPrefix_, &(nextNode->prefix_));
+	MultiDimBitTool::pushBitsToBack(dim_, currentPrefix_, &(nextNode->prefix_));
 	currentIndex_ += nextNode->getPrefixLength();
 	// store the node and the current HC address on a stack
 	lastAddressStack_->push(currentHCAddress_);
