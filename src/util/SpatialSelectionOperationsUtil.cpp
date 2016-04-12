@@ -34,7 +34,7 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 		// validate prefix
 		// TODO move to multi dim bit util
 		for (size_t i = 0; i < currentNode->prefix_.size(); ++i) {
-			if (currentNode->prefix_.at(i) != e->values_.at(dim * index + i)) {
+			if (currentNode->prefix_[i] != e->values_[dim * index + i]) {
 				if (DEBUG)
 					cout << "prefix missmatch" << endl;
 				return pair<bool, int>(false, 0);
@@ -61,7 +61,7 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 			// TODO move to multi dim bit util
 			assert (content.suffix->size() == e->values_.size() - dim * (currentIndex + 1));
 			for (size_t i = 0; i < content.suffix->size(); ++i) {
-				if ((*content.suffix).at(i) != e->values_.at(dim * (currentIndex + 1) + i)) {
+				if ((*content.suffix)[i] != e->values_[dim * (currentIndex + 1) + i]) {
 					if (DEBUG)
 						cout << "suffix missmatch" << endl;
 					return pair<bool, int>(false, 0);

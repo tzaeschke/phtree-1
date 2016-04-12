@@ -62,8 +62,8 @@ AHC::~AHC() {
 
 void AHC::recursiveDelete() {
 	for (size_t i = 0; i < subnodes_.size(); i++) {
-		if (subnodes_.at(i))
-			subnodes_.at(i)->recursiveDelete();
+		if (subnodes_[i])
+			subnodes_[i]->recursiveDelete();
 	}
 
 	delete this;

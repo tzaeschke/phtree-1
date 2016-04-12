@@ -62,7 +62,7 @@ bool operator ==(const Entry &entry1, const Entry &entry2) {
 	}
 
 	for (size_t i = 0; i < entry1.values_.size(); i++) {
-		if (entry1.values_.at(i) != entry2.values_.at(i)) {
+		if (entry1.values_[i] != entry2.values_[i]) {
 			return false;
 		}
 	}

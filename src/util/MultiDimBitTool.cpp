@@ -16,7 +16,7 @@ unsigned long MultiDimBitTool::bitsetToLong(const vector<bool>* bitset) {
 
 	unsigned long numericalValue = 0;
 	for (size_t bit = 0; bit < bitset->size(); ++bit) {
-		if (bitset->at(bit)) {
+		if ((*bitset)[bit]) {
 			numericalValue += 1 << (bitset->size() - bit - 1);
 		}
 	}
@@ -33,8 +33,8 @@ vector<unsigned long>* MultiDimBitTool::bitsetsToLongs(vector<bool>* bitsets, si
 	for (size_t i = 0; i < bitLength; ++i) {
 		const size_t currentBitDepth = i / dim;
 		for (size_t d = 0; d < dim; ++d) {
-			if (bitsets->at(i * dim + d)) {
-				numericalValues->at(d) += 1 << (bitLength - currentBitDepth - 1);
+			if ((*bitsets)[i * dim + d]) {
+				(*numericalValues)[d] += 1 << (bitLength - currentBitDepth - 1);
 			}
 		}
 	}
@@ -52,7 +52,7 @@ void MultiDimBitTool::duplicateFirstBits(const unsigned int nBitsToDuplicate, co
 
 	to->reserve(nBitsToDuplicate * dim);
 	for (size_t i = 0; i < nBitsToDuplicate * dim; ++i) {
-		to->push_back(from->at(i));
+		to->push_back((*from)[i]);
 	}
 
 	assert (to->size() == dim * nBitsToDuplicate);
@@ -67,7 +67,7 @@ void MultiDimBitTool::pushBitsToBack(size_t dim, vector<bool> *valuesToPushTo,
 
 	valuesToPushTo->reserve(initialSize + valuesToAdd->size());
 	for (size_t i = 0; i < valuesToAdd->size(); ++i) {
-		valuesToPushTo->push_back(valuesToAdd->at(i));
+		valuesToPushTo->push_back((*valuesToAdd)[i]);
 	}
 
 	assert (valuesToPushTo->size() == initialSize + valuesToAdd->size());
@@ -87,13 +87,13 @@ Entry MultiDimBitTool::createEntryFrom(size_t dim, const vector<bool>* prefix,
 	vector<bool> addressConverted = longToBitset(hcAddress, dim);
 
 	for (size_t i = 0; i < prefix->size(); ++i) {
-		valuesAppended.push_back(prefix->at(i));
+		valuesAppended.push_back((*prefix)[i]);
 	}
 	for (size_t i = 0; i < dim; ++i) {
-		valuesAppended.push_back(addressConverted.at(i));
+		valuesAppended.push_back(addressConverted[i]);
 	}
 	for (size_t i = 0; i < suffix->size(); ++i) {
-		valuesAppended.push_back(suffix->at(i));
+		valuesAppended.push_back((*suffix)[i]);
 	}
 
 	Entry entry(valuesAppended, dim, id);
@@ -107,7 +107,7 @@ vector<bool> MultiDimBitTool::longToBitset(unsigned long value, size_t bitLength
 		// extract j-th least segnificant bit from int
 		int lsbIndex = bitLength - i - 1;
 		bool bit = ((value & (1 << lsbIndex)) >> lsbIndex) == 1;
-		convertedValue.at(i) = bit;
+		convertedValue[i] = bit;
 	}
 	return convertedValue;
 }
@@ -120,9 +120,9 @@ void MultiDimBitTool::longsToBitsets(vector<bool>& target,
 	target.resize(bitLength * dim);
 	target.shrink_to_fit();
 	for (size_t d = 0; d < dim; ++d) {
-		vector<bool> entry = longToBitset(values.at(d), bitLength);
+		vector<bool> entry = longToBitset(values[d], bitLength);
 		for (size_t i = 0; i < bitLength; ++i) {
-			target.at(dim * i + d) = entry.at(i);
+			target[dim * i + d] = entry[i];
 		}
 	}
 
@@ -139,7 +139,7 @@ void MultiDimBitTool::pushValueToBack(vector<bool> *pushTo, size_t dim, unsigned
 
 	pushTo->reserve(initialSize + dim);
 	for (size_t i = 0; i < dim; ++i) {
-		pushTo->push_back(convertedValue.at(i));
+		pushTo->push_back(convertedValue[i]);
 	}
 
 	assert (pushTo->size() == initialSize + dim);
@@ -190,7 +190,7 @@ void MultiDimBitTool::removeFirstBits(unsigned int nBitsToRemove, size_t dim,
 	const size_t resultingSize = valuesFrom->size() - startIndex;
 	valuesTo->reserve(nBitsToRemove * dim);
 	for (size_t i = 0; i < resultingSize; ++i) {
-		valuesTo->push_back(valuesFrom->at(startIndex + i));
+		valuesTo->push_back((*valuesFrom)[startIndex + i]);
 	}
 
 	assert (valuesTo->size() == valuesFrom->size() - (dim * nBitsToRemove));
@@ -213,7 +213,7 @@ unsigned int MultiDimBitTool::setLongestCommonPrefix(vector<bool>* entryToSetTo,
 	// set the prefix length to the maximum possible value in case it is equal to entry1 after the index
 	size_t prefixLength = (entry1->size() - offset) / dim;
 	for (size_t i = offset; allDimSame && i < entry1->size(); ++i) {
-		allDimSame = (*entry1).at(i) == (*entry2).at(i - offset);
+		allDimSame = (*entry1)[i] == (*entry2)[i - offset];
 
 		if (!allDimSame) {
 			prefixLength = (i - offset) / dim;
@@ -223,7 +223,7 @@ unsigned int MultiDimBitTool::setLongestCommonPrefix(vector<bool>* entryToSetTo,
 	const size_t newPrefixSize = dim * prefixLength;
 	entryToSetTo->reserve(newPrefixSize);
 	for (int i = 0; i < newPrefixSize; ++i) {
-		entryToSetTo->push_back(entry2->at(i));
+		entryToSetTo->push_back((*entry2)[i]);
 	}
 
 	assert (entryToSetTo->size() == newPrefixSize);
