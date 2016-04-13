@@ -16,6 +16,7 @@
 class LHC: public Node {
 	friend class LHCIterator;
 	friend class AssertionVisitor;
+	friend class SizeVisitor;
 public:
 	LHC(size_t dim, size_t valueLength);
 	virtual ~LHC();

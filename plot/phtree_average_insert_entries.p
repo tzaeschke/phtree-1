@@ -7,7 +7,7 @@ set ytic auto
 set xlabel "number of entries"
 set terminal qt size 1500,1000
 
-set multiplot layout 1,2 title "various number of entries - same number of operations - same dimension"
+set multiplot layout 1,3 title "various number of entries - same number of operations - same dimension"
 
 set ylabel "insertion time [ms]"
 set boxwidth 0.9
@@ -35,6 +35,13 @@ set title "PH-Tree nodes"
 plot \
   "plot/data/phtree_average_insert_entries.dat" using 5 t '#AHC' ls 3,\
   "" using 6:xticlabels(2) t '#LHC' ls 5
+
+set ylabel "total tree size [Mbyte]"
+set title "PH-Tree in-memory size"
+
+plot \
+  "plot/data/phtree_average_insert_entries.dat" using 7 t 'AHC size' ls 3,\
+  "" using 8:xticlabels(2) t 'LHC size' ls 5
 
 unset multiplot
 unset output

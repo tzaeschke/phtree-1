@@ -23,7 +23,7 @@ class Node {
 	friend class RangeQueryIterator;
 	friend class DynamicNodeOperationsUtil;
 	friend class SpatialSelectionOperationsUtil;
-
+	friend class SizeVisitor;
 public:
 
 	Node(size_t dim, size_t valueLength);

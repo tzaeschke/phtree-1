@@ -17,6 +17,7 @@
 class AHC: public Node {
 	friend class AHCIterator;
 	friend class AssertionVisitor;
+	friend class SizeVisitor;
 public:
 	AHC(size_t dim, size_t valueLength);
 	AHC(Node& node);

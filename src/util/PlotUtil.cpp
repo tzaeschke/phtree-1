@@ -18,6 +18,7 @@
 #include "../PHTree.h"
 #include "../visitors/CountNodeTypesVisitor.h"
 #include "../visitors/AssertionVisitor.h"
+#include "../visitors/SizeVisitor.h"
 #include "FileInputUtil.h"
 #include "rdtsc.h"
 
@@ -62,7 +63,10 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 		vector<unsigned int> lookupTicks(dimensions.size());
 		vector<unsigned int> nAHCNodes(dimensions.size());
 		vector<unsigned int> nLHCNodes(dimensions.size());
+		vector<unsigned int> totalLhcByteSize(dimensions.size());
+		vector<unsigned int> totalAhcByteSize(dimensions.size());
 		CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
+		SizeVisitor* sizeVisitor = new SizeVisitor();
 		for (size_t test = 0; test < dimensions.size(); test++) {
 			unsigned int startInsertTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
@@ -78,11 +82,15 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 			}
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			phtrees[test]->accept(visitor);
+			phtrees[test]->accept(sizeVisitor);
 			insertTicks.at(test) = totalInsertTicks;
 			lookupTicks.at(test) = totalLookupTicks;
 			nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
+			totalAhcByteSize.at(test) = sizeVisitor->getTotalAhcByteSize();
+			totalLhcByteSize.at(test) = sizeVisitor->getTotalLhcByteSize();
 			visitor->reset();
+			sizeVisitor->reset();
 		}
 
 		for (size_t test = 0; test < dimensions.size(); test++) {
@@ -100,9 +108,21 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 				<< "\t"	<< insertMs
 				<< "\t" << lookupMs
 				<< "\t"	<< nAHCNodes.at(test)
-				<< "\t" << nLHCNodes.at(test) << "\n";
+				<< "\t" << nLHCNodes.at(test)
+				<< "\t" << (totalAhcByteSize.at(test) / 1000000)
+				<< "\t" << (totalLhcByteSize.at(test) / 1000000) << "\n";
 			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs << endl;
 		}
+
+		// clear
+		delete visitor;
+		delete sizeVisitor;
+		insertTicks.clear();
+		lookupTicks.clear();
+		nAHCNodes.clear();
+		nLHCNodes.clear();
+		totalAhcByteSize.clear();
+		totalLhcByteSize.clear();
 		plotFile->close();
 		delete plotFile;
 
@@ -148,9 +168,12 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		vector<unsigned int> lookupTicks(entries.size());
 		vector<unsigned int> nAHCNodes(entries.size());
 		vector<unsigned int> nLHCNodes(entries.size());
+		vector<unsigned int> totalLhcByteSize(entries.size());
+		vector<unsigned int> totalAhcByteSize(entries.size());
 
 		cout << "start insertions...";
 		CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
+		SizeVisitor* sizeVisitor = new SizeVisitor();
 		for (size_t test = 0; test < entries.size(); test++) {
 			PHTree* tree = new PHTree(ENTRY_DIM_INSERT_SERIES, bitLengths[test]);
 			unsigned int startInsertTime = clock();
@@ -166,12 +189,16 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 			}
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			tree->accept(visitor);
+			tree->accept(sizeVisitor);
 			insertTicks.at(test) = totalInsertTicks;
 			lookupTicks.at(test) = totalLookupTicks;
 			nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
+			totalLhcByteSize.at(test) = sizeVisitor->getTotalLhcByteSize();
+			totalAhcByteSize.at(test) = sizeVisitor->getTotalAhcByteSize();
 
 			visitor->reset();
+			sizeVisitor->reset();
 			delete tree;
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
 				Entry* entry = entries[test][iEntry];
@@ -189,7 +216,9 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 					<< (float (insertTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000) << "\t"
 					<< (float (lookupTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000) << "\t"
 					<< nAHCNodes.at(test) << "\t"
-					<< nLHCNodes.at(test) << "\n";
+					<< nLHCNodes.at(test) << "\t"
+					<< (totalAhcByteSize.at(test) / 1000000) << "\t"
+					<< (totalLhcByteSize.at(test) / 1000000) << "\n";
 		}
 		plotFile->close();
 		delete plotFile;
@@ -240,6 +269,7 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 
 	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 	AssertionVisitor* assertVisitor = new AssertionVisitor();
+	SizeVisitor* sizeVisitor = new SizeVisitor();
 	uint64_t startInsert;
 	uint64_t startLookup;
 	try {
@@ -253,6 +283,7 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 //			cout << phtree << endl;
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
+			phtree.accept(sizeVisitor);
 			startLookup = RDTSC();
 			pair<bool, int> contained = phtree.lookup(entry);
 			uint64_t totalLookupTicks = RDTSC() - startLookup;
@@ -261,9 +292,12 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 			(*plotFile) << "\t" << totalLookupTicks;
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedAHCNodes();
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedLHCNodes();
+			(*plotFile) << "\t" << sizeVisitor->getTotalAhcByteSize();
+			(*plotFile) << "\t" << sizeVisitor->getTotalLhcByteSize();
 			(*plotFile) << "\n";
 			assertVisitor->reset();
 			visitor->reset();
+			sizeVisitor->reset();
 			plotFile->flush();
 			iEntry++;
 		}
