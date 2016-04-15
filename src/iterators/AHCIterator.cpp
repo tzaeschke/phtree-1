@@ -28,15 +28,15 @@ void AHCIterator::setAddress(size_t address) {
 		address_ = (1 << node_->dim_);
 	} else {
 		// find first filled address if the given one is not filled
-		for (address_ = address; !node_->filled_[address_] && address <=(1 << node_->dim_); address_++) {}
-		if ((address_ == (1<< node_->dim_) - 1) && !node_->filled_[address_]) address_++;
+		for (address_ = address; !node_->contents_[address_].filled && address <=(1 << node_->dim_); address_++) {}
+		if ((address_ == (1<< node_->dim_) - 1) && !node_->contents_[address_].filled) address_++;
 	}
 }
 
 NodeIterator& AHCIterator::operator++() {
 	// skip all unfilled fields until the highest address is reached
-	for (address_++; address_ < (1 << node_->dim_) && !node_->filled_[address_]; address_++) {}
-	if ((address_ == (1<< node_->dim_) - 1) && !node_->filled_[address_]) address_++;
+	for (address_++; address_ < (1 << node_->dim_) && !node_->contents_[address_].filled; address_++) {}
+	if ((address_ == (1<< node_->dim_) - 1) && !node_->contents_[address_].filled) address_++;
 	return *this;
 }
 
@@ -47,18 +47,17 @@ NodeIterator AHCIterator::operator++(int) {
 NodeAddressContent AHCIterator::operator*() {
 
 	NodeAddressContent content;
-	if (!node_->filled_[address_]) {
+	if (!node_->contents_[address_].filled) {
 		content.exists = false;
 	} else {
 		content.exists = true;
 		content.address = address_;
-		content.hasSubnode = node_->hasSubnode_[address_];
+		content.hasSubnode = node_->contents_[address_].hasSubnode;
 		if (content.hasSubnode) {
-			content.subnode = node_->subnodes_[address_];
+			content.subnode = node_->contents_[address_].subnode;
 		} else {
 			content.suffix = &(node_->suffixes_[address_]);
-			assert (node_->ids_);
-			content.id = (*node_->ids_)[address_];
+			content.id = node_->contents_[address_].id;
 		}
 	}
 

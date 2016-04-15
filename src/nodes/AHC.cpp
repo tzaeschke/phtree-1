@@ -14,33 +14,24 @@
 
 using namespace std;
 
-AHC::AHC(size_t dim, size_t valueLength) :
-		Node(dim, valueLength),
-		filled_(1<<dim, false), hasSubnode_(1<<dim, false), subnodes_(1<<dim), suffixes_(1<<dim) {
-	prefix_ = vector<bool>();
-	ids_ = ((vector<int>*)0);
+AHC::AHC(size_t dim, size_t valueLength) : Node(dim, valueLength),
+		contents_(1<<dim), suffixes_(1<<dim_) {
 }
 
 AHC::AHC(Node& other) : Node(other),
-		filled_(1<<dim_, false), hasSubnode_(1<<dim_, false), subnodes_(1<<dim_), suffixes_(1<<dim_){
+		contents_(1<<dim_), suffixes_(1<<dim_) {
 
-	ids_ = ((vector<int>*)0);
+	// TODO use more efficient way to convert LHC->AHC
 	NodeIterator* it;
 	NodeIterator* endIt = other.end();
 	for (it = other.begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent content = *(*it);
 		assert (content.exists);
-		filled_[content.address] = true;
 		if (content.hasSubnode) {
-			hasSubnode_[content.address] = true;
-			subnodes_[content.address] = content.subnode;
+			contents_[content.address] = AHCAddressContent(content.subnode);
 		} else {
-			if (!ids_) {
-				// create a new storage for ids as this node seems to be a leaf
-				ids_ = new vector<int>(1<<dim_);
-			}
-			(*ids_)[content.address] = content.id;
-			hasSubnode_[content.address] = false;
+			assert (content.suffix);
+			contents_[content.address] = AHCAddressContent(content.id);
 			suffixes_[content.address] = *content.suffix;
 		}
 	}
@@ -50,20 +41,16 @@ AHC::AHC(Node& other) : Node(other),
 }
 
 AHC::~AHC() {
-	hasSubnode_.clear();
-	filled_.clear();
-	subnodes_.clear();
+	contents_.clear();
 	suffixes_.clear();
-	if (ids_) {
-		ids_->clear();
-		delete ids_;
-	}
 }
 
 void AHC::recursiveDelete() {
-	for (size_t i = 0; i < subnodes_.size(); i++) {
-		if (subnodes_[i])
-			subnodes_[i]->recursiveDelete();
+	for (size_t i = 0; i < 1<<dim_; ++i) {
+		if (contents_[i].filled && contents_[i].hasSubnode) {
+			assert (contents_[i].subnode);
+			contents_[i].subnode->recursiveDelete();
+		}
 	}
 
 	delete this;
@@ -73,21 +60,18 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 	assert (address < 1<<dim_);
 
 	NodeAddressContent content;
-	content.exists = filled_[address];
 	content.address = address;
-	content.hasSubnode = false;
+	content.exists = contents_[address].filled;
+	content.hasSubnode = contents_[address].hasSubnode;
 
 	if (content.exists) {
-		content.hasSubnode = hasSubnode_[address];
 		if (content.hasSubnode) {
-			content.subnode = subnodes_[address];
+			content.subnode = contents_[address].subnode;
 			content.suffix = NULL;
 		} else {
 			content.subnode = NULL;
 			content.suffix = &suffixes_[address];
-			if (ids_) {
-				content.id = (*ids_)[address];
-			}
+			content.id = contents_[address].id;
 		}
 	}
 
@@ -100,15 +84,8 @@ void AHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id)
 	assert (hcAddress < 1<<dim_);
 	assert (suffix->size() % dim_ == 0);
 
-	filled_[hcAddress] = true;
-	hasSubnode_[hcAddress] = false;
-	subnodes_[hcAddress] = NULL;
+	contents_[hcAddress] = AHCAddressContent(id);
 	suffixes_[hcAddress] = *suffix;
-	if (!ids_) {
-		// create a new storage for ids as this node seems to be a leaf
-		ids_ = new vector<int>(1<<dim_);
-	}
-	(*ids_)[hcAddress] = id;
 
 	assert(*lookup(hcAddress).suffix == (*suffix));
 	assert(lookup(hcAddress).id == id);
@@ -116,10 +93,7 @@ void AHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id)
 
 void AHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
 	assert (hcAddress < 1<<dim_);
-	filled_[hcAddress] = true;
-	hasSubnode_[hcAddress] = true;
-	subnodes_[hcAddress] = subnode;
-	suffixes_[hcAddress].clear();
+	contents_[hcAddress] = AHCAddressContent(subnode);
 }
 
 Node* AHC::adjustSize() {
@@ -145,19 +119,20 @@ ostream& AHC::output(ostream& os, size_t depth) {
 	Entry prefix(prefix_, dim_, 0);
 	os << " | prefix: " << prefix << endl;
 
-	for (long address = 0; address < (2L << dim_); address++) {
+	for (size_t address = 0; address < (1L << dim_); ++address) {
 		// print address
-		if (filled_[address]){
+		if (contents_[address].filled){
 			for (size_t i = 0; i < depth; i++) { os << "-";}
 			os << " " << address << ": ";
 		}
 
 		// print subnode or prefix
-		if (hasSubnode_[address]) {
-			subnodes_[address]->output(os, depth + 1);
-		} else if (filled_[address]) {
+		if (contents_[address].filled && contents_[address].hasSubnode) {
+			contents_[address].subnode->output(os, depth + 1);
+		} else if (contents_[address].filled) {
 			Entry suffix(suffixes_[address], dim_, 0);
-			os << " suffix: " << suffix << endl;
+			os << " suffix: " << suffix;
+			os << " (id: " << contents_[address].id << ")" << endl;
 		}
 	}
 

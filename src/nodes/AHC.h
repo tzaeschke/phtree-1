@@ -13,6 +13,7 @@
 #include "Node.h"
 #include "../iterators/NodeIterator.h"
 #include "NodeAddressContent.h"
+#include "AHCAddressContent.h"
 
 class AHC: public Node {
 	friend class AHCIterator;
@@ -29,13 +30,9 @@ public:
 	virtual void recursiveDelete() override;
 
 protected:
-	// TODO use arrays instead
-	std::vector<bool> filled_;
-	std::vector<bool> hasSubnode_;
-	std::vector<Node *> subnodes_;
-	// entry -> (bits)
+	// TODO use arrays instead by templating the dimensions
+	std::vector<AHCAddressContent> contents_;
 	std::vector<std::vector<bool>> suffixes_;
-	std::vector<int>* ids_;
 
 	virtual NodeAddressContent lookup(unsigned long address) override;
 	virtual void insertAtAddress(unsigned long hcAddress, std::vector<bool>* suffix, int id) override;

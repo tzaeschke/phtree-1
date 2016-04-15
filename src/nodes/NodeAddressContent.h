@@ -13,6 +13,7 @@
 class Node;
 
 // TODO use union to differentiate between subnode and suffix contents
+// TODO combine exists and hasSubnode in single byte
 struct NodeAddressContent {
 	unsigned long address;
 	bool exists;

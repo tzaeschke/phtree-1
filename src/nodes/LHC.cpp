@@ -169,7 +169,8 @@ ostream& LHC::output(ostream& os, size_t depth) {
 		} else {
 			// print suffix
 			Entry suffix(content.second.suffix, dim_, 0);
-			os << " suffix: " << suffix << endl;
+			os << " suffix: " << suffix;
+			os << " (id: " << content.second.id << ")" << endl;
 		}
 	}
 	return os;

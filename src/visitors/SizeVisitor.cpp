@@ -11,6 +11,8 @@
 #include "../nodes/AHC.h"
 #include "../nodes/LHCAddressContent.h"
 
+using namespace std;
+
 SizeVisitor::SizeVisitor() {
 	reset();
 }
@@ -20,27 +22,27 @@ SizeVisitor::~SizeVisitor() { }
 void SizeVisitor::visit(LHC* node, unsigned int depth) {
 	totalLHCByteSize += superSize(node);
 	totalLHCByteSize += sizeof(node->longestSuffix_);
-	totalLHCByteSize += sizeof(node->sortedContents_);
-	for ( std::map<long,LHCAddressContent>::iterator i = node->sortedContents_.begin();
-			i != node->sortedContents_.end() ; ++i ) {
-		totalLHCByteSize += sizeof(i->first);
-		totalLHCByteSize += sizeof(i->second);
-	}
+	totalLHCByteSize += sizeof(map<long,LHCAddressContent>)
+			+ (sizeof(long) + sizeof(LHCAddressContent)) * node->sortedContents_.size();
 }
 
 void SizeVisitor::visit(AHC* node, unsigned int depth) {
 	totalAHCByteSize += superSize(node);
-	totalAHCByteSize += sizeof(node->filled_);
-	totalAHCByteSize += sizeof(node->hasSubnode_);
-	totalAHCByteSize += sizeof((*node->ids_));
-	totalAHCByteSize += sizeof(node->subnodes_);
-	totalAHCByteSize += sizeof(node->suffixes_);
+	for (size_t i = 0; i < node->contents_.size(); ++i) {
+		totalAHCByteSize += sizeof(node->contents_[i]);
+		totalAHCByteSize += getBoolContainerSize(node->suffixes_[i]);
+	}
 }
 
 unsigned long SizeVisitor::superSize(Node* node) {
 	unsigned long superSize = sizeof(node->dim_) + sizeof(node->valueLength_);
-	superSize += sizeof(node->prefix_);
+	superSize += getBoolContainerSize(node->prefix_);
 	return superSize;
+}
+
+unsigned long SizeVisitor::getBoolContainerSize(const vector<bool>& container) {
+	// internally maps each bool to one bit only
+	return sizeof(vector<bool>) + container.size() / 8;
 }
 
 void SizeVisitor::reset() {

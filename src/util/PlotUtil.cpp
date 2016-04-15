@@ -99,7 +99,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME);
-		cout << "\tdim\tinsert [ms]\t\tlookup [ms]" << endl;
+		cout << "\tdim\tinsert [ms]\t\tlookup [ms]\t\tsize [Mbyte]" << endl;
 		for (size_t test = 0; test < dimensions.size(); test++) {
 			float insertMs = (float (insertTicks[test]) / entries[test].size() / (CLOCKS_PER_SEC / 1000));
 			float lookupMs = (float (lookupTicks[test]) / entries[test].size() / (CLOCKS_PER_SEC / 1000));
@@ -109,9 +109,10 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 				<< "\t" << lookupMs
 				<< "\t"	<< nAHCNodes.at(test)
 				<< "\t" << nLHCNodes.at(test)
-				<< "\t" << (totalAhcByteSize.at(test) / 1000000)
-				<< "\t" << (totalLhcByteSize.at(test) / 1000000) << "\n";
-			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs << endl;
+				<< "\t" << (float(totalAhcByteSize.at(test)) / 1000000)
+				<< "\t" << (float(totalLhcByteSize.at(test)) / 1000000) << "\n";
+			float totalSizeMByte = float(totalAhcByteSize.at(test) + totalLhcByteSize.at(test)) / 1000000;
+			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs  << "\t\t" << totalSizeMByte << endl;
 		}
 
 		// clear
@@ -217,8 +218,8 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 					<< (float (lookupTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000) << "\t"
 					<< nAHCNodes.at(test) << "\t"
 					<< nLHCNodes.at(test) << "\t"
-					<< (totalAhcByteSize.at(test) / 1000000) << "\t"
-					<< (totalLhcByteSize.at(test) / 1000000) << "\n";
+					<< (float(totalAhcByteSize.at(test)) / 1000000) << "\t"
+					<< (float(totalLhcByteSize.at(test)) / 1000000) << "\n";
 		}
 		plotFile->close();
 		delete plotFile;

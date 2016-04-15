@@ -112,9 +112,9 @@ int main(int argc, char* argv[]) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
 //		PlotUtil::plotAverageInsertTimePerDimension("./plot/data/phtree_java_rand_unique_entries.dat", 32);
-		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotTimeSeriesOfInserts();
 		PlotUtil::plotAverageInsertTimePerDimensionRandom();
-		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+//		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;
 	} else if (rand.compare(argv[1]) == 0) {
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
