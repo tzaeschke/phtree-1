@@ -14,13 +14,13 @@
 #include <algorithm>
 #include <assert.h>
 
-#include "../Entry.h"
-#include "../PHTree.h"
-#include "../visitors/CountNodeTypesVisitor.h"
-#include "../visitors/AssertionVisitor.h"
-#include "../visitors/SizeVisitor.h"
-#include "FileInputUtil.h"
-#include "rdtsc.h"
+#include "Entry.h"
+#include "PHTree.h"
+#include "visitors/CountNodeTypesVisitor.h"
+#include "visitors/AssertionVisitor.h"
+#include "visitors/SizeVisitor.h"
+#include "util/FileInputUtil.h"
+#include "util/rdtsc.h"
 
 using namespace std;
 
@@ -28,9 +28,9 @@ set<Entry*> PlotUtil::generateUniqueRandomEntries(size_t dim, size_t bitLength, 
 	srand(time(NULL));
 	set<Entry*> randomDimEntries;
 	for (size_t nEntry = 0; nEntry < nUniqueEntries; nEntry++) {
-		vector<long>* entryValues = new vector<long>(dim);
+		vector<unsigned long>* entryValues = new vector<unsigned long>(dim);
 		for (size_t d = 0; d < dim; d++) {
-			entryValues->at(d) = rand() % (2 << bitLength);
+			entryValues->at(d) = rand() % (1ul << bitLength);
 		}
 		Entry* entry = new Entry(*entryValues, bitLength, nEntry);
 		bool inserted = randomDimEntries.insert(entry).second;

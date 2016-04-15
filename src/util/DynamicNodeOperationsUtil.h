@@ -8,7 +8,7 @@
 #ifndef SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_
 #define SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_
 
-#include "../nodes/NodeAddressContent.h"
+#include "nodes/NodeAddressContent.h"
 
 class Entry;
 class Node;

@@ -8,8 +8,8 @@
 #ifndef AHCITERATOR_H_
 #define AHCITERATOR_H_
 
-#include "../nodes/AHC.h"
-#include "NodeIterator.h"
+#include "nodes/AHC.h"
+#include "iterators/NodeIterator.h"
 
 class AHCIterator: public NodeIterator {
 public:

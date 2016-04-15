@@ -14,11 +14,11 @@ using namespace std;
 
 int mainSimpleExample() {
 	const unsigned int bitLength = 8;
-	vector<long> e1Values { 10, 5 };
-	vector<long> e2Values { 11, 12 };
-	vector<long> e3Values { 60, 7 };
-	vector<long> e4Values { 1, 3 };
-	vector<long> e5Values { 11, 5 };
+	vector<unsigned long> e1Values { 10, 5 };
+	vector<unsigned long> e2Values { 11, 12 };
+	vector<unsigned long> e3Values { 60, 7 };
+	vector<unsigned long> e4Values { 1, 3 };
+	vector<unsigned long> e5Values { 11, 5 };
 	Entry* e1 = new Entry(e1Values, bitLength, 1);
 	Entry* e2 = new Entry(e2Values, bitLength, 2);
 	Entry* e3 = new Entry(e3Values, bitLength, 3);

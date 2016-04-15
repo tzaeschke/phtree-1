@@ -9,7 +9,7 @@
 #define VISITORS_COUNTNODETYPESVISITOR_H_
 
 #include <iostream>
-#include "Visitor.h"
+#include "visitors/Visitor.h"
 
 class CountNodeTypesVisitor: public Visitor {
 	friend std::ostream& operator <<(std::ostream &out, const CountNodeTypesVisitor &visitor);

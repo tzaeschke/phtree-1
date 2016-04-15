@@ -6,11 +6,11 @@
  */
 
 #include <assert.h>
-#include "AssertionVisitor.h"
-#include "../iterators/NodeIterator.h"
-#include "../nodes/Node.h"
-#include "../nodes/LHC.h"
-#include "../nodes/AHC.h"
+#include "visitors/AssertionVisitor.h"
+#include "iterators/NodeIterator.h"
+#include "nodes/Node.h"
+#include "nodes/LHC.h"
+#include "nodes/AHC.h"
 
 AssertionVisitor::AssertionVisitor() {
 }

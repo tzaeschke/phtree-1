@@ -7,20 +7,19 @@
 
 #include <iostream>
 #include <string>
-#include <vector>
 #include <assert.h>
 #include "util/MultiDimBitTool.h"
+#include "Entry.h"
 
 using namespace std;
 
-#include "Entry.h"
 
-Entry::Entry(vector<long> values, int bitLength, int id) : id_(id), dim_(values.size()) {
+Entry::Entry(vector<unsigned long> values, int bitLength, int id) : id_(id), dim_(values.size()) {
 	MultiDimBitTool::longsToBitsets(values_, values, bitLength, dim_);
 	assert (values_.size() == getBitLength() * getDimensions());
 }
 
-Entry::Entry(vector<bool> values, size_t dim, int id) : values_(values), id_(id), dim_(dim) {
+Entry::Entry(boost::dynamic_bitset<> values, size_t dim, int id) : values_(values), id_(id), dim_(dim) {
 	assert (values_.size() == getBitLength() * getDimensions());
 }
 

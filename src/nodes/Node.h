@@ -8,10 +8,10 @@
 #ifndef SRC_NODE_H_
 #define SRC_NODE_H_
 
-#include <vector>
-#include "../Entry.h"
-#include "../iterators/NodeIterator.h"
-#include "NodeAddressContent.h"
+#include "Entry.h"
+#include "iterators/NodeIterator.h"
+#include "nodes/NodeAddressContent.h"
+#include "boost/dynamic_bitset.hpp"
 
 class Visitor;
 class RangeQueryIterator;
@@ -41,14 +41,14 @@ protected:
 	size_t dim_;
 	size_t valueLength_;
 	// value -> bit
-	std::vector<bool> prefix_;
+	boost::dynamic_bitset<> prefix_;
 
 	size_t getSuffixSize(NodeAddressContent);
 	size_t getPrefixLength();
 
 
 	virtual NodeAddressContent lookup(unsigned long address) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, std::vector<bool>* suffix, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
 };

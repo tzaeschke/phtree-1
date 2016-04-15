@@ -7,12 +7,13 @@
 
 #include <assert.h>
 #include <stdexcept>
-#include "DynamicNodeOperationsUtil.h"
-#include "SpatialSelectionOperationsUtil.h"
-#include "MultiDimBitTool.h"
-#include "NodeTypeUtil.h"
-#include "../nodes/Node.h"
-#include "../nodes/NodeAddressContent.h"
+#include "util/DynamicNodeOperationsUtil.h"
+#include "util/SpatialSelectionOperationsUtil.h"
+#include "util/MultiDimBitTool.h"
+#include "util/NodeTypeUtil.h"
+#include "nodes/Node.h"
+#include "nodes/NodeAddressContent.h"
+#include "boost/dynamic_bitset.hpp"
 
 using namespace std;
 
@@ -36,8 +37,8 @@ void DynamicNodeOperationsUtil::createSubnodeWithExistingSuffix(size_t dim,
 	assert(insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 	// add remaining bits after prefix and addresses as suffixes
-	vector<bool>* insertEntryPrefix = new vector<bool>();
-	vector<bool>* exisitingEntryPrefix = new vector<bool>();
+	boost::dynamic_bitset<>* insertEntryPrefix = new boost::dynamic_bitset<>();
+	boost::dynamic_bitset<>* exisitingEntryPrefix = new boost::dynamic_bitset<>();
 	MultiDimBitTool::removeFirstBits(currentIndex + 1 + prefixLength + 1, dim,
 			&(entry->values_), insertEntryPrefix);
 	MultiDimBitTool::removeFirstBits(prefixLength + 1, dim, content.suffix,
@@ -63,7 +64,7 @@ void DynamicNodeOperationsUtil::createSubnodeWithExistingSuffix(size_t dim,
 
 Node* DynamicNodeOperationsUtil::insertSuffix(size_t dim, size_t currentIndex,
 		size_t hcAddress, Node* currentNode, const Entry* entry) {
-	vector<bool>* suffix = new vector<bool>();
+	boost::dynamic_bitset<>* suffix = new boost::dynamic_bitset<>;
 	MultiDimBitTool::removeFirstBits(currentIndex + 1, dim, &(entry->values_),
 			suffix);
 	currentNode->insertAtAddress(hcAddress, suffix, entry->id_);
@@ -98,7 +99,7 @@ void DynamicNodeOperationsUtil::splitSubnodePrefix(size_t dim, size_t bitLength,
 	MultiDimBitTool::removeFirstBits(differentAtIndex + 1, dim,
 			&(oldSubnode->prefix_));
 
-	vector<bool>* newSubnodeEntryPrefix = new vector<bool>();
+	boost::dynamic_bitset<>* newSubnodeEntryPrefix = new boost::dynamic_bitset<>();
 	MultiDimBitTool::removeFirstBits(currentIndex + 1 + differentAtIndex + 1, dim,
 			&(entry->values_), newSubnodeEntryPrefix);
 

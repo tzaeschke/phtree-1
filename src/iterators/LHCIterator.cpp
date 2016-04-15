@@ -6,7 +6,7 @@
  */
 
 #include <assert.h>
-#include "LHCIterator.h"
+#include "iterators/LHCIterator.h"
 
 LHCIterator::LHCIterator(LHC& node) : NodeIterator() {
 	node_ = &node;

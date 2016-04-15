@@ -6,9 +6,9 @@
  */
 
 #include <assert.h>
-#include "RangeQueryIterator.h"
-#include "../util/MultiDimBitTool.h"
-#include "../nodes/NodeAddressContent.h"
+#include "iterators/RangeQueryIterator.h"
+#include "util/MultiDimBitTool.h"
+#include "nodes/NodeAddressContent.h"
 
 using namespace std;
 
@@ -22,7 +22,7 @@ RangeQueryIterator::RangeQueryIterator(vector<Node*>* nodeStack, size_t dim, siz
 	// TODO check of range is empty
 	hasNext_ = true;
 
-	currentPrefix_ = new vector<bool>();
+	currentPrefix_ = new boost::dynamic_bitset<>();
 
 	nodeStack_ = new stack<Node*>();
 	lastAddressStack_ = new stack<unsigned long>();

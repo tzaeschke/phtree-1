@@ -10,8 +10,8 @@
 
 #include <map>
 #include <vector>
-#include "Node.h"
-#include "LHCAddressContent.h"
+#include "nodes/Node.h"
+#include "nodes/LHCAddressContent.h"
 
 class LHC: public Node {
 	friend class LHCIterator;
@@ -31,7 +31,7 @@ protected:
 	size_t longestSuffix_;
 
 	NodeAddressContent lookup(unsigned long address) override;
-	void insertAtAddress(unsigned long hcAddress, std::vector<bool>* suffix, int id) override;
+	void insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	Node* adjustSize() override;
 

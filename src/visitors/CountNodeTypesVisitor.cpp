@@ -5,7 +5,7 @@
  *      Author: max
  */
 
-#include "CountNodeTypesVisitor.h"
+#include "visitors/CountNodeTypesVisitor.h"
 
 using namespace std;
 

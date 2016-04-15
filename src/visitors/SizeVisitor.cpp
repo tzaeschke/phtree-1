@@ -5,11 +5,11 @@
  *      Author: max
  */
 
-#include "SizeVisitor.h"
-#include "../nodes/Node.h"
-#include "../nodes/LHC.h"
-#include "../nodes/AHC.h"
-#include "../nodes/LHCAddressContent.h"
+#include "visitors/SizeVisitor.h"
+#include "nodes/Node.h"
+#include "nodes/LHC.h"
+#include "nodes/AHC.h"
+#include "nodes/LHCAddressContent.h"
 
 using namespace std;
 
@@ -40,9 +40,9 @@ unsigned long SizeVisitor::superSize(Node* node) {
 	return superSize;
 }
 
-unsigned long SizeVisitor::getBoolContainerSize(const vector<bool>& container) {
+unsigned long SizeVisitor::getBoolContainerSize(const boost::dynamic_bitset<>& container) {
 	// internally maps each bool to one bit only
-	return sizeof(vector<bool>) + container.size() / 8;
+	return sizeof (boost::dynamic_bitset<>) + container.bits_per_block * container.num_blocks() / 8;
 }
 
 void SizeVisitor::reset() {

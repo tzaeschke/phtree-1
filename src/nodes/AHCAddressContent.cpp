@@ -5,8 +5,8 @@
  *      Author: max
  */
 
-#include "AHCAddressContent.h"
-#include "Node.h"
+#include "nodes/AHCAddressContent.h"
+#include "nodes/Node.h"
 
 using namespace std;
 

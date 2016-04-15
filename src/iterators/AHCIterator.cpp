@@ -7,9 +7,9 @@
 
 #include <stdexcept>
 #include <assert.h>
-#include "../nodes/Node.h"
-#include "../nodes/AHC.h"
-#include "../iterators/AHCIterator.h"
+#include "nodes/Node.h"
+#include "nodes/AHC.h"
+#include "iterators/AHCIterator.h"
 
 AHCIterator::AHCIterator(AHC& node) : NodeIterator() {
 	node_ = &node;

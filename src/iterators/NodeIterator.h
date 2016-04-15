@@ -9,7 +9,7 @@
 #define NODEITERATOR_H_
 
 #include <iterator>
-#include "../nodes/NodeAddressContent.h"
+#include "nodes/NodeAddressContent.h"
 
 class NodeIterator : public std::iterator<std::input_iterator_tag, NodeAddressContent> {
 public:

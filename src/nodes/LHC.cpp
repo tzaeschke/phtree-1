@@ -7,16 +7,16 @@
 
 #include <assert.h>
 #include <utility>
-#include "AHC.h"
-#include "LHC.h"
-#include "../iterators/LHCIterator.h"
-#include "../visitors/Visitor.h"
+#include "nodes/AHC.h"
+#include "nodes/LHC.h"
+#include "iterators/LHCIterator.h"
+#include "visitors/Visitor.h"
 
 using namespace std;
 
 LHC::LHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
-	prefix_ = vector<bool>();
+	prefix_ = boost::dynamic_bitset<>();
 	longestSuffix_ = 0;
 }
 
@@ -74,7 +74,7 @@ LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
 	}
 }
 
-void LHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id) {
+void LHC::insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) {
 	assert (hcAddress < 1<<dim_);
 	assert (suffix);
 

@@ -6,10 +6,10 @@
  */
 
 #include <assert.h>
-#include "SpatialSelectionOperationsUtil.h"
-#include "MultiDimBitTool.h"
-#include "../nodes/Node.h"
-#include "../nodes/NodeAddressContent.h"
+#include "util/SpatialSelectionOperationsUtil.h"
+#include "util/MultiDimBitTool.h"
+#include "nodes/Node.h"
+#include "nodes/NodeAddressContent.h"
 
 using namespace std;
 

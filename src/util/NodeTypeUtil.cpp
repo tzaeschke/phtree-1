@@ -5,8 +5,8 @@
  *      Author: max
  */
 
-#include "NodeTypeUtil.h"
-#include "../nodes/LHC.h"
+#include "util/NodeTypeUtil.h"
+#include "nodes/LHC.h"
 
 
 

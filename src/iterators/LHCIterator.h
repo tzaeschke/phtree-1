@@ -9,9 +9,9 @@
 #define LHCITERATOR_H_
 
 #include <map>
-#include "NodeIterator.h"
-#include "../nodes/LHC.h"
-#include "../nodes/LHCAddressContent.h"
+#include "iterators/NodeIterator.h"
+#include "nodes/LHC.h"
+#include "nodes/LHCAddressContent.h"
 
 struct NodeAddressContent;
 

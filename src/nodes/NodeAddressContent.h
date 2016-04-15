@@ -8,7 +8,7 @@
 #ifndef NODEADDRESSCONTENT_H_
 #define NODEADDRESSCONTENT_H_
 
-#include <vector>
+#include "boost/dynamic_bitset.hpp"
 
 class Node;
 
@@ -19,7 +19,7 @@ struct NodeAddressContent {
 	bool exists;
 	bool hasSubnode;
 	Node* subnode;
-	std::vector<bool>* suffix;
+	boost::dynamic_bitset<>* suffix;
 	int id;
 };
 

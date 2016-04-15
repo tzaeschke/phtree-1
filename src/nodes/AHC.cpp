@@ -6,20 +6,20 @@
  */
 
 #include <assert.h>
-#include "AHC.h"
-#include "../iterators/AHCIterator.h"
-#include "../iterators/NodeIterator.h"
-#include "NodeAddressContent.h"
-#include "../visitors/Visitor.h"
+#include "nodes/AHC.h"
+#include "iterators/AHCIterator.h"
+#include "iterators/NodeIterator.h"
+#include "nodes/NodeAddressContent.h"
+#include "visitors/Visitor.h"
 
 using namespace std;
 
 AHC::AHC(size_t dim, size_t valueLength) : Node(dim, valueLength),
-		contents_(1<<dim), suffixes_(1<<dim_) {
+		contents_(1uL <<dim), suffixes_(1uL <<dim_) {
 }
 
 AHC::AHC(Node& other) : Node(other),
-		contents_(1<<dim_), suffixes_(1<<dim_) {
+		contents_(1uL <<dim_), suffixes_(1uL <<dim_) {
 
 	// TODO use more efficient way to convert LHC->AHC
 	NodeIterator* it;
@@ -46,7 +46,7 @@ AHC::~AHC() {
 }
 
 void AHC::recursiveDelete() {
-	for (size_t i = 0; i < 1<<dim_; ++i) {
+	for (size_t i = 0; i < 1uL <<dim_; ++i) {
 		if (contents_[i].filled && contents_[i].hasSubnode) {
 			assert (contents_[i].subnode);
 			contents_[i].subnode->recursiveDelete();
@@ -57,7 +57,7 @@ void AHC::recursiveDelete() {
 }
 
 NodeAddressContent AHC::lookup(unsigned long address) {
-	assert (address < 1<<dim_);
+	assert (address < 1uL <<dim_);
 
 	NodeAddressContent content;
 	content.address = address;
@@ -80,8 +80,8 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 	return content;
 }
 
-void AHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id) {
-	assert (hcAddress < 1<<dim_);
+void AHC::insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) {
+	assert (hcAddress < 1ul <<dim_);
 	assert (suffix->size() % dim_ == 0);
 
 	contents_[hcAddress] = AHCAddressContent(id);
@@ -92,7 +92,7 @@ void AHC::insertAtAddress(unsigned long hcAddress, vector<bool>* suffix, int id)
 }
 
 void AHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
-	assert (hcAddress < 1<<dim_);
+	assert (hcAddress < 1ul <<dim_);
 	contents_[hcAddress] = AHCAddressContent(subnode);
 }
 
@@ -119,7 +119,7 @@ ostream& AHC::output(ostream& os, size_t depth) {
 	Entry prefix(prefix_, dim_, 0);
 	os << " | prefix: " << prefix << endl;
 
-	for (size_t address = 0; address < (1L << dim_); ++address) {
+	for (size_t address = 0; address < (1uL << dim_); ++address) {
 		// print address
 		if (contents_[address].filled){
 			for (size_t i = 0; i < depth; i++) { os << "-";}

@@ -8,8 +8,8 @@
 #ifndef SRC_VISITORS_SIZEVISITOR_H_
 #define SRC_VISITORS_SIZEVISITOR_H_
 
-#include <vector>
-#include "Visitor.h"
+#include "visitors/Visitor.h"
+#include "boost/dynamic_bitset.hpp"
 class Node;
 
 class SizeVisitor: public Visitor {
@@ -35,7 +35,7 @@ private:
 	unsigned long totalLHCByteSize;
 	unsigned long totalAHCByteSize;
 	unsigned long superSize(Node* node);
-	unsigned long getBoolContainerSize(const std::vector<bool>& container);
+	unsigned long getBoolContainerSize(const boost::dynamic_bitset<>& container);
 };
 
 #endif /* SRC_VISITORS_SIZEVISITOR_H_ */

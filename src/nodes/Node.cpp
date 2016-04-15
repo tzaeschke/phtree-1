@@ -7,11 +7,11 @@
 
 #include <assert.h>
 #include <stdexcept>
-#include "Node.h"
-#include "LHC.h"
-#include "../util/MultiDimBitTool.h"
-#include "../util/SpatialSelectionOperationsUtil.h"
-#include "../iterators/RangeQueryIterator.h"
+#include "nodes/Node.h"
+#include "nodes/LHC.h"
+#include "util/MultiDimBitTool.h"
+#include "util/SpatialSelectionOperationsUtil.h"
+#include "iterators/RangeQueryIterator.h"
 
 using namespace std;
 

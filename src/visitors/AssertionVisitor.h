@@ -8,7 +8,7 @@
 #ifndef VISITORS_ASSERTIONVISITOR_H_
 #define VISITORS_ASSERTIONVISITOR_H_
 
-#include "Visitor.h"
+#include "visitors/Visitor.h"
 
 class NodeIterator;
 class Node;

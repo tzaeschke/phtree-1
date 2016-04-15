@@ -10,22 +10,22 @@
 #include <regex>
 #include <vector>
 #include <string>
-#include "FileInputUtil.h"
-#include "../Entry.h"
 #include <assert.h>
 #include <stdexcept>
+#include "Entry.h"
+#include "util/FileInputUtil.h"
 
 using namespace std;
 
-inline vector<long> getNextLineTokens(ifstream& stream) {
+inline vector<unsigned long> getNextLineTokens(ifstream& stream) {
 	string line;
 	getline(stream, line);
 	stringstream lineStream(line);
 	string cell;
-	vector<long> tokens;
+	vector<unsigned long> tokens;
 
 	while (getline(lineStream, cell, ',')) {
-		int parsedToken = stoi(cell);
+		unsigned long parsedToken = stoi(cell);
 		tokens.push_back(parsedToken);
 	}
 
@@ -39,7 +39,7 @@ vector<Entry*> FileInputUtil::readEntries(string fileLocation, size_t bitLength)
 	if (myfile.is_open()) {
 		int id = 0;
 		while (!myfile.eof()) {
-			vector<long> values = getNextLineTokens(myfile);
+			vector<unsigned long> values = getNextLineTokens(myfile);
 			if (!values.empty()) {
 				Entry* entry = new Entry(values, bitLength, id++);
 				assert (entry->getBitLength() == bitLength);

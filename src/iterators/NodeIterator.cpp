@@ -5,7 +5,7 @@
  *      Author: max
  */
 
-#include "NodeIterator.h"
+#include "iterators/NodeIterator.h"
 #include <stdexcept>
 
 NodeIterator::NodeIterator() {

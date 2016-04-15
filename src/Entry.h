@@ -8,8 +8,9 @@
 #ifndef SRC_ENTRY_H_
 #define SRC_ENTRY_H_
 
+#include <vector>
 #include <iostream>
-#include "Entry.h"
+#include "boost/dynamic_bitset.hpp"
 
 class Entry {
 	friend std::ostream& operator <<(std::ostream &out, const Entry &entry);
@@ -18,8 +19,8 @@ class Entry {
 
 public:
 
-	Entry(std::vector<long> values, int bitLength, int id);
-	Entry(std::vector<bool> values, size_t dim, int id);
+	Entry(std::vector<unsigned long> values, int bitLength, int id);
+	Entry(boost::dynamic_bitset<> values, size_t dim, int id);
 	~Entry();
 
 	size_t getBitLength();
@@ -27,7 +28,7 @@ public:
 
 	// value -> bit
 	size_t dim_;
-	std::vector<bool> values_;
+	boost::dynamic_bitset<> values_;
 	int id_;
 
 };

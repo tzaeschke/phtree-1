@@ -8,7 +8,7 @@
 #ifndef SRC_UTIL_NODETYPEUTIL_H_
 #define SRC_UTIL_NODETYPEUTIL_H_
 
-#include "../nodes/LHC.h"
+#include "nodes/LHC.h"
 
 class Node;
 
