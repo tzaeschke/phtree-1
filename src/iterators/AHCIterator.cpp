@@ -13,10 +13,10 @@
 
 AHCIterator::AHCIterator(AHC& node) : NodeIterator() {
 	node_ = &node;
-	setAddress(0);
+	setAddress(0uL);
 }
 
-AHCIterator::AHCIterator(long address, AHC& node) : NodeIterator(address) {
+AHCIterator::AHCIterator(unsigned long address, AHC& node) : NodeIterator(address) {
 	node_ = &node;
 	setAddress(address);
 }
@@ -24,19 +24,19 @@ AHCIterator::AHCIterator(long address, AHC& node) : NodeIterator(address) {
 AHCIterator::~AHCIterator() {}
 
 void AHCIterator::setAddress(size_t address) {
-	if (address >= (1 << node_->dim_)) {
-		address_ = (1 << node_->dim_);
+	if (address >= (1uL << node_->dim_)) {
+		address_ = (1uL << node_->dim_);
 	} else {
 		// find first filled address if the given one is not filled
-		for (address_ = address; !node_->contents_[address_].filled && address <=(1 << node_->dim_); address_++) {}
-		if ((address_ == (1<< node_->dim_) - 1) && !node_->contents_[address_].filled) address_++;
+		for (address_ = address; !node_->contents_[address_].filled && address <=(1uL << node_->dim_); address_++) {}
+		if ((address_ == (1uL << node_->dim_) - 1) && !node_->contents_[address_].filled) address_++;
 	}
 }
 
 NodeIterator& AHCIterator::operator++() {
 	// skip all unfilled fields until the highest address is reached
-	for (address_++; address_ < (1 << node_->dim_) && !node_->contents_[address_].filled; address_++) {}
-	if ((address_ == (1<< node_->dim_) - 1) && !node_->contents_[address_].filled) address_++;
+	for (address_++; address_ < (1uL << node_->dim_) && !node_->contents_[address_].filled; address_++) {}
+	if ((address_ == (1uL << node_->dim_) - 1uL) && !node_->contents_[address_].filled) address_++;
 	return *this;
 }
 

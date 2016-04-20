@@ -7,7 +7,6 @@
 
 #include <assert.h>
 #include "iterators/RangeQueryIterator.h"
-#include "util/MultiDimBitTool.h"
 #include "nodes/NodeAddressContent.h"
 
 using namespace std;
@@ -22,7 +21,7 @@ RangeQueryIterator::RangeQueryIterator(vector<Node*>* nodeStack, size_t dim, siz
 	// TODO check of range is empty
 	hasNext_ = true;
 
-	currentPrefix_ = new boost::dynamic_bitset<>();
+	currentPrefix_ = new MultiDimBitset(dim);
 
 	nodeStack_ = new stack<Node*>();
 	lastAddressStack_ = new stack<unsigned long>();
@@ -66,7 +65,7 @@ Entry RangeQueryIterator::next() {
 	}
 
 	// found a valid suffix in the range
-	Entry entry = MultiDimBitTool::createEntryFrom(dim_, currentPrefix_, currentHCAddress_, content.suffix, content.id);
+	/*Entry entry = //TODO MultiDimBitTool::createEntryFrom(dim_, currentPrefix_, currentHCAddress_, content.suffix, content.id);
 	assert (entry.getDimensions() == dim_);
 	assert (entry.getBitLength() == bitLength_);
 
@@ -91,7 +90,8 @@ Entry RangeQueryIterator::next() {
 		}
 	}
 
-	return entry;
+	return entry;*/
+	throw "currently not implemented";
 }
 
 bool RangeQueryIterator::hasNext() {
@@ -144,7 +144,7 @@ void RangeQueryIterator::stepUp() {
 		hasNext_ = false;
 	} else {
 		// remove the prefix of the last node
-		MultiDimBitTool::removeFirstBits(currentNode_->getPrefixLength() + 1, dim_, currentPrefix_);
+		currentPrefix_->removeHighestBits(currentNode_->getPrefixLength() + 1);
 		currentIndex_ -= (currentNode_->getPrefixLength() + 1);
 		// restore the node and the HC address from the stack
 		currentNode_ = nodeStack_->top();
@@ -162,10 +162,9 @@ void RangeQueryIterator::stepUp() {
 
 void RangeQueryIterator::stepDown(Node* nextNode) {
 	// add the prefix of the next node to the current prefix
-	MultiDimBitTool::pushValueToBack(currentPrefix_, dim_, currentHCAddress_);
+	currentPrefix_->pushValueToBack(currentHCAddress_);
 	currentIndex_ += 1;
-
-	MultiDimBitTool::pushBitsToBack(dim_, currentPrefix_, &(nextNode->prefix_));
+	currentPrefix_->pushBitsToBack(&(nextNode->prefix_));
 	currentIndex_ += nextNode->getPrefixLength();
 	// store the node and the current HC address on a stack
 	lastAddressStack_->push(currentHCAddress_);

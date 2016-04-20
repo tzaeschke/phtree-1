@@ -80,7 +80,7 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 	return content;
 }
 
-void AHC::insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) {
+void AHC::insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) {
 	assert (hcAddress < 1ul <<dim_);
 	assert (suffix->size() % dim_ == 0);
 
@@ -109,7 +109,7 @@ NodeIterator* AHC::end() {
 	return new AHCIterator(1<<dim_, *this);
 }
 
-void AHC::accept(Visitor* visitor, size_t depth) {
+void AHC::accept(Visitor* visitor, size_t depth)  {
 	visitor->visit(this, depth);
 	Node::accept(visitor, depth);
 }

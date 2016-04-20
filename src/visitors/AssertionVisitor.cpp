@@ -26,7 +26,7 @@ void AssertionVisitor::visit(AHC* node, unsigned int depth) {
 	validateContents(node, node->begin(), node->end());
 }
 
-void AssertionVisitor::validateContents(Node* node, NodeIterator* begin, NodeIterator* end) {
+void AssertionVisitor::validateContents(const Node* node, NodeIterator* begin, NodeIterator* end) {
 	bool foundSuffix = false;
 		size_t suffixLength = 0;
 		for (NodeIterator* it = begin; (*it) != *(end); ++(*it)) {

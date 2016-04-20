@@ -9,7 +9,8 @@
 #define SRC_VISITORS_SIZEVISITOR_H_
 
 #include "visitors/Visitor.h"
-#include "boost/dynamic_bitset.hpp"
+#include "util/MultiDimBitset.h"
+
 class Node;
 
 class SizeVisitor: public Visitor {
@@ -21,21 +22,21 @@ public:
 	virtual void visit(AHC* node, unsigned int depth) override;
 	virtual void reset() override;
 
-	unsigned long getTotalByteSize();
-	unsigned long getTotalKByteSize();
-	unsigned long getTotalMByteSize();
-	unsigned long getTotalLhcByteSize();
-	unsigned long getTotalLhcKByteSize();
-	unsigned long getTotalLhcMByteSize();
-	unsigned long getTotalAhcByteSize();
-	unsigned long getTotalAhcKByteSize();
-	unsigned long getTotalAhcMByteSize();
+	unsigned long getTotalByteSize() const;
+	unsigned long getTotalKByteSize() const;
+	unsigned long getTotalMByteSize() const;
+	unsigned long getTotalLhcByteSize() const;
+	unsigned long getTotalLhcKByteSize() const;
+	unsigned long getTotalLhcMByteSize() const;
+	unsigned long getTotalAhcByteSize() const;
+	unsigned long getTotalAhcKByteSize() const;
+	unsigned long getTotalAhcMByteSize() const;
 
 private:
 	unsigned long totalLHCByteSize;
 	unsigned long totalAHCByteSize;
-	unsigned long superSize(Node* node);
-	unsigned long getBoolContainerSize(const boost::dynamic_bitset<>& container);
+	unsigned long superSize(const Node* node);
+	unsigned long getBoolContainerSize(const MultiDimBitset& container);
 };
 
 #endif /* SRC_VISITORS_SIZEVISITOR_H_ */

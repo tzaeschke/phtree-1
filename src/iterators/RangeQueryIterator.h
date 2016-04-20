@@ -11,6 +11,7 @@
 #include <stack>
 #include "nodes/Node.h"
 #include "iterators/NodeIterator.h"
+#include "util/MultiDimBitset.h"
 #include "Entry.h"
 
 class Node;
@@ -30,7 +31,7 @@ private:
 	unsigned long currentHCAddress_;
 	std::stack<Node*>* nodeStack_;
 	std::stack<unsigned long>* lastAddressStack_;
-	boost::dynamic_bitset<>* currentPrefix_;
+	MultiDimBitset* currentPrefix_;
 	Node* currentNode_;
 	NodeIterator* currentStartIterator_;
 	NodeIterator* currentEndIterator_;

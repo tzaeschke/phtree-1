@@ -14,7 +14,7 @@
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
 #include "nodes/AHCAddressContent.h"
-#include "boost/dynamic_bitset.hpp"
+#include "util/MultiDimBitset.h"
 
 class AHC: public Node {
 	friend class AHCIterator;
@@ -33,10 +33,10 @@ public:
 protected:
 	// TODO use arrays instead by templating the dimensions
 	std::vector<AHCAddressContent> contents_;
-	std::vector<boost::dynamic_bitset<>> suffixes_;
+	std::vector<MultiDimBitset> suffixes_;
 
 	virtual NodeAddressContent lookup(unsigned long address) override;
-	virtual void insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) override;
+	virtual void insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) override;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	virtual Node* adjustSize() override;
 };

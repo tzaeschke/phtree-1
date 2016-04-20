@@ -10,7 +10,7 @@
 
 #include <vector>
 #include <iostream>
-#include "boost/dynamic_bitset.hpp"
+#include "util/MultiDimBitset.h"
 
 class Entry {
 	friend std::ostream& operator <<(std::ostream &out, const Entry &entry);
@@ -19,8 +19,8 @@ class Entry {
 
 public:
 
-	Entry(std::vector<unsigned long> values, int bitLength, int id);
-	Entry(boost::dynamic_bitset<> values, size_t dim, int id);
+	Entry(std::vector<unsigned long> &values, size_t bitLength, int id);
+	Entry(MultiDimBitset values, size_t dim, int id);
 	~Entry();
 
 	size_t getBitLength();
@@ -28,7 +28,7 @@ public:
 
 	// value -> bit
 	size_t dim_;
-	boost::dynamic_bitset<> values_;
+	MultiDimBitset values_;
 	int id_;
 
 };

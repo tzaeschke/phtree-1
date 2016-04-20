@@ -7,7 +7,6 @@
 
 #include <assert.h>
 #include "util/SpatialSelectionOperationsUtil.h"
-#include "util/MultiDimBitTool.h"
 #include "nodes/Node.h"
 #include "nodes/NodeAddressContent.h"
 
@@ -33,17 +32,18 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 
 		// validate prefix
 		// TODO move to multi dim bit util
-		for (size_t i = 0; i < currentNode->prefix_.size(); ++i) {
-			if (currentNode->prefix_[i] != e->values_[dim * index + i]) {
-				if (DEBUG)
-					cout << "prefix missmatch" << endl;
-				return pair<bool, int>(false, 0);
-			}
+		pair<bool, size_t> comp = e->values_.compareTo(index,
+				index + currentNode->prefix_.getBitLength(),
+				currentNode->prefix_);
+		if (!comp.first) {
+			if (DEBUG)
+				cout << "prefix missmatch" << endl;
+			return pair<bool, int>(false, 0);
 		}
 
 		// validate HC address
-		int currentIndex = index + currentNode->getPrefixLength();
-		long hcAddress = MultiDimBitTool::interleaveBits(currentIndex, e);
+		size_t currentIndex = index + currentNode->getPrefixLength();
+		unsigned long hcAddress = e->values_.interleaveBits(currentIndex);
 		NodeAddressContent content = currentNode->lookup(hcAddress);
 
 		if (!content.exists) {
@@ -60,12 +60,11 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry* e, Node* roo
 		} else {
 			// TODO move to multi dim bit util
 			assert (content.suffix->size() == e->values_.size() - dim * (currentIndex + 1));
-			for (size_t i = 0; i < content.suffix->size(); ++i) {
-				if ((*content.suffix)[i] != e->values_[dim * (currentIndex + 1) + i]) {
-					if (DEBUG)
-						cout << "suffix missmatch" << endl;
-					return pair<bool, int>(false, 0);
-				}
+			pair<bool, size_t> comp = e->values_.compareTo(currentIndex + 1, currentIndex + 1 + content.suffix->getBitLength(), *content.suffix);
+			if (!comp.first) {
+				if (DEBUG)
+					cout << "suffix missmatch" << endl;
+				return pair<bool, int>(false, 0);
 			}
 
 			if (DEBUG)

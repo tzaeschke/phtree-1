@@ -12,6 +12,7 @@
 #include <vector>
 #include "nodes/Node.h"
 #include "nodes/LHCAddressContent.h"
+#include "util/MultiDimBitset.h"
 
 class LHC: public Node {
 	friend class LHCIterator;
@@ -27,11 +28,11 @@ public:
 	virtual void recursiveDelete() override;
 
 protected:
-	std::map<long, LHCAddressContent> sortedContents_;
+	std::map<unsigned long, LHCAddressContent> sortedContents_;
 	size_t longestSuffix_;
 
 	NodeAddressContent lookup(unsigned long address) override;
-	void insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) override;
+	void insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	Node* adjustSize() override;
 

@@ -11,7 +11,7 @@
 #include "Entry.h"
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
-#include "boost/dynamic_bitset.hpp"
+#include "util/MultiDimBitset.h"
 
 class Visitor;
 class RangeQueryIterator;
@@ -41,14 +41,14 @@ protected:
 	size_t dim_;
 	size_t valueLength_;
 	// value -> bit
-	boost::dynamic_bitset<> prefix_;
+	MultiDimBitset prefix_;
 
-	size_t getSuffixSize(NodeAddressContent);
-	size_t getPrefixLength();
+	size_t getSuffixSize(NodeAddressContent) const;
+	size_t getPrefixLength() const;
 
 
 	virtual NodeAddressContent lookup(unsigned long address) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
 };

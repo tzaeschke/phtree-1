@@ -14,7 +14,7 @@
 class AHCIterator: public NodeIterator {
 public:
 	AHCIterator(AHC& node);
-	AHCIterator(long address, AHC& node);
+	AHCIterator(unsigned long address, AHC& node);
 	virtual ~AHCIterator();
 
 	void setAddress(size_t address) override;

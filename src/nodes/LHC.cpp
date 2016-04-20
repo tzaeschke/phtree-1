@@ -16,22 +16,23 @@ using namespace std;
 
 LHC::LHC(size_t dim, size_t valueLength) :
 		Node(dim, valueLength) {
-	prefix_ = boost::dynamic_bitset<>();
 	longestSuffix_ = 0;
 }
 
 LHC::~LHC() {
-	for (auto entry : sortedContents_) {
-		entry.second.suffix.clear();
+	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
+		auto entry = (*it).second;
+		entry.suffix.clear();
 	}
 
 	sortedContents_.clear();
 }
 
 void LHC::recursiveDelete() {
-	for (auto entry : sortedContents_) {
-		if (entry.second.subnode) {
-			entry.second.subnode->recursiveDelete();
+	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
+		auto entry = (*it).second;
+		if (entry.subnode) {
+			entry.subnode->recursiveDelete();
 		}
 	}
 
@@ -39,7 +40,7 @@ void LHC::recursiveDelete() {
 }
 
 NodeAddressContent LHC::lookup(unsigned long address) {
-	assert (address < 1<<dim_);
+	assert (address < 1uL << dim_);
 	LHCAddressContent* contentRef = lookupReference(address);
 	NodeAddressContent content;
 	if (contentRef) {
@@ -63,8 +64,8 @@ NodeAddressContent LHC::lookup(unsigned long address) {
 }
 
 LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
-	assert (hcAddress < 1<<dim_);
-	map<long, LHCAddressContent>::iterator it = sortedContents_.find(
+	assert (hcAddress < 1uL << dim_);
+	map<unsigned long, LHCAddressContent>::iterator it = sortedContents_.find(
 			hcAddress);
 	bool contained = it != sortedContents_.end();
 	if (contained) {
@@ -74,8 +75,8 @@ LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
 	}
 }
 
-void LHC::insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suffix, int id) {
-	assert (hcAddress < 1<<dim_);
+void LHC::insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) {
+	assert (hcAddress < 1uL << dim_);
 	assert (suffix);
 
 	LHCAddressContent* content = lookupReference(hcAddress);
@@ -100,7 +101,7 @@ void LHC::insertAtAddress(unsigned long hcAddress, boost::dynamic_bitset<>* suff
 }
 
 void LHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
-	assert (hcAddress < 1<<dim_);
+	assert (hcAddress < 1uL << dim_);
 	assert (subnode);
 
 	LHCAddressContent* content = lookupReference(hcAddress);
@@ -111,11 +112,13 @@ void LHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {
 				// before insertion this was the longest suffix
 				// TODO efficiently find longest remaining suffix
 				longestSuffix_ = 0;
-				for (auto const content : sortedContents_) {
-					if (!content.second.hasSubnode
-							&& (content.second.suffix.size() / dim_) > longestSuffix_) {
-						longestSuffix_ = content.second.suffix.size() / dim_;
-					}
+
+				for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
+						auto content = (*it).second;
+						if (!content.hasSubnode
+								&& (content.suffix.size() / dim_) > longestSuffix_) {
+							longestSuffix_ = content.suffix.size() / dim_;
+						}
 				}
 			}
 
@@ -159,18 +162,21 @@ ostream& LHC::output(ostream& os, size_t depth) {
 	Entry prefix(prefix_, dim_, 0);
 	os << " | prefix: " << prefix << endl;
 
-	for (auto const content : sortedContents_) {
-		for (size_t i = 0; i < depth; i++) {os << "-";}
-		os << " " << content.first << ": ";
 
-		if (content.second.hasSubnode) {
+	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
+		auto content = (*it).second;
+		size_t address = (*it).first;
+		for (size_t i = 0; i < depth; i++) {os << "-";}
+		os << " " << address << ": ";
+
+		if (content.hasSubnode) {
 			// print subnode
-			content.second.subnode->output(os, depth + 1);
+			content.subnode->output(os, depth + 1);
 		} else {
 			// print suffix
-			Entry suffix(content.second.suffix, dim_, 0);
+			Entry suffix(content.suffix, dim_, 0);
 			os << " suffix: " << suffix;
-			os << " (id: " << content.second.id << ")" << endl;
+			os << " (id: " << content.id << ")" << endl;
 		}
 	}
 	return os;

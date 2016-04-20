@@ -18,7 +18,7 @@ struct NodeAddressContent;
 class LHCIterator : public NodeIterator {
 public:
 	LHCIterator(LHC& node);
-	LHCIterator(long address, LHC& node);
+	LHCIterator(unsigned long address, LHC& node);
 	virtual ~LHCIterator();
 
 	void setAddress(size_t address) override;
@@ -28,7 +28,7 @@ public:
 
 private:
 	LHC* node_;
-	std::map<long,LHCAddressContent>::iterator contentMapIt_;
+	std::map<unsigned long,LHCAddressContent>::iterator contentMapIt_;
 };
 
 #endif /* LHCITERATOR_H_ */

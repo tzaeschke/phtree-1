@@ -8,12 +8,10 @@
 #include "iterators/NodeIterator.h"
 #include <stdexcept>
 
-NodeIterator::NodeIterator() {
-	reachedEnd_ = false;
+NodeIterator::NodeIterator() : address_(0), reachedEnd_(false) {
 }
 
-NodeIterator::NodeIterator(long address) {
-	reachedEnd_ = false;
+NodeIterator::NodeIterator(unsigned long address) : address_(address), reachedEnd_(false) {
 }
 
 NodeIterator::~NodeIterator() { }

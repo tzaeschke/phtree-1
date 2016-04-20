@@ -23,7 +23,7 @@ public:
 	virtual void reset() override;
 
 private:
-	void validateContents(Node* node, NodeIterator* begin, NodeIterator* end);
+	void validateContents(const Node* node, NodeIterator* begin, NodeIterator* end);
 };
 
 #endif /* VISITORS_ASSERTIONVISITOR_H_ */

@@ -8,7 +8,7 @@
 #ifndef NODEADDRESSCONTENT_H_
 #define NODEADDRESSCONTENT_H_
 
-#include "boost/dynamic_bitset.hpp"
+#include "util/MultiDimBitset.h"
 
 class Node;
 
@@ -19,7 +19,7 @@ struct NodeAddressContent {
 	bool exists;
 	bool hasSubnode;
 	Node* subnode;
-	boost::dynamic_bitset<>* suffix;
+	MultiDimBitset* suffix;
 	int id;
 };
 

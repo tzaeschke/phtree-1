@@ -276,12 +276,12 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 	try {
 		size_t iEntry = 0;
 		for (auto entry : entries) {
-//			cout << "inserting: " << *entry << endl;
+			cout << "inserting: " << *entry << endl;
 			assert (!phtree.lookup(entry).first && "should not contain the entry before insertion");
 			startInsert = RDTSC();
 			phtree.insert(entry);
 			uint64_t totalInsertTicks = RDTSC() - startInsert;
-//			cout << phtree << endl;
+			cout << phtree << endl;
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
 			phtree.accept(sizeVisitor);

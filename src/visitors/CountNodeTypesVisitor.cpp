@@ -21,11 +21,11 @@ void CountNodeTypesVisitor::reset() {
 	nLHCNodes_ = 0;
 }
 
-unsigned long CountNodeTypesVisitor::getNumberOfVisitedAHCNodes() {
+unsigned long CountNodeTypesVisitor::getNumberOfVisitedAHCNodes() const {
 	return nAHCNodes_;
 }
 
-unsigned long CountNodeTypesVisitor::getNumberOfVisitedLHCNodes() {
+unsigned long CountNodeTypesVisitor::getNumberOfVisitedLHCNodes() const {
 	return nLHCNodes_;
 }
 

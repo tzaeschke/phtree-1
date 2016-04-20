@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include "nodes/Node.h"
 #include "nodes/LHC.h"
-#include "util/MultiDimBitTool.h"
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "iterators/RangeQueryIterator.h"
 
@@ -17,14 +16,10 @@ using namespace std;
 
 #define DEBUG false
 
-Node::Node(size_t dim, size_t valueLength) {
-	dim_ = dim;
-	valueLength_ = valueLength;
+Node::Node(size_t dim, size_t valueLength) : dim_(dim), valueLength_(valueLength), prefix_(dim) {
 }
 
-Node::Node(Node* other) : prefix_(other->prefix_) {
-	dim_ = other->dim_;
-	valueLength_ = other->valueLength_;
+Node::Node(Node* other) : dim_(other->dim_), valueLength_(other->valueLength_), prefix_(other->prefix_) {
 }
 
 Node::~Node() {
@@ -38,7 +33,7 @@ RangeQueryIterator* Node::rangeQuery(const Entry* lowerLeft, const Entry* upperR
 	return iterator;
 }
 
-size_t Node::getSuffixSize(NodeAddressContent content) {
+size_t Node::getSuffixSize(NodeAddressContent content) const {
 	if (content.hasSubnode) {
 		return 0;
 	} else {
@@ -46,7 +41,7 @@ size_t Node::getSuffixSize(NodeAddressContent content) {
 	}
 }
 
-size_t Node::getPrefixLength() {
+size_t Node::getPrefixLength() const {
 	return prefix_.size() / dim_;
 }
 

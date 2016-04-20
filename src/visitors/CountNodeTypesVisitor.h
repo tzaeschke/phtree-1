@@ -21,8 +21,8 @@ public:
 	virtual void visit(AHC* node, unsigned int depth) override;
 	virtual void reset() override;
 
-	unsigned long getNumberOfVisitedAHCNodes();
-	unsigned long getNumberOfVisitedLHCNodes();
+	unsigned long getNumberOfVisitedAHCNodes() const;
+	unsigned long getNumberOfVisitedLHCNodes() const;
 private:
 	unsigned long nAHCNodes_;
 	unsigned long nLHCNodes_;

@@ -8,7 +8,7 @@
 #ifndef SRC_NODES_LHCADDRESSCONTENT_H_
 #define SRC_NODES_LHCADDRESSCONTENT_H_
 
-#include "boost/dynamic_bitset.hpp"
+#include "util/MultiDimBitset.h"
 
 class Node;
 
@@ -16,13 +16,14 @@ class Node;
 struct LHCAddressContent {
 	bool hasSubnode;
 	Node* subnode;
-	boost::dynamic_bitset<> suffix;
+	MultiDimBitset suffix;
 	int id;
 
 	LHCAddressContent();
+	LHCAddressContent(const LHCAddressContent &other);
 	LHCAddressContent(Node* subnode);
-	LHCAddressContent(boost::dynamic_bitset<>* suffix, int id);
-	LHCAddressContent(boost::dynamic_bitset<> suffix, int id);
+	LHCAddressContent(MultiDimBitset* suffix, int id);
+	LHCAddressContent(MultiDimBitset suffix, int id);
 };
 
 #endif /* SRC_NODES_LHCADDRESSCONTENT_H_ */

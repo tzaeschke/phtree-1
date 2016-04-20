@@ -14,7 +14,7 @@
 class NodeIterator : public std::iterator<std::input_iterator_tag, NodeAddressContent> {
 public:
 	NodeIterator();
-	NodeIterator(long address);
+	NodeIterator(unsigned long address);
 	virtual ~NodeIterator();
 	bool operator==(const NodeIterator& rhs);
 	bool operator!=(const NodeIterator& rhs);
@@ -25,7 +25,7 @@ public:
 	virtual NodeAddressContent operator*();
 
 protected:
-	long address_;
+	unsigned long address_;
 	bool reachedEnd_;
 };
 

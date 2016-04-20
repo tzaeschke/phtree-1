@@ -74,7 +74,8 @@ public:
 
     BOOST_STATIC_CONSTANT(block_width_type, bits_per_block = (std::numeric_limits<Block>::digits));
     BOOST_STATIC_CONSTANT(size_type, npos = static_cast<size_type>(-1));
-
+    static size_type block_index(size_type pos) BOOST_NOEXCEPT { return pos / bits_per_block; }
+    buffer_type m_bits;
 
 public:
 
@@ -355,7 +356,7 @@ private:
     size_type m_do_find_from(size_type first_block) const;
 
     block_width_type count_extra_bits() const BOOST_NOEXCEPT { return bit_index(size()); }
-    static size_type block_index(size_type pos) BOOST_NOEXCEPT { return pos / bits_per_block; }
+
     static block_width_type bit_index(size_type pos) BOOST_NOEXCEPT { return static_cast<block_width_type>(pos % bits_per_block); }
     static Block bit_mask(size_type pos) BOOST_NOEXCEPT { return Block(1) << bit_index(pos); }
 
@@ -436,7 +437,6 @@ BOOST_DYNAMIC_BITSET_PRIVATE:
     Block&        m_highest_block();
     const Block&  m_highest_block() const;
 
-    buffer_type m_bits;
     size_type   m_num_bits;
 
 
