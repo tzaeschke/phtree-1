@@ -219,12 +219,29 @@ unsigned long MultiDimBitset::interleaveBits(const size_t msbIndex) const {
 		assert (bits.size() >= dim_ * (msbIndex + 1));
 
 		// TODO use blockwise operation
-		unsigned long hcAddress = 0;
-		const size_t max = dim_ - 1;
+		unsigned long hcAddress;
 		// the index addresses bits in descending order but internally bits are stored ascendingly
 		const size_t lsbStartIndex = bits.size() - dim_ * (msbIndex + 1);
-		for (size_t i = 0; i < dim_; ++i) {
-			hcAddress |= bits[lsbStartIndex + i] << (max - i);
+		const size_t lsbEndIndex = lsbStartIndex + dim_;
+		const size_t b_max = bits.bits_per_block;
+		const size_t startBlock = lsbStartIndex / b_max;
+		const size_t endBlock = lsbEndIndex / b_max;
+		assert (endBlock - startBlock <= 1);
+
+		const unsigned long block = bits.m_bits[startBlock];
+		const size_t lower = lsbStartIndex % b_max;
+
+		if (startBlock == endBlock || lsbEndIndex % b_max == 0) {
+			const unsigned long maskForInterleaved = ((1uL << dim_) - 1) << lower;
+			hcAddress = (block & maskForInterleaved) >> lower;
+		} else {
+			const size_t upper = lsbEndIndex % b_max;
+			const unsigned long maskForStartBlock = ULONG_MAX << lower;
+			const unsigned long maskForEndBlock = (1uL << upper) - 1;
+			const unsigned long secondBlock = bits.m_bits[endBlock];
+			const unsigned long shifSecond = (startBlock + 1) * b_max - lsbStartIndex;
+			assert (shifSecond < dim_ && shifSecond > 0);
+			hcAddress = ((block & maskForStartBlock) >> lower) | ((secondBlock & maskForEndBlock) << shifSecond);
 		}
 
 		assert (hcAddress < (1ul<<dim_));

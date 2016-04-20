@@ -121,6 +121,10 @@ int main(int argc, char* argv[]) {
 	} else if (benchmark.compare(argv[1]) == 0) {
 		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
 		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_3D_32bit.dat", 32);
+		cout << "run a benchmark extracted from the Java implementation with 1M 6D 64-bit entries" << endl;
+		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_6D_64bit.dat", 64);
+		cout << "run a benchmark extracted from the Java implementation with 1M 10D 96-bit entries" << endl;
+				PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_10D_96bit.dat", 96);
 	} else {
 		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand', 'benchmark'";
 		return 1;
