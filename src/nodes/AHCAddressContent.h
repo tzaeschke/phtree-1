@@ -21,9 +21,7 @@ struct AHCAddressContent {
 	bool hasSubnode;
 	union {
 		Node* subnode;
-		struct {
-			int id;
-		};
+		int id;
 	};
 };
 

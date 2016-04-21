@@ -36,7 +36,7 @@ protected:
 	std::vector<MultiDimBitset> suffixes_;
 
 	virtual NodeAddressContent lookup(unsigned long address) override;
-	virtual void insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) override;
+	virtual MultiDimBitset* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	virtual Node* adjustSize() override;
 };

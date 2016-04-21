@@ -24,54 +24,42 @@ void DynamicNodeOperationsUtil::createSubnodeWithExistingSuffix(size_t dim,
 	Node* subnode = NodeTypeUtil::determineNodeType(dim, bitLength, 2);
 
 	// set longest common prefix in subnode
-	size_t prefixLength = entry->values_.calculateLongestCommonPrefix(currentIndex + 1, content.suffix, &subnode->prefix_);
+	const size_t prefixLength = entry->values_.calculateLongestCommonPrefix(currentIndex + 1, content.suffix, &subnode->prefix_);
 
 	// address in subnode starts after common prefix
-	long insertEntryHCAddress = entry->values_.interleaveBits(currentIndex + 1 + prefixLength);
-	long existingEntryHCAddress = content.suffix->interleaveBits(prefixLength);
+	const long insertEntryHCAddress = entry->values_.interleaveBits(currentIndex + 1 + prefixLength);
+	const long existingEntryHCAddress = content.suffix->interleaveBits(prefixLength);
 	assert(insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 	// add remaining bits after prefix and addresses as suffixes
-	MultiDimBitset* insertEntryPrefix = new MultiDimBitset(dim);
-	MultiDimBitset* exisitingEntryPrefix = new MultiDimBitset(dim);
-	entry->values_.removeHighestBits(currentIndex + 1 + prefixLength + 1, insertEntryPrefix);
-	content.suffix->removeHighestBits(prefixLength + 1, exisitingEntryPrefix);
-
-
+	const size_t suffixLength = bitLength - (currentIndex + 1 + prefixLength + 1);
+	MultiDimBitset* insertEntrySuffix = subnode->insertAtAddress(insertEntryHCAddress, suffixLength, entry->id_);
+	entry->values_.removeHighestBits(currentIndex + 1 + prefixLength + 1, insertEntrySuffix);
+	MultiDimBitset* exisitingEntrySuffix = subnode->insertAtAddress(existingEntryHCAddress, suffixLength, content.id);
+	content.suffix->removeHighestBits(prefixLength + 1, exisitingEntrySuffix);
 	currentNode->insertAtAddress(content.address, subnode);
-	subnode->insertAtAddress(insertEntryHCAddress, insertEntryPrefix,
-			entry->id_);
-	subnode->insertAtAddress(existingEntryHCAddress, exisitingEntryPrefix,
-			content.id);
 
 	// no need to adjust size because the correct node type was already provided
 	assert (currentNode->lookup(content.address).subnode == subnode);
-	assert (*subnode->lookup(existingEntryHCAddress).suffix == *exisitingEntryPrefix);
-	assert (*subnode->lookup(insertEntryHCAddress).suffix == *insertEntryPrefix);
-
-	// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
-	insertEntryPrefix->clear();
-	delete insertEntryPrefix;
-	exisitingEntryPrefix->clear();
-	delete exisitingEntryPrefix;
+	assert (*subnode->lookup(existingEntryHCAddress).suffix == *exisitingEntrySuffix);
+	assert (*subnode->lookup(insertEntryHCAddress).suffix == *insertEntrySuffix);
+	assert (subnode->lookup(existingEntryHCAddress).suffix->getBitLength() == suffixLength);
+	assert (subnode->lookup(insertEntryHCAddress).suffix->getBitLength() == suffixLength);
 }
 
-Node* DynamicNodeOperationsUtil::insertSuffix(size_t dim, size_t currentIndex,
+Node* DynamicNodeOperationsUtil::insertSuffix(size_t dim, size_t bitLength, size_t currentIndex,
 		size_t hcAddress, Node* currentNode, const Entry* entry) {
-	MultiDimBitset* suffix = new MultiDimBitset(dim);
-
+	const size_t suffixLength = bitLength - (currentIndex + 1);
+	MultiDimBitset* suffix = currentNode->insertAtAddress(hcAddress, suffixLength, entry->id_);
 	entry->values_.removeHighestBits(currentIndex + 1, suffix);
-	currentNode->insertAtAddress(hcAddress, suffix, entry->id_);
 
 	Node* adjustedNode = currentNode->adjustSize();
 	assert(adjustedNode);
 	assert(adjustedNode->lookup(hcAddress).exists);
 	assert (*adjustedNode->lookup(hcAddress).suffix == *suffix);
+	assert (adjustedNode->lookup(hcAddress).suffix->getBitLength() == suffixLength);
 	assert (adjustedNode->lookup(hcAddress).id == entry->id_);
 
-	// TODO the suffix is stored locally so it was copied: better use a pointer to the correct memory location in the node
-	suffix->clear();
-	delete suffix;
 	return adjustedNode;
 }
 
@@ -81,20 +69,18 @@ void DynamicNodeOperationsUtil::splitSubnodePrefix(size_t dim, size_t bitLength,
 	Node* oldSubnode = content.subnode;
 	Node* newSubnode = NodeTypeUtil::determineNodeType(dim, bitLength, 2);
 
-	unsigned long newSubnodeEntryHCAddress = entry->values_.interleaveBits(currentIndex + 1 + differentAtIndex);
-	unsigned long newSubnodePrefixDiffHCAddress = oldSubnode->prefix_.interleaveBits(differentAtIndex);
+	const unsigned long newSubnodeEntryHCAddress = entry->values_.interleaveBits(currentIndex + 1 + differentAtIndex);
+	const unsigned long newSubnodePrefixDiffHCAddress = oldSubnode->prefix_.interleaveBits(differentAtIndex);
 	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
 
 	// move A part of old prefix to new subnode and remove [A | d] from old prefix
 	oldSubnode->prefix_.duplicateHighestBits(differentAtIndex, &(newSubnode->prefix_));
 	oldSubnode->prefix_.removeHighestBits(differentAtIndex + 1);
 
-	MultiDimBitset* newSubnodeEntryPrefix = new MultiDimBitset(dim);
-	entry->values_.removeHighestBits(currentIndex + 1 + differentAtIndex + 1, newSubnodeEntryPrefix);
-
 	currentNode->insertAtAddress(content.address, newSubnode);
-	newSubnode->insertAtAddress(newSubnodeEntryHCAddress, newSubnodeEntryPrefix,
-			entry->id_);
+	const size_t suffixLength = bitLength - (currentIndex + 1 + differentAtIndex + 1);
+	MultiDimBitset* newSubnodeEntryPrefix = newSubnode->insertAtAddress(newSubnodeEntryHCAddress, suffixLength, entry->id_);
+	entry->values_.removeHighestBits(currentIndex + 1 + differentAtIndex + 1, newSubnodeEntryPrefix);
 	newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnode);
 
 	// no need to adjust size because the old node remains and the new one already
@@ -103,11 +89,9 @@ void DynamicNodeOperationsUtil::splitSubnodePrefix(size_t dim, size_t bitLength,
 	assert (currentNode->lookup(content.address).subnode == newSubnode);
 	assert (!newSubnode->lookup(newSubnodeEntryHCAddress).hasSubnode);
 	assert (*newSubnode->lookup(newSubnodeEntryHCAddress).suffix == *newSubnodeEntryPrefix);
+	assert (newSubnode->lookup(newSubnodeEntryHCAddress).suffix->getBitLength() == suffixLength);
 	assert (newSubnode->lookup(newSubnodePrefixDiffHCAddress).hasSubnode);
 	assert (newSubnode->lookup(newSubnodePrefixDiffHCAddress).subnode == oldSubnode);
-	// TODO the suffixes are stored locally so they were copied: better use a pointer to the correct memory location in the node
-	newSubnodeEntryPrefix->clear();
-	delete newSubnodeEntryPrefix;
 }
 
 Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
@@ -129,14 +113,11 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 		const NodeAddressContent content = currentNode->lookup(hcAddress);
 		assert(!content.exists || content.address == hcAddress);
 		assert(
-				(!content.exists || (content.subnode && !content.suffix)
-						|| (!content.subnode && content.suffix))
+				(!content.exists || (content.hasSubnode && content.subnode)
+						|| (!content.hasSubnode && content.suffix))
 						&& "before insertion there is either a subnode XOR a suffix at the address or the content does not exist");
 
 		if (content.exists && content.hasSubnode) {
-			assert(
-					content.subnode && !content.suffix
-							&& "should only have a subnode and no suffix");
 			// node entry and subnode exist:
 			// validate prefix of subnode
 			// case 1 (entry contains prefix): recurse on subnode
@@ -168,9 +149,6 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 			}
 
 		} else if (content.exists && !content.hasSubnode) {
-			assert(
-					!content.subnode && content.suffix
-							&& "should only have a suffix and no subnode");
 			if (DEBUG)
 				cout << "create subnode with existing suffix" << endl;
 			// node entry and suffix exist:
@@ -184,8 +162,8 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 				cout << "insert" << endl;
 			// node entry does not exist:
 			// insert entry + suffix
-			Node* adjustedNode = insertSuffix(dim, currentIndex, hcAddress,
-					currentNode, entry);
+			Node* adjustedNode = insertSuffix(dim, bitLength, currentIndex,
+					hcAddress, currentNode, entry);
 			assert(adjustedNode);
 			if (adjustedNode != currentNode && lastNode) {
 				// the subnode changed: store the new one and delete the old
@@ -209,8 +187,8 @@ Node* DynamicNodeOperationsUtil::insert(const Entry* entry, Node* rootNode,
 			content.exists && content.address == hcAddress
 					&& "after insertion the entry is always contained at the address");
 	assert(
-			((content.subnode && !content.suffix)
-					|| (!content.subnode && content.suffix))
+			((content.hasSubnode && content.subnode)
+					|| (!content.hasSubnode && content.suffix))
 					&& "after insertion there is either a subnode XOR a suffix at the address");
 	assert(
 			(content.hasSubnode

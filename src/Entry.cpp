@@ -18,7 +18,7 @@ Entry::Entry(vector<unsigned long> &values, size_t bitLength, int id) : dim_(val
 	assert (values_.size() == getBitLength() * getDimensions());
 }
 
-Entry::Entry(MultiDimBitset values, size_t dim, int id) : dim_(dim), values_(values), id_(id) {
+Entry::Entry(MultiDimBitset values, size_t dim, int id) : dim_(dim), id_(id), values_(values) {
 	assert (values_.size() == getBitLength() * getDimensions());
 }
 
@@ -26,11 +26,11 @@ Entry::~Entry() {
 	values_.clear();
 }
 
-size_t Entry::getBitLength() {
+size_t Entry::getBitLength() const {
 	return values_.size() / dim_;
 }
 
-size_t Entry::getDimensions() {
+size_t Entry::getDimensions() const {
 	return dim_;
 }
 

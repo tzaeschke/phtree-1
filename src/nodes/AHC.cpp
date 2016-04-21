@@ -67,9 +67,7 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 	if (content.exists) {
 		if (content.hasSubnode) {
 			content.subnode = contents_[address].subnode;
-			content.suffix = NULL;
 		} else {
-			content.subnode = NULL;
 			content.suffix = &suffixes_[address];
 			content.id = contents_[address].id;
 		}
@@ -80,15 +78,14 @@ NodeAddressContent AHC::lookup(unsigned long address) {
 	return content;
 }
 
-void AHC::insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) {
+MultiDimBitset* AHC::insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) {
 	assert (hcAddress < 1ul <<dim_);
-	assert (suffix->size() % dim_ == 0);
 
 	contents_[hcAddress] = AHCAddressContent(id);
-	suffixes_[hcAddress] = *suffix;
+	suffixes_[hcAddress].setDim(dim_);
 
-	assert(*lookup(hcAddress).suffix == (*suffix));
 	assert(lookup(hcAddress).id == id);
+	return &(suffixes_[hcAddress]);
 }
 
 void AHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {

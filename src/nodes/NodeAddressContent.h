@@ -12,15 +12,15 @@
 
 class Node;
 
-// TODO use union to differentiate between subnode and suffix contents
-// TODO combine exists and hasSubnode in single byte
 struct NodeAddressContent {
-	unsigned long address;
+	int id;
 	bool exists;
 	bool hasSubnode;
-	Node* subnode;
-	MultiDimBitset* suffix;
-	int id;
+	unsigned long address;
+	union {
+		Node* subnode;
+		MultiDimBitset* suffix;
+	};
 };
 
 

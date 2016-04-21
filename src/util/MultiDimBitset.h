@@ -25,6 +25,8 @@ public:
 	size_t size() const;
 	size_t getBitLength() const;
 	size_t getDim() const;
+	void setDim(size_t dim);
+
 	void clear();
 	bool operator ==(const MultiDimBitset &b) const;
 	bool operator !=(const MultiDimBitset &b) const;
@@ -47,7 +49,7 @@ private:
 	boost::dynamic_bitset<> bits;
 
 	static boost::dynamic_bitset<> longToBitset(unsigned long value, size_t bitLength);
-	static std::pair<bool, size_t> compareAlignedBlocks(const unsigned long b1, const unsigned long b2);
+	static inline std::pair<bool, size_t> compareAlignedBlocks(const unsigned long b1, const unsigned long b2);
 
 };
 

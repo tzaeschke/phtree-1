@@ -207,6 +207,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 			}
 		}
 		delete visitor;
+		delete sizeVisitor;
 
 		cout << " ok" << endl;
 		// write gathered data into a file
@@ -309,6 +310,8 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 	plotFile->close();
 	delete plotFile;
 	delete visitor;
+	delete assertVisitor;
+	delete sizeVisitor;
 
 	plot(INSERT_SERIES_PLOT_NAME);
 }

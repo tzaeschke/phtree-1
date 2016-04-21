@@ -47,11 +47,11 @@ NodeAddressContent LHC::lookup(unsigned long address) {
 		content.exists = true;
 		content.address = address;
 		content.hasSubnode = contentRef->hasSubnode;
-		content.subnode = contentRef->subnode;
-		content.suffix = NULL;
 		if (!contentRef->hasSubnode) {
 			content.suffix = &(contentRef->suffix);
 			content.id = contentRef->id;
+		} else {
+			content.subnode = contentRef->subnode;
 		}
 	} else {
 		content.exists = false;
@@ -75,29 +75,30 @@ LHCAddressContent* LHC::lookupReference(unsigned long hcAddress) {
 	}
 }
 
-void LHC::insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) {
+MultiDimBitset* LHC::insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) {
 	assert (hcAddress < 1uL << dim_);
-	assert (suffix);
 
 	LHCAddressContent* content = lookupReference(hcAddress);
 	if (!content) {
-		sortedContents_.emplace(piecewise_construct,
+		auto result = sortedContents_.emplace(piecewise_construct,
 				forward_as_tuple(hcAddress),
-				forward_as_tuple(suffix, id));
+				forward_as_tuple(dim_, id));
+		assert (result.second);
+		content = &((*(result.first)).second);
 	} else {
 		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
 
 		content->hasSubnode = false;
-		content->suffix = *suffix;
+		content->suffix.setDim(dim_);
 		content->subnode = NULL;
 	}
 
-	if (suffix->size() / dim_ > longestSuffix_) {
-		longestSuffix_ = suffix->size() / dim_;
+	if (suffixLength > longestSuffix_) {
+		longestSuffix_ = suffixLength;
 	}
 
 	assert (lookup(hcAddress).address == hcAddress);
-	assert (lookup(hcAddress).suffix->size() % dim_ == 0);
+	return &(content->suffix);
 }
 
 void LHC::insertAtAddress(unsigned long hcAddress, Node* subnode) {

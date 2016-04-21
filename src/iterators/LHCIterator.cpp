@@ -55,11 +55,11 @@ NodeAddressContent LHCIterator::operator*() {
 	content.exists = true;
 	content.address = contentMapIt_->first;
 	content.hasSubnode = contentMapIt_->second.hasSubnode;
-	content.subnode = contentMapIt_->second.subnode;
-	content.suffix = NULL;
 	if (!contentMapIt_->second.hasSubnode) {
 		content.suffix = &(contentMapIt_->second.suffix);
 		content.id = contentMapIt_->second.id;
+	} else {
+		content.subnode = contentMapIt_->second.subnode;
 	}
 
 	return content;

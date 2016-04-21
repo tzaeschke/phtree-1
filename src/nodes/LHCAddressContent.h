@@ -12,18 +12,17 @@
 
 class Node;
 
-// TODO use union to differentiate between subnode and suffix contents and leaf ids
 struct LHCAddressContent {
 	bool hasSubnode;
+	int id;
 	Node* subnode;
 	MultiDimBitset suffix;
-	int id;
 
 	LHCAddressContent();
 	LHCAddressContent(const LHCAddressContent &other);
 	LHCAddressContent(Node* subnode);
-	LHCAddressContent(MultiDimBitset* suffix, int id);
-	LHCAddressContent(MultiDimBitset suffix, int id);
+	LHCAddressContent(const MultiDimBitset* suffix, int id);
+	LHCAddressContent(const size_t dim, int id);
 };
 
 #endif /* SRC_NODES_LHCADDRESSCONTENT_H_ */

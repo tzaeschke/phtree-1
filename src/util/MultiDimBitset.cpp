@@ -100,6 +100,11 @@ size_t MultiDimBitset::getDim() const {
 	return dim_;
 }
 
+void MultiDimBitset::setDim(size_t dim) {
+	assert (bits.empty());
+	dim_ = dim;
+}
+
 void MultiDimBitset::clear() {
 	bits.clear();
 }
@@ -232,8 +237,8 @@ unsigned long MultiDimBitset::interleaveBits(const size_t msbIndex) const {
 		const size_t lower = lsbStartIndex % b_max;
 
 		if (startBlock == endBlock || lsbEndIndex % b_max == 0) {
-			const unsigned long maskForInterleaved = ((1uL << dim_) - 1) << lower;
-			hcAddress = (block & maskForInterleaved) >> lower;
+			const unsigned long maskForInterleaved = (1uL << dim_) - 1uL;
+			hcAddress = (block >> lower) & maskForInterleaved;
 		} else {
 			const size_t upper = lsbEndIndex % b_max;
 			const unsigned long maskForStartBlock = ULONG_MAX << lower;

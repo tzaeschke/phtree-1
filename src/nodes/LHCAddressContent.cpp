@@ -8,29 +8,21 @@
 #include "nodes/LHCAddressContent.h"
 
 LHCAddressContent::LHCAddressContent() :
-		id(0) {
-	hasSubnode = false;
-	subnode = ((Node *) 0);
+		hasSubnode(false), id(0), subnode((Node *) 0) {
 }
 
 LHCAddressContent::LHCAddressContent(const LHCAddressContent &other) :
-		hasSubnode(other.hasSubnode), subnode(other.subnode), suffix(other.suffix), id(other.id) {
-
+		hasSubnode(other.hasSubnode),  id(other.id), subnode(other.subnode), suffix(other.suffix) {
 }
 
-LHCAddressContent::LHCAddressContent(Node* subnode) :
-		id(0) {
-	hasSubnode = true;
-	this->subnode = subnode;
-}
-LHCAddressContent::LHCAddressContent(MultiDimBitset s, int i) :
-		suffix(s), id(i) {
-	hasSubnode = false;
-	subnode = ((Node *) 0);
+LHCAddressContent::LHCAddressContent(Node* sub) :
+		hasSubnode(true), id(0), subnode(sub) {
 }
 
-LHCAddressContent::LHCAddressContent(MultiDimBitset* s, int i) :
-		suffix(*s), id(i) {
-	hasSubnode = false;
-	subnode = ((Node *) 0);
+LHCAddressContent::LHCAddressContent(const MultiDimBitset* s, int i) :
+		hasSubnode(false), id(i), subnode((Node *) 0), suffix(*s) {
+}
+
+LHCAddressContent::LHCAddressContent(const size_t dim, int i) :
+		hasSubnode(false), id(i), subnode((Node *) 0), suffix(dim) {
 }

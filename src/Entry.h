@@ -23,14 +23,13 @@ public:
 	Entry(MultiDimBitset values, size_t dim, int id);
 	~Entry();
 
-	size_t getBitLength();
-	size_t getDimensions();
+	size_t getBitLength() const;
+	size_t getDimensions() const;
 
 	// value -> bit
 	size_t dim_;
-	MultiDimBitset values_;
 	int id_;
-
+	MultiDimBitset values_;
 };
 
 #endif /* SRC_ENTRY_H_ */

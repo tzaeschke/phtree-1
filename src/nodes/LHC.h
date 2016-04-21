@@ -32,7 +32,7 @@ protected:
 	size_t longestSuffix_;
 
 	NodeAddressContent lookup(unsigned long address) override;
-	void insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) override;
+	MultiDimBitset* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node* subnode) override;
 	Node* adjustSize() override;
 

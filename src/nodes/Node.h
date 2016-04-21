@@ -38,8 +38,8 @@ public:
 	virtual void recursiveDelete() = 0;
 
 protected:
-	size_t dim_;
-	size_t valueLength_;
+	const size_t dim_;
+	const size_t valueLength_;
 	// value -> bit
 	MultiDimBitset prefix_;
 
@@ -48,7 +48,7 @@ protected:
 
 
 	virtual NodeAddressContent lookup(unsigned long address) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, MultiDimBitset* suffix, int id) = 0;
+	virtual MultiDimBitset* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node* subnode) = 0;
 	virtual Node* adjustSize() = 0;
 };

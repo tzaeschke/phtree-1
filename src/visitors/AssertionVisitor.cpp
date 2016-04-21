@@ -40,6 +40,8 @@ void AssertionVisitor::validateContents(const Node* node, NodeIterator* begin, N
 			assert((content.hasSubnode || content.suffix->size() == suffixLength)
 							&& "all suffixes in one node should have the same length");
 		}
+		delete begin;
+		delete end;
 }
 
 void AssertionVisitor::reset() {
