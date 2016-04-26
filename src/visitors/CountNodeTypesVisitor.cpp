@@ -37,9 +37,13 @@ void CountNodeTypesVisitor::visit(AHC* node, unsigned int depth) {
 	nAHCNodes_++;
 }
 
-ostream& operator <<(ostream &out, const CountNodeTypesVisitor &visitor) {
-	out << "nodes: " << (visitor.nAHCNodes_ + visitor.nLHCNodes_);
-	out << " (AHC nodes: " << visitor.nAHCNodes_;
-	out << " | LHC nodes: " << visitor.nLHCNodes_  << ")"<< endl;
+std::ostream& operator <<(std::ostream &out, const CountNodeTypesVisitor& v) {
+	return v.output(out);
+}
+
+std::ostream& CountNodeTypesVisitor::output(std::ostream &out) const {
+	out << "nodes: " << (getNumberOfVisitedAHCNodes() + getNumberOfVisitedLHCNodes());
+	out << " (AHC nodes: " << getNumberOfVisitedAHCNodes();
+	out << " | LHC nodes: " << getNumberOfVisitedLHCNodes()  << ")"<< std::endl;
 	return out;
 }

@@ -29,6 +29,7 @@ public:
 	std::ostream& output(std::ostream& os, size_t depth) override;
 	virtual void accept(Visitor* visitor, size_t depth) override;
 	virtual void recursiveDelete() override;
+	virtual size_t getNumberOfContents() const override;
 
 protected:
 	// TODO use arrays instead by templating the dimensions

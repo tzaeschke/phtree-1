@@ -50,6 +50,7 @@ private:
 
 	static boost::dynamic_bitset<> longToBitset(unsigned long value, size_t bitLength);
 	static inline std::pair<bool, size_t> compareAlignedBlocks(const unsigned long b1, const unsigned long b2);
+	inline size_t inlineBitLength() const;
 
 };
 

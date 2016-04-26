@@ -12,7 +12,7 @@
 #include "visitors/Visitor.h"
 
 class CountNodeTypesVisitor: public Visitor {
-	friend std::ostream& operator <<(std::ostream &out, const CountNodeTypesVisitor &visitor);
+	friend std::ostream& operator <<(std::ostream &out, const CountNodeTypesVisitor& v);
 public:
 	CountNodeTypesVisitor();
 	virtual ~CountNodeTypesVisitor();
@@ -23,6 +23,10 @@ public:
 
 	unsigned long getNumberOfVisitedAHCNodes() const;
 	unsigned long getNumberOfVisitedLHCNodes() const;
+
+protected:
+	std::ostream& output(std::ostream &out) const override;
+
 private:
 	unsigned long nAHCNodes_;
 	unsigned long nLHCNodes_;

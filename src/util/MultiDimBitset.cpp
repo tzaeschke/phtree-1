@@ -96,6 +96,10 @@ size_t MultiDimBitset::getBitLength() const {
 	return bits.size() / dim_;
 }
 
+inline size_t MultiDimBitset::inlineBitLength() const {
+	return bits.size() / dim_;
+}
+
 size_t MultiDimBitset::getDim() const {
 	return dim_;
 }
@@ -110,8 +114,10 @@ void MultiDimBitset::clear() {
 }
 
 pair<bool, size_t> MultiDimBitset::compareTo(size_t fromMsbIndex, size_t toMsbIndex, const MultiDimBitset &other) const {
-	const size_t upper = dim_ * (getBitLength() - fromMsbIndex);
-	const size_t lower = dim_ * (getBitLength() - toMsbIndex);
+	assert (dim_ > 0);
+
+	const size_t upper = dim_ * (inlineBitLength() - fromMsbIndex);
+	const size_t lower = dim_ * (inlineBitLength() - toMsbIndex);
 	const size_t lsbRange = upper - lower;
 	const size_t b_max = bits.bits_per_block;
 	assert(lower <= upper);
@@ -402,7 +408,7 @@ size_t MultiDimBitset::calculateLongestCommonPrefix(const size_t msbStartIndex,
 	assert (this->dim_ == other->dim_ && this->dim_ == resultTo->dim_);
 	assert (this->getBitLength() - msbStartIndex == other->getBitLength());
 
-	pair<bool,size_t> comparison = this->compareTo(msbStartIndex, msbStartIndex + other->getBitLength(), *other);
+	pair<bool,size_t> comparison = this->compareTo(msbStartIndex, msbStartIndex + other->inlineBitLength(), *other);
 	const size_t prefixLength = comparison.second;
 	assert (prefixLength <= other->getBitLength());
 	other->duplicateHighestBits(prefixLength, resultTo);

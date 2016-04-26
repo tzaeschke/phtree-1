@@ -19,6 +19,7 @@
 #include "visitors/CountNodeTypesVisitor.h"
 #include "visitors/AssertionVisitor.h"
 #include "visitors/SizeVisitor.h"
+#include "visitors/PrefixSharingVisitor.h"
 #include "util/FileInputUtil.h"
 #include "util/rdtsc.h"
 
@@ -63,10 +64,11 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 		vector<unsigned int> lookupTicks(dimensions.size());
 		vector<unsigned int> nAHCNodes(dimensions.size());
 		vector<unsigned int> nLHCNodes(dimensions.size());
-		vector<unsigned int> totalLhcByteSize(dimensions.size());
-		vector<unsigned int> totalAhcByteSize(dimensions.size());
+		vector<unsigned int> totalLhcBitSize(dimensions.size());
+		vector<unsigned int> totalAhcBitSize(dimensions.size());
 		CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 		SizeVisitor* sizeVisitor = new SizeVisitor();
+		PrefixSharingVisitor* prefixVisitor = new PrefixSharingVisitor();
 		for (size_t test = 0; test < dimensions.size(); test++) {
 			unsigned int startInsertTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
@@ -83,14 +85,17 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			phtrees[test]->accept(visitor);
 			phtrees[test]->accept(sizeVisitor);
+			phtrees[test]->accept(prefixVisitor);
+			cout << "d=" << dimensions[test] << endl << *visitor << *prefixVisitor << *sizeVisitor << endl;
 			insertTicks.at(test) = totalInsertTicks;
 			lookupTicks.at(test) = totalLookupTicks;
 			nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
-			totalAhcByteSize.at(test) = sizeVisitor->getTotalAhcByteSize();
-			totalLhcByteSize.at(test) = sizeVisitor->getTotalLhcByteSize();
+			totalAhcBitSize.at(test) = sizeVisitor->getTotalAhcBitSize();
+			totalLhcBitSize.at(test) = sizeVisitor->getTotalLhcBitSize();
 			visitor->reset();
 			sizeVisitor->reset();
+			prefixVisitor->reset();
 		}
 
 		for (size_t test = 0; test < dimensions.size(); test++) {
@@ -99,7 +104,7 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME);
-		cout << "\tdim\tinsert [ms]\t\tlookup [ms]\t\tsize [Mbyte]" << endl;
+		cout << "\tdim\tinsert [ms]\t\tlookup [ms]\t\tsize [bit per dimension]" << endl;
 		for (size_t test = 0; test < dimensions.size(); test++) {
 			float insertMs = (float (insertTicks[test]) / entries[test].size() / (CLOCKS_PER_SEC / 1000));
 			float lookupMs = (float (lookupTicks[test]) / entries[test].size() / (CLOCKS_PER_SEC / 1000));
@@ -109,21 +114,22 @@ void PlotUtil::plotAverageInsertTimePerDimension(vector<vector<Entry*>> entries,
 				<< "\t" << lookupMs
 				<< "\t"	<< nAHCNodes.at(test)
 				<< "\t" << nLHCNodes.at(test)
-				<< "\t" << (float(totalAhcByteSize.at(test)) / 1000000)
-				<< "\t" << (float(totalLhcByteSize.at(test)) / 1000000) << "\n";
-			float totalSizeMByte = float(totalAhcByteSize.at(test) + totalLhcByteSize.at(test)) / 1000000;
-			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs  << "\t\t" << totalSizeMByte << endl;
+				<< "\t" << (float(totalAhcBitSize.at(test)) / entries[test].size() / dimensions[test])
+				<< "\t" << (float(totalLhcBitSize.at(test)) / entries[test].size() / dimensions[test]) << "\n";
+			float totalSizeBit = float(totalAhcBitSize.at(test) + totalLhcBitSize.at(test)) / entries[test].size();
+			cout << test << "\t" << dimensions[test] << "\t" << insertMs << "\t\t" << lookupMs  << "\t\t" << totalSizeBit << endl;
 		}
 
 		// clear
 		delete visitor;
 		delete sizeVisitor;
+		delete prefixVisitor;
 		insertTicks.clear();
 		lookupTicks.clear();
 		nAHCNodes.clear();
 		nLHCNodes.clear();
-		totalAhcByteSize.clear();
-		totalLhcByteSize.clear();
+		totalAhcBitSize.clear();
+		totalLhcBitSize.clear();
 		plotFile->close();
 		delete plotFile;
 
@@ -169,12 +175,13 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		vector<unsigned int> lookupTicks(entries.size());
 		vector<unsigned int> nAHCNodes(entries.size());
 		vector<unsigned int> nLHCNodes(entries.size());
-		vector<unsigned int> totalLhcByteSize(entries.size());
-		vector<unsigned int> totalAhcByteSize(entries.size());
+		vector<unsigned int> totalLhcBitSize(entries.size());
+		vector<unsigned int> totalAhcBitSize(entries.size());
 
 		cout << "start insertions...";
 		CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
 		SizeVisitor* sizeVisitor = new SizeVisitor();
+		PrefixSharingVisitor* prefixVisitor = new PrefixSharingVisitor();
 		for (size_t test = 0; test < entries.size(); test++) {
 			PHTree* tree = new PHTree(ENTRY_DIM_INSERT_SERIES, bitLengths[test]);
 			unsigned int startInsertTime = clock();
@@ -191,15 +198,18 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 			unsigned int totalLookupTicks = clock() - startLookupTime;
 			tree->accept(visitor);
 			tree->accept(sizeVisitor);
+			tree->accept(prefixVisitor);
+			cout << "n=" << entries[test].size() << endl << *visitor << *prefixVisitor << *sizeVisitor << endl;
 			insertTicks.at(test) = totalInsertTicks;
 			lookupTicks.at(test) = totalLookupTicks;
 			nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
-			totalLhcByteSize.at(test) = sizeVisitor->getTotalLhcByteSize();
-			totalAhcByteSize.at(test) = sizeVisitor->getTotalAhcByteSize();
+			totalLhcBitSize.at(test) = sizeVisitor->getTotalLhcBitSize();
+			totalAhcBitSize.at(test) = sizeVisitor->getTotalAhcBitSize();
 
 			visitor->reset();
 			sizeVisitor->reset();
+			prefixVisitor->reset();
 			delete tree;
 			for (size_t iEntry = 0; iEntry < entries[test].size(); iEntry++) {
 				Entry* entry = entries[test][iEntry];
@@ -208,6 +218,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 		}
 		delete visitor;
 		delete sizeVisitor;
+		delete prefixVisitor;
 
 		cout << " ok" << endl;
 		// write gathered data into a file
@@ -219,8 +230,8 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry*>> en
 					<< (float (lookupTicks[test]) / entries[test].size() / CLOCKS_PER_SEC * 1000) << "\t"
 					<< nAHCNodes.at(test) << "\t"
 					<< nLHCNodes.at(test) << "\t"
-					<< (float(totalAhcByteSize.at(test)) / 1000000) << "\t"
-					<< (float(totalLhcByteSize.at(test)) / 1000000) << "\n";
+					<< (float(totalAhcBitSize.at(test)) / entries[test].size() / ENTRY_DIM_INSERT_SERIES) << "\t"
+					<< (float(totalLhcBitSize.at(test)) / entries[test].size() / ENTRY_DIM_INSERT_SERIES) << "\n";
 		}
 		plotFile->close();
 		delete plotFile;

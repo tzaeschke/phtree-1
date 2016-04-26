@@ -46,3 +46,7 @@ void AssertionVisitor::validateContents(const Node* node, NodeIterator* begin, N
 
 void AssertionVisitor::reset() {
 }
+
+std::ostream& AssertionVisitor::output(std::ostream &out) const {
+	return out;
+}

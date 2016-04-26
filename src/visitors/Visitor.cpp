@@ -7,9 +7,9 @@
 
 #include "visitors/Visitor.h"
 
-Visitor::Visitor() {
-}
-
 Visitor::~Visitor() {
 }
 
+std::ostream& Visitor::operator <<(std::ostream &out) {
+	return output(out);
+}

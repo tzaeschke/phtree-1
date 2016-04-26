@@ -153,6 +153,10 @@ NodeIterator* LHC::end() {
 	return new LHCIterator(1<<dim_, *this);
 }
 
+size_t LHC::getNumberOfContents() const {
+	return sortedContents_.size();
+}
+
 void LHC::accept(Visitor* visitor, size_t depth) {
 	visitor->visit(this, depth);
 	Node::accept(visitor, depth);

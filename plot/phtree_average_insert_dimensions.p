@@ -36,7 +36,7 @@ plot \
   "plot/data/phtree_average_insert_dimensions.dat" using 5 t '#AHC' ls 3,\
   "" using 6:xticlabels(2) t '#LHC' ls 5
 
-set ylabel "total tree size [Mbyte]"
+set ylabel "bits per inserted entry per dimension"
 set title "PH-Tree in-memory size"
 
 plot \

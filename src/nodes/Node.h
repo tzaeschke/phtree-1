@@ -24,6 +24,7 @@ class Node {
 	friend class DynamicNodeOperationsUtil;
 	friend class SpatialSelectionOperationsUtil;
 	friend class SizeVisitor;
+	friend class PrefixSharingVisitor;
 public:
 
 	Node(size_t dim, size_t valueLength);
@@ -36,6 +37,8 @@ public:
 	virtual NodeIterator* end() = 0;
 	virtual void accept(Visitor* visitor, size_t depth);
 	virtual void recursiveDelete() = 0;
+	// gets the number of contents: #suffixes + #subnodes
+	virtual size_t getNumberOfContents() const = 0;
 
 protected:
 	const size_t dim_;

@@ -52,6 +52,21 @@ void SizeVisitor::reset() {
 	totalAHCByteSize = 0;
 }
 
+std::ostream& SizeVisitor::output(std::ostream &out) const {
+	float lhcSizePercent = float(getTotalLhcByteSize()) * 100 / float(getTotalByteSize());
+	return out << "total size: " << getTotalKByteSize()
+			<< "KByte | " << getTotalMByteSize()
+			<< "MByte (LHC: " << lhcSizePercent << "%)" << std::endl;
+}
+
+std::ostream& operator <<(std::ostream &out, const SizeVisitor& v) {
+	return v.output(out);
+}
+
+unsigned long SizeVisitor::getTotalBitSize() const {
+	return getTotalByteSize() * 8;
+}
+
 unsigned long SizeVisitor::getTotalByteSize() const {
 	return totalLHCByteSize + totalAHCByteSize;
 }
@@ -64,6 +79,10 @@ unsigned long SizeVisitor::getTotalMByteSize() const {
 	return getTotalByteSize() / 1000000;
 }
 
+unsigned long SizeVisitor::getTotalLhcBitSize() const {
+	return getTotalLhcByteSize() * 8;
+}
+
 unsigned long SizeVisitor::getTotalLhcByteSize() const {
 	return totalLHCByteSize;
 }
@@ -74,6 +93,10 @@ unsigned long SizeVisitor::getTotalLhcKByteSize() const {
 
 unsigned long SizeVisitor::getTotalLhcMByteSize() const {
 	return getTotalLhcByteSize() / 1000000;
+}
+
+unsigned long SizeVisitor::getTotalAhcBitSize() const {
+	return getTotalAhcByteSize() * 8;
 }
 
 unsigned long SizeVisitor::getTotalAhcByteSize() const {

@@ -22,6 +22,9 @@ public:
 	virtual void visit(AHC* node, unsigned int depth) override;
 	virtual void reset() override;
 
+protected:
+	std::ostream& output(std::ostream &out) const override;
+
 private:
 	void validateContents(const Node* node, NodeIterator* begin, NodeIterator* end);
 };

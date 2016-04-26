@@ -56,6 +56,17 @@ void AHC::recursiveDelete() {
 	delete this;
 }
 
+size_t AHC::getNumberOfContents() const {
+	size_t count = 0;
+	for (size_t i = 0; i < 1uL << dim_; ++i) {
+		if (contents_[i].filled) {
+			++count;
+		}
+	}
+
+	return count;
+}
+
 NodeAddressContent AHC::lookup(unsigned long address) {
 	assert (address < 1uL <<dim_);
 
