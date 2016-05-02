@@ -43,10 +43,10 @@ protected:
 	AHCAddressContent<DIM> contents_[1<<DIM];
 	MultiDimBitset<DIM> suffixes_[1<<DIM];
 
-	virtual NodeAddressContent<DIM> lookup(unsigned long address) override;
-	virtual MultiDimBitset<DIM>* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
-	virtual void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
-	virtual Node<DIM>* adjustSize() override;
+	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
+	MultiDimBitset<DIM>* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
+	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
+	Node<DIM>* adjustSize() override;
 };
 
 #include <assert.h>
@@ -113,26 +113,24 @@ size_t AHC<DIM>::getNumberOfContents() const {
 }
 
 template <unsigned int DIM>
-NodeAddressContent<DIM> AHC<DIM>::lookup(unsigned long address) {
+void AHC<DIM>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
 	assert (address < 1uL << DIM);
 
-	NodeAddressContent<DIM> content;
-	content.address = address;
-	content.exists = contents_[address].filled;
-	content.hasSubnode = contents_[address].hasSubnode;
+	outContent.address = address;
+	outContent.exists = contents_[address].filled;
+	outContent.hasSubnode = contents_[address].hasSubnode;
 
-	if (content.exists) {
-		if (content.hasSubnode) {
-			content.subnode = contents_[address].subnode;
+	if (outContent.exists) {
+		if (outContent.hasSubnode) {
+			outContent.subnode = contents_[address].subnode;
 		} else {
-			content.suffix = &suffixes_[address];
-			content.id = contents_[address].id;
+			outContent.suffix = &suffixes_[address];
+			outContent.id = contents_[address].id;
 		}
 	}
 
-	assert ((!content.exists || (content.hasSubnode || content.suffix->size() % DIM == 0))
+	assert ((!outContent.exists || (outContent.hasSubnode || outContent.suffix->size() % DIM == 0))
 					&& "the suffix dimensionality should always be the same as the node's");
-	return content;
 }
 
 template <unsigned int DIM>
@@ -141,7 +139,7 @@ MultiDimBitset<DIM>* AHC<DIM>::insertAtAddress(unsigned long hcAddress, size_t s
 
 	contents_[hcAddress] = AHCAddressContent<DIM>(id);
 
-	assert(lookup(hcAddress).id == id);
+	assert(Node<DIM>::lookup(hcAddress).id == id);
 	return &(suffixes_[hcAddress]);
 }
 
@@ -176,7 +174,7 @@ void AHC<DIM>::accept(Visitor<DIM>* visitor, size_t depth)  {
 template <unsigned int DIM>
 ostream& AHC<DIM>::output(ostream& os, size_t depth) {
 	os << "AHC";
-	Entry<DIM> prefix(this->prefix_, DIM, 0);
+	Entry<DIM> prefix(this->prefix_, 0);
 	os << " | prefix: " << prefix << endl;
 
 	for (size_t address = 0; address < (1uL << DIM); ++address) {
@@ -190,7 +188,7 @@ ostream& AHC<DIM>::output(ostream& os, size_t depth) {
 		if (contents_[address].filled && contents_[address].hasSubnode) {
 			contents_[address].subnode->output(os, depth + 1);
 		} else if (contents_[address].filled) {
-			Entry<DIM> suffix(suffixes_[address], DIM, 0);
+			Entry<DIM> suffix(suffixes_[address], 0);
 			os << " suffix: " << suffix;
 			os << " (id: " << contents_[address].id << ")" << endl;
 		}

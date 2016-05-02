@@ -59,7 +59,8 @@ protected:
 	size_t getPrefixLength() const;
 
 
-	virtual NodeAddressContent<DIM> lookup(unsigned long address) = 0;
+	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) = 0;
+	NodeAddressContent<DIM> lookup(unsigned long address);
 	virtual MultiDimBitset<DIM>* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
@@ -124,6 +125,13 @@ void Node<DIM>::accept(Visitor<DIM>* visitor, size_t depth) {
 
 	delete it;
 	delete endIt;
+}
+
+template <unsigned int DIM>
+NodeAddressContent<DIM> Node<DIM>::lookup(unsigned long address) {
+	NodeAddressContent<DIM> content;
+	this->lookup(address, content);
+	return content;
 }
 
 template <unsigned int DIM>

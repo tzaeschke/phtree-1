@@ -36,7 +36,7 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry<DIM>* e, Node
 	Node<DIM>* currentNode = rootNode;
 	size_t depth = 0;
 	size_t index = 0;
-	size_t dim = e->dim_;
+	NodeAddressContent<DIM> content;
 
 	while (true) {
 
@@ -60,7 +60,7 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry<DIM>* e, Node
 		// validate HC address
 		size_t currentIndex = index + currentNode->getPrefixLength();
 		unsigned long hcAddress = e->values_.interleaveBits(currentIndex);
-		NodeAddressContent<DIM> content = currentNode->lookup(hcAddress);
+		currentNode->lookup(hcAddress, content);
 
 		if (!content.exists) {
 			if (DEBUG)
@@ -75,7 +75,7 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry<DIM>* e, Node
 			currentNode = content.subnode;
 		} else {
 			// TODO move to multi dim bit util
-			assert (content.suffix->size() == e->values_.size() - dim * (currentIndex + 1));
+			assert (content.suffix->size() == e->values_.size() - DIM * (currentIndex + 1));
 			pair<bool, size_t> comp = e->values_.compareTo(currentIndex + 1, currentIndex + 1 + content.suffix->getBitLength(), *content.suffix);
 			if (!comp.first) {
 				if (DEBUG)

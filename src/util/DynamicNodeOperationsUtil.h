@@ -133,6 +133,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM>::insert(const Entry<DIM>* entry, Node<
 	Node<DIM>* lastNode = NULL;
 	Node<DIM>* currentNode = rootNode;
 	Node<DIM>* initialNode = rootNode;
+	NodeAddressContent<DIM> content;
 
 	while (index < bitLength) {
 		if (DEBUG)
@@ -141,7 +142,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM>::insert(const Entry<DIM>* entry, Node<
 		const size_t currentIndex = index + currentNode->getPrefixLength();
 		const unsigned long hcAddress = entry->values_.interleaveBits(currentIndex);
 		// TODO create content once and populate after each iteration instead of creating a new one
-		NodeAddressContent<DIM> content = currentNode->lookup(hcAddress);
+		currentNode->lookup(hcAddress, content);
 		assert(!content.exists || content.address == hcAddress);
 		assert(
 				(!content.exists || (content.hasSubnode && content.subnode)
@@ -211,24 +212,23 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM>::insert(const Entry<DIM>* entry, Node<
 		}
 	}
 
+	#ifndef NDEBUG
 	// validation only: lookup again after insertion
 	size_t hcAddress = entry->values_.interleaveBits(index + currentNode->getPrefixLength());
-	NodeAddressContent<DIM> content = currentNode->lookup(hcAddress);
-	assert(
-			content.exists && content.address == hcAddress
+	currentNode->lookup(hcAddress, content);
+	assert(content.exists && content.address == hcAddress
 					&& "after insertion the entry is always contained at the address");
-	assert(
-			((content.hasSubnode && content.subnode)
+	assert(((content.hasSubnode && content.subnode)
 					|| (!content.hasSubnode && content.suffix))
 					&& "after insertion there is either a subnode XOR a suffix at the address");
-	assert(
-			(content.hasSubnode
+	assert((content.hasSubnode
 					|| (index + currentNode->getPrefixLength() + 1
 							+ currentNode->getSuffixSize(
 									currentNode->lookup(hcAddress))
 							== currentNode->valueLength_))
 					&& "if there is a suffix for the entry the index + the current bit + suffix + prefix equals total bit width");
 	assert (SpatialSelectionOperationsUtil::lookup<DIM>(entry, initialNode, NULL).second == entry->id_);
+	#endif
 
 	// the root node might have changed
 	return initialNode;

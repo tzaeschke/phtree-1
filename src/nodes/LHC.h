@@ -39,7 +39,7 @@ protected:
 	std::map<unsigned long, LHCAddressContent<DIM>> sortedContents_;
 	size_t longestSuffix_;
 
-	NodeAddressContent<DIM> lookup(unsigned long address) override;
+	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
 	MultiDimBitset<DIM>* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
 	Node<DIM>* adjustSize() override;
@@ -85,28 +85,26 @@ void LHC<DIM>::recursiveDelete() {
 }
 
 template <unsigned int DIM>
-NodeAddressContent<DIM> LHC<DIM>::lookup(unsigned long address) {
+void LHC<DIM>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
 	assert (address < 1uL << DIM);
 	LHCAddressContent<DIM>* contentRef = lookupReference(address);
-	NodeAddressContent<DIM> content;
 	if (contentRef) {
-		content.exists = true;
-		content.address = address;
-		content.hasSubnode = contentRef->hasSubnode;
+		outContent.exists = true;
+		outContent.address = address;
+		outContent.hasSubnode = contentRef->hasSubnode;
 		if (!contentRef->hasSubnode) {
-			content.suffix = &(contentRef->suffix);
-			content.id = contentRef->id;
+			outContent.suffix = &(contentRef->suffix);
+			outContent.id = contentRef->id;
 		} else {
-			content.subnode = contentRef->subnode;
+			outContent.subnode = contentRef->subnode;
 		}
 	} else {
-		content.exists = false;
-		content.hasSubnode = false;
+		outContent.exists = false;
+		outContent.hasSubnode = false;
 	}
 
-	assert ((!content.exists || (content.hasSubnode || content.suffix->size() % DIM == 0))
+	assert ((!outContent.exists || (outContent.hasSubnode || outContent.suffix->size() % DIM == 0))
 						&& "the suffix dimensionality should always be the same as the node's");
-	return content;
 }
 
 template <unsigned int DIM>
@@ -142,7 +140,7 @@ MultiDimBitset<DIM>* LHC<DIM>::insertAtAddress(unsigned long hcAddress, size_t s
 		longestSuffix_ = suffixLength;
 	}
 
-	assert (lookup(hcAddress).address == hcAddress);
+	assert (Node<DIM>::lookup(hcAddress).address == hcAddress);
 	return &(content->suffix);
 }
 
@@ -174,7 +172,7 @@ void LHC<DIM>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 			content->suffix.clear();
 		}
 
-		assert (lookup(hcAddress).address == hcAddress);
+		assert (Node<DIM>::lookup(hcAddress).address == hcAddress);
 }
 
 template <unsigned int DIM>
@@ -216,7 +214,7 @@ void LHC<DIM>::accept(Visitor<DIM>* visitor, size_t depth) {
 template <unsigned int DIM>
 ostream& LHC<DIM>::output(ostream& os, size_t depth) {
 	os << "LHC";
-	Entry<DIM> prefix(this->prefix_, DIM, 0);
+	Entry<DIM> prefix(this->prefix_, 0);
 	os << " | prefix: " << prefix << endl;
 
 
@@ -231,7 +229,7 @@ ostream& LHC<DIM>::output(ostream& os, size_t depth) {
 			content.subnode->output(os, depth + 1);
 		} else {
 			// print suffix
-			Entry<DIM> suffix(content.suffix, DIM, 0);
+			Entry<DIM> suffix(content.suffix, 0);
 			os << " suffix: " << suffix;
 			os << " (id: " << content.id << ")" << endl;
 		}
