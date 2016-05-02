@@ -10,16 +10,18 @@
 
 #include "util/MultiDimBitset.h"
 
+template <unsigned int DIM>
 class Node;
 
+template <unsigned int DIM>
 struct NodeAddressContent {
 	int id;
 	bool exists;
 	bool hasSubnode;
 	unsigned long address;
 	union {
-		Node* subnode;
-		MultiDimBitset* suffix;
+		Node<DIM>* subnode;
+		MultiDimBitset<DIM>* suffix;
 	};
 };
 

@@ -19,15 +19,15 @@ int mainSimpleExample() {
 	vector<unsigned long> e3Values { 60, 7 };
 	vector<unsigned long> e4Values { 1, 3 };
 	vector<unsigned long> e5Values { 11, 5 };
-	Entry* e1 = new Entry(e1Values, bitLength, 1);
-	Entry* e2 = new Entry(e2Values, bitLength, 2);
-	Entry* e3 = new Entry(e3Values, bitLength, 3);
-	Entry* e4 = new Entry(e4Values, bitLength, 4);
-	Entry* e5 = new Entry(e5Values, bitLength, 5);
+	Entry<2>* e1 = new Entry<2>(e1Values, bitLength, 1);
+	Entry<2>* e2 = new Entry<2>(e2Values, bitLength, 2);
+	Entry<2>* e3 = new Entry<2>(e3Values, bitLength, 3);
+	Entry<2>* e4 = new Entry<2>(e4Values, bitLength, 4);
+	Entry<2>* e5 = new Entry<2>(e5Values, bitLength, 5);
 
-	CountNodeTypesVisitor* visitor = new CountNodeTypesVisitor();
+	CountNodeTypesVisitor<2>* visitor = new CountNodeTypesVisitor<2>();
 	uint64_t sta = RDTSC();
-	PHTree* phtree = new PHTree(2, bitLength);
+	PHTree<2>* phtree = new PHTree<2>(bitLength);
 	phtree->insert(e1);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	cout << *phtree;
@@ -120,7 +120,7 @@ int main(int argc, char* argv[]) {
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 	} else if (benchmark.compare(argv[1]) == 0) {
 		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
-		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_3D_32bit.dat", 32);
+		PlotUtil::plotAverageInsertTimePerDimension<3>("./benchmark_Java-extract_1M_3D_32bit.dat", 32);
 //		cout << "run a benchmark extracted from the Java implementation with 1M 6D 64-bit entries" << endl;
 //		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_6D_64bit.dat", 64);
 //		cout << "run a benchmark extracted from the Java implementation with 1M 10D 96-bit entries" << endl;

@@ -10,13 +10,15 @@
 
 #include "nodes/LHC.h"
 
+template <unsigned int DIM>
 class Node;
 
 class NodeTypeUtil {
 public:
-	static Node* determineNodeType(size_t dim, size_t valueLength, size_t nDirectInserts) {
+	template <unsigned int DIM>
+	static Node<DIM>* determineNodeType(size_t valueLength, size_t nDirectInserts) {
 		// TODO determine node type dynamically depending on dim and #inserts
-		LHC* node = new LHC(dim, valueLength);
+		LHC<DIM>* node = new LHC<DIM>(valueLength);
 		return node;
 	}
 };
