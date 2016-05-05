@@ -21,7 +21,7 @@ struct NodeAddressContent {
 	unsigned long address;
 	union {
 		Node<DIM>* subnode;
-		MultiDimBitset<DIM>* suffix;
+		unsigned long* suffixStartBlock;
 	};
 };
 

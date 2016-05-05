@@ -10,26 +10,26 @@
 
 #include <vector>
 #include <iostream>
-#include "nodes/Node.h"
+#include "nodes/TNode.h"
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
 #include "nodes/AHCAddressContent.h"
 #include "util/MultiDimBitset.h"
 
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class AHCIterator;
 
 template <unsigned int DIM>
 class AssertionVisitor;
 
-template <unsigned int DIM>
-class AHC: public Node<DIM> {
-	friend class AHCIterator<DIM>;
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+class AHC: public TNode<DIM, PREF_BLOCKS> {
+	friend class AHCIterator<DIM, PREF_BLOCKS>;
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
-	AHC(size_t dim, size_t valueLength);
-	AHC(Node<DIM>& node);
+	AHC();
+	AHC(TNode<DIM, PREF_BLOCKS>* node);
 	virtual ~AHC();
 	NodeIterator<DIM>* begin() override;
 	NodeIterator<DIM>* end() override;
@@ -41,10 +41,9 @@ public:
 protected:
 	// TODO use arrays instead by templating the dimensions
 	AHCAddressContent<DIM> contents_[1<<DIM];
-	MultiDimBitset<DIM> suffixes_[1<<DIM];
 
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
-	MultiDimBitset<DIM>* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
+	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
 	Node<DIM>* adjustSize() override;
 };
@@ -58,25 +57,24 @@ protected:
 
 using namespace std;
 
-template <unsigned int DIM>
-AHC<DIM>::AHC(size_t dim, size_t valueLength) : Node<DIM>(dim, valueLength) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+AHC<DIM, PREF_BLOCKS>::AHC() : TNode<DIM, PREF_BLOCKS>() {
 }
 
-template <unsigned int DIM>
-AHC<DIM>::AHC(Node<DIM>& other) : Node<DIM>(other) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>() {
 
 	// TODO use more efficient way to convert LHC->AHC
 	NodeIterator<DIM>* it;
-	NodeIterator<DIM>* endIt = other.end();
-	for (it = other.begin(); (*it) != *endIt; ++(*it)) {
+	NodeIterator<DIM>* endIt = other->end();
+	for (it = other->begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent<DIM> content = *(*it);
 		assert (content.exists);
 		if (content.hasSubnode) {
 			contents_[content.address] = AHCAddressContent<DIM>(content.subnode);
 		} else {
-			assert (content.suffix);
-			contents_[content.address] = AHCAddressContent<DIM>(content.id);
-			suffixes_[content.address] = *content.suffix;
+			assert (content.suffixStartBlock);
+			contents_[content.address] = AHCAddressContent<DIM>(content.suffixStartBlock, content.id);
 		}
 	}
 
@@ -84,12 +82,12 @@ AHC<DIM>::AHC(Node<DIM>& other) : Node<DIM>(other) {
 	delete endIt;
 }
 
-template <unsigned int DIM>
-AHC<DIM>::~AHC() {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+AHC<DIM, PREF_BLOCKS>::~AHC() {
 }
 
-template <unsigned int DIM>
-void AHC<DIM>::recursiveDelete() {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 	for (size_t i = 0; i < 1uL << DIM; ++i) {
 		if (contents_[i].filled && contents_[i].hasSubnode) {
 			assert (contents_[i].subnode);
@@ -100,8 +98,8 @@ void AHC<DIM>::recursiveDelete() {
 	delete this;
 }
 
-template <unsigned int DIM>
-size_t AHC<DIM>::getNumberOfContents() const {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+size_t AHC<DIM, PREF_BLOCKS>::getNumberOfContents() const {
 	size_t count = 0;
 	for (size_t i = 0; i < 1uL << DIM; ++i) {
 		if (contents_[i].filled) {
@@ -112,8 +110,8 @@ size_t AHC<DIM>::getNumberOfContents() const {
 	return count;
 }
 
-template <unsigned int DIM>
-void AHC<DIM>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
 	assert (address < 1uL << DIM);
 
 	outContent.address = address;
@@ -124,55 +122,49 @@ void AHC<DIM>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent
 		if (outContent.hasSubnode) {
 			outContent.subnode = contents_[address].subnode;
 		} else {
-			outContent.suffix = &suffixes_[address];
+			outContent.suffixStartBlock = contents_[address].suffixStartBlock;
 			outContent.id = contents_[address].id;
 		}
 	}
-
-	assert ((!outContent.exists || (outContent.hasSubnode || outContent.suffix->size() % DIM == 0))
-					&& "the suffix dimensionality should always be the same as the node's");
 }
 
-template <unsigned int DIM>
-MultiDimBitset<DIM>* AHC<DIM>::insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long* suffixStartBlock, int id) {
 	assert (hcAddress < 1ul << DIM);
-
-	contents_[hcAddress] = AHCAddressContent<DIM>(id);
-
+	contents_[hcAddress] = AHCAddressContent<DIM>(suffixStartBlock, id);
 	assert(Node<DIM>::lookup(hcAddress).id == id);
-	return &(suffixes_[hcAddress]);
 }
 
-template <unsigned int DIM>
-void AHC<DIM>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 	assert (hcAddress < 1ul << DIM);
 	contents_[hcAddress] = AHCAddressContent<DIM>(subnode);
 }
 
-template <unsigned int DIM>
-Node<DIM>* AHC<DIM>::adjustSize() {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
 	// TODO currently there is no need to switch from AHC to LHC because there is no delete function
 	return this;
 }
 
-template <unsigned int DIM>
-NodeIterator<DIM>* AHC<DIM>::begin() {
-	return new AHCIterator<DIM>(*this);
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::begin() {
+	return new AHCIterator<DIM, PREF_BLOCKS>(*this);
 }
 
-template <unsigned int DIM>
-NodeIterator<DIM>* AHC<DIM>::end() {
-	return new AHCIterator<DIM>(1uL << DIM, *this);
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::end() {
+	return new AHCIterator<DIM, PREF_BLOCKS>(1uL << DIM, *this);
 }
 
-template <unsigned int DIM>
-void AHC<DIM>::accept(Visitor<DIM>* visitor, size_t depth)  {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth)  {
 	visitor->visit(this, depth);
 	Node<DIM>::accept(visitor, depth);
 }
 
-template <unsigned int DIM>
-ostream& AHC<DIM>::output(ostream& os, size_t depth) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+ostream& AHC<DIM, PREF_BLOCKS>::output(ostream& os, size_t depth) {
 	os << "AHC";
 	Entry<DIM> prefix(this->prefix_, 0);
 	os << " | prefix: " << prefix << endl;

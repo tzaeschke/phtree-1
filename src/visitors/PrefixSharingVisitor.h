@@ -51,18 +51,19 @@ PrefixSharingVisitor<DIM>::~PrefixSharingVisitor() {
 
 template <unsigned int DIM>
 void PrefixSharingVisitor<DIM>::visit(LHC<DIM>* node, unsigned int depth) {
-	visitGeneral((Node<DIM>*)node);
+	//visitGeneral((Node<DIM>*)node);
 }
 
 template <unsigned int DIM>
 void PrefixSharingVisitor<DIM>::visit(AHC<DIM>* node, unsigned int depth) {
-	visitGeneral((Node<DIM>*)node);
+	//visitGeneral((Node<DIM>*)node);
 }
 
 template <unsigned int DIM>
 void PrefixSharingVisitor<DIM>::visitGeneral(const Node<DIM>* node) {
-	prefixSharedBits += node->prefix_.getBitLength() * node->prefix_.getDim();
-	prefixBitsWithoutSharing += DIM * node->prefix_.getBitLength() * node->getNumberOfContents();
+	// TODO
+	//prefixSharedBits += node->prefix_.getBitLength() * node->prefix_.getDim();
+	//prefixBitsWithoutSharing += DIM * node->prefix_.getBitLength() * node->getNumberOfContents();
 }
 
 template <unsigned int DIM>

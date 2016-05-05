@@ -85,9 +85,11 @@ void SizeVisitor<DIM>::visit(AHC<DIM>* node, unsigned int depth) {
 
 template <unsigned int DIM>
 unsigned long SizeVisitor<DIM>::superSize(const Node<DIM>* node) {
-	unsigned long superSize = sizeof(node->valueLength_);
+	// TODO add
+	/*unsigned long superSize = sizeof(node->valueLength_);
 	superSize += getBoolContainerSize(node->prefix_);
-	return superSize;
+	return superSize;*/
+	return 0;
 }
 
 template <unsigned int DIM>

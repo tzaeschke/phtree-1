@@ -9,6 +9,7 @@
 #define SRC_PHTREE_H_
 
 #include <iostream>
+#include <vector>
 
 template <unsigned int DIM>
 class Entry;
@@ -31,16 +32,20 @@ public:
 	RangeQueryIterator<DIM>* rangeQuery(Entry<DIM>* lowerLeft, Entry<DIM>* upperRight);
 
 	void accept(Visitor<DIM>* visitor);
+	unsigned long* reserveSuffixBlocks(size_t nSuffixBlocks);
+	void freeSuffixBlocks(unsigned long* suffixStartBlock, size_t nSuffixBlocks);
 
 protected:
 	// TODO no pointer for better locality
 	Node<DIM>* root_;
 	size_t valueLength_;
+	vector<unsigned long> globalSuffixBlocks;
 };
 
 #include "nodes/LHC.h"
 #include "util/DynamicNodeOperationsUtil.h"
 #include "util/SpatialSelectionOperationsUtil.h"
+#include "util/NodeTypeUtil.h"
 #include <assert.h>
 
 using namespace std;
@@ -49,12 +54,13 @@ using namespace std;
 template <unsigned int DIM>
 PHTree<DIM>::PHTree(unsigned int valueLength) {
 	valueLength_ = valueLength;
-	root_ = new LHC<DIM>(valueLength);
+	root_ = NodeTypeUtil::buildNode<DIM>(0, 0);
 }
 
 template <unsigned int DIM>
 PHTree<DIM>::~PHTree() {
 	root_->recursiveDelete();
+	globalSuffixBlocks.clear();
 }
 
 template <unsigned int DIM>
@@ -96,6 +102,25 @@ template <unsigned int DIM>
 void PHTree<DIM>::accept(Visitor<DIM>* visitor) {
 	root_->accept(visitor, 0);
 }
+
+template <unsigned int DIM>
+unsigned long* PHTree<DIM>::reserveSuffixBlocks(size_t nSuffixBlocks) {
+	unsigned long* startBlock = NULL;
+	for (int i = 0; i < nSuffixBlocks; ++i) {
+		globalSuffixBlocks.push_back(0);
+		if (i == 0) {
+			startBlock = &(globalSuffixBlocks[globalSuffixBlocks.size() - 1]);
+		}
+	}
+
+	return startBlock;
+}
+
+template <unsigned int DIM>
+void PHTree<DIM>::freeSuffixBlocks(unsigned long* suffixStartBlock, size_t nSuffixBlocks) {
+	// TODO handle free!
+}
+
 
 template <unsigned int D>
 ostream& operator <<(ostream& os, const PHTree<D> &tree) {

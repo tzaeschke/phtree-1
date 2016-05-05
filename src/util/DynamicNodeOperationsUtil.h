@@ -14,12 +14,14 @@ template <unsigned int DIM>
 class Entry;
 template <unsigned int DIM>
 class Node;
+template <unsigned int DIM>
+class PHTree;
 
 template <unsigned int DIM>
 class DynamicNodeOperationsUtil {
 public:
 
-	static Node<DIM>* insert(const Entry<DIM>* e, Node<DIM>* rootNode, size_t dim, size_t bitLength);
+	static Node<DIM>* insert(const Entry<DIM>* e, Node<DIM>* rootNode, size_t dim, size_t bitLength, PHTree<DIM>& tree);
 
 private:
 	static inline void createSubnodeWithExistingSuffix(size_t dim, size_t bitLength,
@@ -39,6 +41,7 @@ private:
 #include "util/MultiDimBitset.h"
 #include "nodes/Node.h"
 #include "nodes/NodeAddressContent.h"
+#include "PHTree.h"
 
 using namespace std;
 
@@ -125,7 +128,7 @@ void DynamicNodeOperationsUtil<DIM>::splitSubnodePrefix(size_t dim, size_t bitLe
 
 template <unsigned int DIM>
 Node<DIM>* DynamicNodeOperationsUtil<DIM>::insert(const Entry<DIM>* entry, Node<DIM>* rootNode,
-		size_t dim, size_t bitLength) {
+		size_t dim, size_t bitLength, PHTree<DIM>& tree) {
 
 	size_t depth = 0;
 	size_t lastHcAddress = 0;
@@ -225,7 +228,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM>::insert(const Entry<DIM>* entry, Node<
 					|| (index + currentNode->getPrefixLength() + 1
 							+ currentNode->getSuffixSize(
 									currentNode->lookup(hcAddress))
-							== currentNode->valueLength_))
+							== bitLength))
 					&& "if there is a suffix for the entry the index + the current bit + suffix + prefix equals total bit width");
 	assert (SpatialSelectionOperationsUtil::lookup<DIM>(entry, initialNode, NULL).second == entry->id_);
 	#endif

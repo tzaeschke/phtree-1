@@ -17,13 +17,14 @@ template <unsigned int DIM>
 struct AHCAddressContent {
 	AHCAddressContent();
 	AHCAddressContent(Node<DIM>* subnode);
-	AHCAddressContent(int id);
+	AHCAddressContent(unsigned long* suffixStartBlock, int id);
 
 	bool filled;
 	bool hasSubnode;
+	int id;
 	union {
 		Node<DIM>* subnode;
-		int id;
+		unsigned long* suffixStartBlock;
 	};
 };
 
@@ -32,18 +33,18 @@ using namespace std;
 
 template <unsigned int DIM>
 AHCAddressContent<DIM>::AHCAddressContent() :
-		filled(false), hasSubnode(false) {
+		filled(false), hasSubnode(false), id(0) {
 
 }
 
 template <unsigned int DIM>
 AHCAddressContent<DIM>::AHCAddressContent(Node<DIM>* sub) :
-		filled(true), hasSubnode(true), subnode(sub) {
+		filled(true), hasSubnode(true), id(0), subnode(sub) {
 }
 
 template <unsigned int DIM>
-AHCAddressContent<DIM>::AHCAddressContent(int i) :
-		filled(true), hasSubnode(false), id(i) {
+AHCAddressContent<DIM>::AHCAddressContent(unsigned long* s, int i) :
+		filled(true), hasSubnode(false), id(i), suffixStartBlock(s) {
 }
 
 #endif /* SRC_NODES_AHCADDRESSCONTENT_H_ */

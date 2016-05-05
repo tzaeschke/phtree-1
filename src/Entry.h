@@ -12,26 +12,27 @@
 #include <iostream>
 #include "util/MultiDimBitset.h"
 
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int WIDTH>
 class Entry {
-	template <unsigned int D>
-	friend std::ostream& operator <<(std::ostream &out, const Entry<D> &entry);
-	template <unsigned int D>
-	friend bool operator ==(const Entry<D> &entry1, const Entry<D> &entry2);
-	template <unsigned int D>
-	friend bool operator !=(const Entry<D> &entry1, const Entry<D> &entry2);
+	template <unsigned int D, unsigned int W>
+	friend std::ostream& operator <<(std::ostream &out, const Entry<D, W> &entry);
+	template <unsigned int D, unsigned int W>
+	friend bool operator ==(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
+	template <unsigned int D, unsigned int W>
+	friend bool operator !=(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
 
 public:
 
 	Entry(std::vector<unsigned long> &values, size_t bitLength, int id);
-	Entry(MultiDimBitset<DIM> values, int id);
+	Entry(unsigned long* startBlock, unsigned int nBits, int id);
 	~Entry();
 
 	size_t getBitLength() const;
 	size_t getDimensions() const;
 
 	int id_;
-	MultiDimBitset<DIM> values_;
+	unsigned int nBits_;
+	unsigned long values_[1 + DIM * WIDTH / sizeof(unsigned long)];
 };
 
 #include <string>
@@ -39,45 +40,50 @@ public:
 
 using namespace std;
 
-template <unsigned int DIM>
-Entry<DIM>::Entry(vector<unsigned long> &values, size_t bitLength, int id) : id_(id) {
+template <unsigned int DIM, unsigned int WIDTH>
+Entry<DIM, WIDTH>::Entry(vector<unsigned long> &values, size_t bitLength, int id) : id_(id), nBits_(sizeof(unsigned long) * values.size()) {
 	values_ = MultiDimBitset<DIM>(values, bitLength);
-	assert (values_.size() == getBitLength() * getDimensions());
+	assert (nBits_ == getBitLength() * getDimensions());
 }
 
-template <unsigned int DIM>
-Entry<DIM>::Entry(MultiDimBitset<DIM> values, int id) : id_(id), values_(values) {
-	assert (values_.size() == getBitLength() * getDimensions());
+template <unsigned int DIM, unsigned int WIDTH>
+Entry<DIM, WIDTH>::Entry(unsigned long* startBlock, unsigned int nBits, int id) : id_(id), nBits_(nBits) {
+	const size_t nBlocks = 1 + nBits / sizeof (unsigned long);
+	assert (nBlocks == sizeof(values_) / sizeof(unsigned long));
+	for (int i = 0; i < nBlocks; ++i) {
+		values_[i] = *(startBlock + i);
+	}
+
+	assert (nBits_ == getBitLength() * getDimensions());
 }
 
-template <unsigned int DIM>
-Entry<DIM>::~Entry() {
-	values_.clear();
+template <unsigned int DIM, unsigned int WIDTH>
+Entry<DIM, WIDTH>::~Entry() {
 }
 
-template <unsigned int DIM>
-size_t Entry<DIM>::getBitLength() const {
-	return values_.size() / DIM;
+template <unsigned int DIM, unsigned int WIDTH>
+size_t Entry<DIM, WIDTH>::getBitLength() const {
+	return WIDTH;
 }
 
-template <unsigned int DIM>
-size_t Entry<DIM>::getDimensions() const {
+template <unsigned int DIM, unsigned int WIDTH>
+size_t Entry<DIM, WIDTH>::getDimensions() const {
 	return DIM;
 }
 
-template <unsigned int D>
-ostream& operator <<(ostream& os, const Entry<D> &e) {
+template <unsigned int D, unsigned int W>
+ostream& operator <<(ostream& os, const Entry<D, W> &e) {
 	os << e.values_;
 	return os;
 }
 
-template <unsigned int D>
-bool operator ==(const Entry<D> &entry1, const Entry<D> &entry2) {
+template <unsigned int D, unsigned int W>
+bool operator ==(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
 	return entry1.values_ == entry2.values_;
 }
 
-template <unsigned int D>
-bool operator !=(const Entry<D> &entry1, const Entry<D> &entry2) {
+template <unsigned int D, unsigned int W>
+bool operator !=(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
 	return !(entry1 == entry2);
 }
 

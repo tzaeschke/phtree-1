@@ -10,23 +10,23 @@
 
 #include <map>
 #include <vector>
-#include "nodes/Node.h"
+#include "nodes/TNode.h"
 #include "nodes/LHCAddressContent.h"
 #include "util/MultiDimBitset.h"
 
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class LHCIterator;
 
 template <unsigned int DIM>
 class AssertionVisitor;
 
-template <unsigned int DIM>
-class LHC: public Node<DIM> {
-	friend class LHCIterator<DIM>;
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+class LHC: public TNode<DIM, PREF_BLOCKS> {
+	friend class LHCIterator<DIM, PREF_BLOCKS>;
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
-	LHC(size_t valueLength);
+	LHC();
 	virtual ~LHC();
 	NodeIterator<DIM>* begin() override;
 	NodeIterator<DIM>* end() override;
@@ -37,10 +37,9 @@ public:
 
 protected:
 	std::map<unsigned long, LHCAddressContent<DIM>> sortedContents_;
-	size_t longestSuffix_;
 
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
-	MultiDimBitset<DIM>* insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) override;
+	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
 	Node<DIM>* adjustSize() override;
 
@@ -57,13 +56,12 @@ private:
 
 using namespace std;
 
-template <unsigned int DIM>
-LHC<DIM>::LHC(size_t valueLength) :
-		Node<DIM>(valueLength), longestSuffix_(0) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+LHC<DIM, PREF_BLOCKS>::LHC() : TNode<DIM, PREF_BLOCKS>() {
 }
 
-template <unsigned int DIM>
-LHC<DIM>::~LHC() {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+LHC<DIM, PREF_BLOCKS>::~LHC() {
 	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
 		auto entry = (*it).second;
 		entry.suffix.clear();
@@ -72,8 +70,8 @@ LHC<DIM>::~LHC() {
 	sortedContents_.clear();
 }
 
-template <unsigned int DIM>
-void LHC<DIM>::recursiveDelete() {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void LHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
 		auto entry = (*it).second;
 		if (entry.subnode) {
@@ -84,8 +82,8 @@ void LHC<DIM>::recursiveDelete() {
 	delete this;
 }
 
-template <unsigned int DIM>
-void LHC<DIM>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void LHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
 	assert (address < 1uL << DIM);
 	LHCAddressContent<DIM>* contentRef = lookupReference(address);
 	if (contentRef) {
@@ -107,8 +105,8 @@ void LHC<DIM>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent
 						&& "the suffix dimensionality should always be the same as the node's");
 }
 
-template <unsigned int DIM>
-LHCAddressContent<DIM>* LHC<DIM>::lookupReference(unsigned long hcAddress) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+LHCAddressContent<DIM>* LHC<DIM, PREF_BLOCKS>::lookupReference(unsigned long hcAddress) {
 	assert (hcAddress < 1uL << DIM);
 	typename map<unsigned long, LHCAddressContent<DIM>>::iterator it = sortedContents_.find(
 			hcAddress);
@@ -120,32 +118,27 @@ LHCAddressContent<DIM>* LHC<DIM>::lookupReference(unsigned long hcAddress) {
 	}
 }
 
-template <unsigned int DIM>
-MultiDimBitset<DIM>* LHC<DIM>::insertAtAddress(unsigned long hcAddress, size_t suffixLength, int id) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) {
 	assert (hcAddress < 1uL << DIM);
 
 	LHCAddressContent<DIM>* content = lookupReference(hcAddress);
 	if (!content) {
-		auto result = sortedContents_.emplace(hcAddress, id);
+		auto result = sortedContents_.emplace(hcAddress, startSuffixBlock, id);
 		assert (result.second);
 		content = &((*(result.first)).second);
 	} else {
 		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
 
 		content->hasSubnode = false;
-		content->subnode = NULL;
-	}
-
-	if (suffixLength > longestSuffix_) {
-		longestSuffix_ = suffixLength;
+		content->suffixStartBlock = startSuffixBlock;
 	}
 
 	assert (Node<DIM>::lookup(hcAddress).address == hcAddress);
-	return &(content->suffix);
 }
 
-template <unsigned int DIM>
-void LHC<DIM>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 	assert (hcAddress < 1uL << DIM);
 	assert (subnode);
 
@@ -153,66 +146,51 @@ void LHC<DIM>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 		if (!content) {
 			sortedContents_.emplace(hcAddress, subnode);
 		} else {
-			if (!content->hasSubnode && content->suffix.size() == longestSuffix_) {
-				// before insertion this was the longest suffix
-				// TODO efficiently find longest remaining suffix
-				longestSuffix_ = 0;
-
-				for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
-						auto content = (*it).second;
-						if (!content.hasSubnode
-								&& (content.suffix.size() / DIM) > longestSuffix_) {
-							longestSuffix_ = content.suffix.size() / DIM;
-						}
-				}
-			}
-
 			content->hasSubnode = true;
 			content->subnode = subnode;
-			content->suffix.clear();
+			// TODO remove suffix
 		}
 
 		assert (Node<DIM>::lookup(hcAddress).address == hcAddress);
 }
 
-template <unsigned int DIM>
-Node<DIM>* LHC<DIM>::adjustSize() {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+Node<DIM>* LHC<DIM, PREF_BLOCKS>::adjustSize() {
 	// TODO find more precise threshold depending on AHC and LHC representation!
 	const size_t n = sortedContents_.size();
 	const size_t k = DIM;
-	const size_t ls = longestSuffix_;
-	const double conversionThreshold = (1uL << k) * ls / (k + ls);
+	const double conversionThreshold = double(1uL << k) / (k);
 	if (n < conversionThreshold) {
 		return this;
 	} else {
-		AHC<DIM>* convertedNode = new AHC<DIM>(*this);
+		AHC<DIM, PREF_BLOCKS>* convertedNode = new AHC<DIM, PREF_BLOCKS>(this);
 		return convertedNode;
 	}
 }
 
-template <unsigned int DIM>
-NodeIterator<DIM>* LHC<DIM>::begin() {
-	return new LHCIterator<DIM>(*this);
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS>::begin() {
+	return new LHCIterator<DIM, PREF_BLOCKS>(*this);
 }
 
-template <unsigned int DIM>
-NodeIterator<DIM>* LHC<DIM>::end() {
-	return new LHCIterator<DIM>(1uL << DIM, *this);
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS>::end() {
+	return new LHCIterator<DIM, PREF_BLOCKS>(1uL << DIM, *this);
 }
 
-template <unsigned int DIM>
-size_t LHC<DIM>::getNumberOfContents() const {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+size_t LHC<DIM, PREF_BLOCKS>::getNumberOfContents() const {
 	return sortedContents_.size();
 }
 
-template <unsigned int DIM>
-void LHC<DIM>::accept(Visitor<DIM>* visitor, size_t depth) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void LHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
 	visitor->visit(this, depth);
 	Node<DIM>::accept(visitor, depth);
 }
 
-template <unsigned int DIM>
-ostream& LHC<DIM>::output(ostream& os, size_t depth) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+ostream& LHC<DIM, PREF_BLOCKS>::output(ostream& os, size_t depth) {
 	os << "LHC";
 	Entry<DIM> prefix(this->prefix_, 0);
 	os << " | prefix: " << prefix << endl;

@@ -10,48 +10,24 @@
 
 #include <vector>
 #include <iostream>
-#include "boost/dynamic_bitset.hpp"
 
-template <unsigned int DIM>
-class SizeVisitor;
 
 template <unsigned int DIM>
 class MultiDimBitset {
-	friend class SizeVisitor<DIM>;
-	template <unsigned int D>
-	friend std::ostream& operator <<(std::ostream &out, const MultiDimBitset<D> &entry);
 public:
-	MultiDimBitset();
-	MultiDimBitset(const MultiDimBitset<DIM> &other);
-	MultiDimBitset(std::vector<unsigned long> &values, size_t bitLength);
-	virtual ~MultiDimBitset();
 
-	size_t size() const;
-	size_t getBitLength() const;
-	size_t getDim() const;
-
-	void clear();
-	bool operator ==(const MultiDimBitset<DIM> &b) const;
-	bool operator !=(const MultiDimBitset<DIM> &b) const;
-
-	std::pair<bool, size_t> compareTo(size_t fromIndex, size_t toIndex, const MultiDimBitset<DIM> &other) const;
-	std::vector<unsigned long> toLongs() const;
-	unsigned long interleaveBits(const size_t index) const;
-	void removeHighestBits(const size_t nBitsToRemove);
-	void removeHighestBits(const size_t nBitsToRemove, MultiDimBitset<DIM>* resultTo) const;
-	void pushBitsToBack(const MultiDimBitset<DIM>* source);
-	void pushValueToBack(unsigned long newValue);
-	void duplicateHighestBits(const size_t nBitsToDuplicate, MultiDimBitset<DIM>* resultTo) const;
-	size_t calculateLongestCommonPrefix(const size_t startIndex, MultiDimBitset<DIM>* other, MultiDimBitset<DIM>* resultTo) const;
+	static void toBitset(std::vector<unsigned long> &values, unsigned long* outStartBlock);
+	static std::pair<bool, size_t> compare(const unsigned long* startBlock, size_t fromIndex, size_t toIndex, const unsigned long* otherStartBlock);
+	static std::vector<unsigned long> toLongs(const unsigned long* fromStartBlock, size_t nBits);
+	static unsigned long interleaveBits(const unsigned long* fromStartBlock, size_t index);
+	static void removeHighestBits(const unsigned long* startBlock, unsigned int nBits, size_st nBitsToRemove, unsigned long* outStartBlock);
+	static void duplicateHighestBits(const unsigned long* startBlock, unsigned int nBits. unsigned int nBitsToDuplicate, unsigned long* outStartBlock);
+	static size_t calculateLongestCommonPrefix(const unsigned long* startBlock, unsigned int nBits, size_t startIndex,
+			const unsigned long* otherStartBlock, const unsigned long* outStartBlock);
 
 private:
-	// consecutive storage of the multidimensional values in bit representation
-	boost::dynamic_bitset<> bits;
-
 	static boost::dynamic_bitset<> longToBitset(unsigned long value, size_t bitLength);
 	static inline std::pair<bool, size_t> compareAlignedBlocks(const unsigned long b1, const unsigned long b2);
-	inline size_t inlineBitLength() const;
-
 };
 
 #include <string.h>
@@ -60,24 +36,17 @@ private:
 
 using namespace std;
 
-template <unsigned int DIM>
-MultiDimBitset<DIM>::MultiDimBitset() {
-}
 
 template <unsigned int DIM>
-MultiDimBitset<DIM>::MultiDimBitset(const MultiDimBitset<DIM> &other) : bits(other.bits) {
-
-}
-
-template <unsigned int DIM>
-MultiDimBitset<DIM>::MultiDimBitset(std::vector<unsigned long> &values, size_t bitLength) {
+void MultiDimBitset<DIM>::toBitset(std::vector<unsigned long> &values, unsigned long* outStartBlock) {
 	// example 2 Dim, 8 Bit:     (   10    ,    5     )
 	// binary representation:    (0000 1010, 0000 0101)
 	// index:                       12    8    4    0
 	// after conversion (mixed): (0000 0000 0110 0110)
 
+	assert (values.size() == DIM);
+	const size_t nBits = values.size() * sizeof(unsigned long);
 		// TODO rewrite to directly convert the values
-		bits.resize(bitLength * DIM);
 		for (size_t d = 0; d < DIM; ++d) {
 			boost::dynamic_bitset<> entry = longToBitset(values[d], bitLength);
 			for (size_t i = 0; i < bitLength; ++i) {
