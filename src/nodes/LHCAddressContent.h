@@ -25,7 +25,7 @@ struct LHCAddressContent {
 	LHCAddressContent();
 	LHCAddressContent(const LHCAddressContent<DIM> &other);
 	LHCAddressContent(Node<DIM>* subnode);
-	LHCAddressContent(const unsigned long* suffixStartBlock, int id);
+	LHCAddressContent(unsigned long* suffixStartBlock, int id);
 };
 
 template <unsigned int DIM>
@@ -44,8 +44,8 @@ LHCAddressContent<DIM>::LHCAddressContent(Node<DIM>* sub) :
 }
 
 template <unsigned int DIM>
-LHCAddressContent<DIM>::LHCAddressContent(const unsigned long* s, int i) :
-		hasSubnode(false), id(i), subnode((Node<DIM> *) 0), suffixStartBlock(s) {
+LHCAddressContent<DIM>::LHCAddressContent(unsigned long* s, int i) :
+		hasSubnode(false), id(i), suffixStartBlock(s) {
 }
 
 #endif /* SRC_NODES_LHCADDRESSCONTENT_H_ */

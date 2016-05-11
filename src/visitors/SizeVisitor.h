@@ -11,8 +11,8 @@
 #include "visitors/Visitor.h"
 #include "util/MultiDimBitset.h"
 
-template <unsigned int DIM>
-class Node;
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+class TNode;
 
 template <unsigned int DIM>
 class SizeVisitor: public Visitor<DIM> {
@@ -22,18 +22,27 @@ public:
 	SizeVisitor();
 	virtual ~SizeVisitor();
 
-	virtual void visit(LHC<DIM>* node, unsigned int depth) override;
-	virtual void visit(AHC<DIM>* node, unsigned int depth) override;
+	template <unsigned int WIDTH>
+	void visitSub(PHTree<DIM, WIDTH>* tree);
+	template <unsigned int PREF_BLOCKS>
+	void visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS>
+	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() override;
 
 	unsigned long getTotalBitSize() const;
 	unsigned long getTotalByteSize() const;
 	unsigned long getTotalKByteSize() const;
 	unsigned long getTotalMByteSize() const;
+
+	unsigned long getTotalTreeBitSize() const;
+	unsigned long getTotalTreeByteSize() const;
+
 	unsigned long getTotalLhcBitSize() const;
 	unsigned long getTotalLhcByteSize() const;
 	unsigned long getTotalLhcKByteSize() const;
 	unsigned long getTotalLhcMByteSize() const;
+
 	unsigned long getTotalAhcBitSize() const;
 	unsigned long getTotalAhcByteSize() const;
 	unsigned long getTotalAhcKByteSize() const;
@@ -45,15 +54,19 @@ protected:
 private:
 	unsigned long totalLHCByteSize;
 	unsigned long totalAHCByteSize;
-	unsigned long superSize(const Node<DIM>* node);
-	unsigned long getBoolContainerSize(const MultiDimBitset<DIM>& container);
+	unsigned long totalTreeByteSize;
+
+	template <unsigned int PREF_BLOCKS>
+	unsigned long superSize(const TNode<DIM, PREF_BLOCKS>* node);
 };
 
 #include "visitors/SizeVisitor.h"
 #include "nodes/Node.h"
+#include "nodes/TNode.h"
 #include "nodes/LHC.h"
 #include "nodes/AHC.h"
 #include "nodes/LHCAddressContent.h"
+#include "util/SuffixBlock.h"
 
 using namespace std;
 
@@ -66,56 +79,71 @@ template <unsigned int DIM>
 SizeVisitor<DIM>::~SizeVisitor() { }
 
 template <unsigned int DIM>
-void SizeVisitor<DIM>::visit(LHC<DIM>* node, unsigned int depth) {
-	totalLHCByteSize += superSize(node);
-	totalLHCByteSize += sizeof(node->longestSuffix_);
+template <unsigned int WIDTH>
+void SizeVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {
+	const unsigned int suffixBlockSize = 50;
+	totalTreeByteSize += sizeof (tree->root_);
+	SuffixBlock<suffixBlockSize>* currentBlock = tree->firstSuffixBlock;
+	assert (currentBlock);
+	do {
+		totalTreeByteSize += sizeof(SuffixBlock<suffixBlockSize>);
+		currentBlock = currentBlock->next;
+	} while (currentBlock);
+}
+
+template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS>
+void SizeVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
+	totalLHCByteSize += this->template superSize<PREF_BLOCKS>(node);
 	totalLHCByteSize += sizeof(map<long,LHCAddressContent<DIM>>)
 			+ (sizeof(long) + sizeof(LHCAddressContent<DIM>)) * node->sortedContents_.size();
 }
 
 template <unsigned int DIM>
-void SizeVisitor<DIM>::visit(AHC<DIM>* node, unsigned int depth) {
-	totalAHCByteSize += superSize(node);
-	totalAHCByteSize += sizeof(node->contents_);
-
-	for (const auto suffix : node->suffixes_) {
-		totalAHCByteSize += getBoolContainerSize(suffix);
-	}
+template <unsigned int PREF_BLOCKS>
+void SizeVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
+	totalAHCByteSize += this->template superSize<PREF_BLOCKS>(node);
+	totalAHCByteSize += sizeof (node->contents_);
 }
 
 template <unsigned int DIM>
-unsigned long SizeVisitor<DIM>::superSize(const Node<DIM>* node) {
-	// TODO add
-	/*unsigned long superSize = sizeof(node->valueLength_);
-	superSize += getBoolContainerSize(node->prefix_);
-	return superSize;*/
-	return 0;
-}
-
-template <unsigned int DIM>
-unsigned long SizeVisitor<DIM>::getBoolContainerSize(const MultiDimBitset<DIM>& container) {
-	// internally maps each bool to one bit only
-	unsigned long size = sizeof(boost::dynamic_bitset<>) + container.bits.bits_per_block * container.bits.num_blocks() / 8;
-	return size;
+template <unsigned int PREF_BLOCKS>
+unsigned long SizeVisitor<DIM>::superSize(const TNode<DIM, PREF_BLOCKS>* node) {
+	unsigned long superSize = sizeof (node->prefixBits_);
+	superSize += sizeof (node->prefix_);
+	return superSize;
 }
 
 template <unsigned int DIM>
 void SizeVisitor<DIM>::reset() {
 	totalLHCByteSize = 0;
 	totalAHCByteSize = 0;
+	totalTreeByteSize = 0;
 }
 
 template <unsigned int DIM>
 std::ostream& SizeVisitor<DIM>::output(std::ostream &out) const {
-	float lhcSizePercent = float(getTotalLhcByteSize()) * 100 / float(getTotalByteSize());
+	float lhcSizePercent = float(totalLHCByteSize) * 100 / float(getTotalByteSize());
+	float ahcSizePercent = float(totalAHCByteSize) * 100 / float(getTotalByteSize());
 	return out << "total size: " << getTotalKByteSize()
 			<< "KByte | " << getTotalMByteSize()
-			<< "MByte (LHC: " << lhcSizePercent << "%)" << std::endl;
+			<< "MByte (LHC: " << lhcSizePercent << "%, AHC: "
+			<< ahcSizePercent << "%)" << std::endl;
 }
 
 template <unsigned int D>
 std::ostream& operator <<(std::ostream &out, const SizeVisitor<D>& v) {
 	return v.output(out);
+}
+
+template <unsigned int DIM>
+unsigned long SizeVisitor<DIM>::getTotalTreeByteSize() const {
+	return totalTreeByteSize;
+}
+
+template <unsigned int DIM>
+unsigned long SizeVisitor<DIM>::getTotalTreeBitSize() const {
+	return getTotalTreeByteSize() * 8;
 }
 
 template <unsigned int DIM>
@@ -125,7 +153,7 @@ unsigned long SizeVisitor<DIM>::getTotalBitSize() const {
 
 template <unsigned int DIM>
 unsigned long SizeVisitor<DIM>::getTotalByteSize() const {
-	return totalLHCByteSize + totalAHCByteSize;
+	return totalLHCByteSize + totalAHCByteSize + totalTreeByteSize;
 }
 
 template <unsigned int DIM>

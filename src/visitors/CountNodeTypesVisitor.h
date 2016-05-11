@@ -19,8 +19,12 @@ public:
 	CountNodeTypesVisitor();
 	virtual ~CountNodeTypesVisitor();
 
-	virtual void visit(LHC<DIM>* node, unsigned int depth) override;
-	virtual void visit(AHC<DIM>* node, unsigned int depth) override;
+	template <unsigned int WIDTH>
+	void visitSub(PHTree<DIM, WIDTH>* tree);
+	template <unsigned int PREF_BLOCKS>
+	void visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS>
+	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() override;
 	std::ostream& operator <<(std::ostream &out) const;
 
@@ -52,6 +56,10 @@ void CountNodeTypesVisitor<DIM>::reset() {
 }
 
 template <unsigned int DIM>
+template <unsigned int WIDTH>
+void CountNodeTypesVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {}
+
+template <unsigned int DIM>
 unsigned long CountNodeTypesVisitor<DIM>::getNumberOfVisitedAHCNodes() const {
 	return nAHCNodes_;
 }
@@ -62,12 +70,14 @@ unsigned long CountNodeTypesVisitor<DIM>::getNumberOfVisitedLHCNodes() const {
 }
 
 template <unsigned int DIM>
-void CountNodeTypesVisitor<DIM>::visit(LHC<DIM>* node, unsigned int depth) {
+template <unsigned int PREF_BLOCKS>
+void CountNodeTypesVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	nLHCNodes_++;
 }
 
 template <unsigned int DIM>
-void CountNodeTypesVisitor<DIM>::visit(AHC<DIM>* node, unsigned int depth) {
+template <unsigned int PREF_BLOCKS>
+void CountNodeTypesVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	nAHCNodes_++;
 }
 

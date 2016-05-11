@@ -26,24 +26,24 @@ class LHC: public TNode<DIM, PREF_BLOCKS> {
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
-	LHC();
+	LHC(size_t prefixLength);
 	virtual ~LHC();
 	NodeIterator<DIM>* begin() override;
 	NodeIterator<DIM>* end() override;
-	std::ostream& output(std::ostream& os, size_t depth) override;
 	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
 	virtual void recursiveDelete() override;
 	virtual size_t getNumberOfContents() const override;
-
-protected:
-	std::map<unsigned long, LHCAddressContent<DIM>> sortedContents_;
-
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
 	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
 	Node<DIM>* adjustSize() override;
 
+protected:
+	string getName() const override;
+
 private:
+	std::map<unsigned long, LHCAddressContent<DIM>> sortedContents_;
+
 	LHCAddressContent<DIM>* lookupReference(unsigned long hcAddress);
 };
 
@@ -57,16 +57,11 @@ private:
 using namespace std;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHC<DIM, PREF_BLOCKS>::LHC() : TNode<DIM, PREF_BLOCKS>() {
+LHC<DIM, PREF_BLOCKS>::LHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 LHC<DIM, PREF_BLOCKS>::~LHC() {
-	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
-		auto entry = (*it).second;
-		entry.suffix.clear();
-	}
-
 	sortedContents_.clear();
 }
 
@@ -74,12 +69,17 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void LHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
 		auto entry = (*it).second;
-		if (entry.subnode) {
+		if (entry.hasSubnode) {
 			entry.subnode->recursiveDelete();
 		}
 	}
 
 	delete this;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+string LHC<DIM,PREF_BLOCKS>::getName() const {
+	return "LHC";
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -91,7 +91,7 @@ void LHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 		outContent.address = address;
 		outContent.hasSubnode = contentRef->hasSubnode;
 		if (!contentRef->hasSubnode) {
-			outContent.suffix = &(contentRef->suffix);
+			outContent.suffixStartBlock = contentRef->suffixStartBlock;
 			outContent.id = contentRef->id;
 		} else {
 			outContent.subnode = contentRef->subnode;
@@ -100,9 +100,6 @@ void LHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 		outContent.exists = false;
 		outContent.hasSubnode = false;
 	}
-
-	assert ((!outContent.exists || (outContent.hasSubnode || outContent.suffix->size() % DIM == 0))
-						&& "the suffix dimensionality should always be the same as the node's");
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -124,9 +121,11 @@ void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 
 	LHCAddressContent<DIM>* content = lookupReference(hcAddress);
 	if (!content) {
-		auto result = sortedContents_.emplace(hcAddress, startSuffixBlock, id);
+		auto result = sortedContents_.emplace(piecewise_construct,
+			forward_as_tuple(hcAddress),
+			forward_as_tuple(startSuffixBlock, id));
 		assert (result.second);
-		content = &((*(result.first)).second);
+//		content = &((*(result.first)).second);
 	} else {
 		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
 
@@ -134,7 +133,7 @@ void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 		content->suffixStartBlock = startSuffixBlock;
 	}
 
-	assert (Node<DIM>::lookup(hcAddress).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -143,15 +142,14 @@ void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* 
 	assert (subnode);
 
 	LHCAddressContent<DIM>* content = lookupReference(hcAddress);
-		if (!content) {
-			sortedContents_.emplace(hcAddress, subnode);
-		} else {
-			content->hasSubnode = true;
-			content->subnode = subnode;
-			// TODO remove suffix
-		}
+	if (!content) {
+		sortedContents_.emplace(hcAddress, subnode);
+	} else {
+		content->hasSubnode = true;
+		content->subnode = subnode;
+	}
 
-		assert (Node<DIM>::lookup(hcAddress).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -186,33 +184,7 @@ size_t LHC<DIM, PREF_BLOCKS>::getNumberOfContents() const {
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void LHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
 	visitor->visit(this, depth);
-	Node<DIM>::accept(visitor, depth);
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-ostream& LHC<DIM, PREF_BLOCKS>::output(ostream& os, size_t depth) {
-	os << "LHC";
-	Entry<DIM> prefix(this->prefix_, 0);
-	os << " | prefix: " << prefix << endl;
-
-
-	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
-		auto content = (*it).second;
-		size_t address = (*it).first;
-		for (size_t i = 0; i < depth; i++) {os << "-";}
-		os << " " << address << ": ";
-
-		if (content.hasSubnode) {
-			// print subnode
-			content.subnode->output(os, depth + 1);
-		} else {
-			// print suffix
-			Entry<DIM> suffix(content.suffix, 0);
-			os << " suffix: " << suffix;
-			os << " (id: " << content.id << ")" << endl;
-		}
-	}
-	return os;
+	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth);
 }
 
 #endif /* LHC_H_ */

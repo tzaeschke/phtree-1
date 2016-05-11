@@ -92,7 +92,7 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS>::operator*() {
 	content.address = contentMapIt_->first;
 	content.hasSubnode = contentMapIt_->second.hasSubnode;
 	if (!contentMapIt_->second.hasSubnode) {
-		content.suffix = &(contentMapIt_->second.suffix);
+		content.suffixStartBlock = contentMapIt_->second.suffixStartBlock;
 		content.id = contentMapIt_->second.id;
 	} else {
 		content.subnode = contentMapIt_->second.subnode;

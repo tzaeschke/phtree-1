@@ -19,15 +19,15 @@ int mainSimpleExample() {
 	vector<unsigned long> e3Values { 60, 7 };
 	vector<unsigned long> e4Values { 1, 3 };
 	vector<unsigned long> e5Values { 11, 5 };
-	Entry<2>* e1 = new Entry<2>(e1Values, bitLength, 1);
-	Entry<2>* e2 = new Entry<2>(e2Values, bitLength, 2);
-	Entry<2>* e3 = new Entry<2>(e3Values, bitLength, 3);
-	Entry<2>* e4 = new Entry<2>(e4Values, bitLength, 4);
-	Entry<2>* e5 = new Entry<2>(e5Values, bitLength, 5);
+	Entry<2, bitLength>* e1 = new Entry<2, bitLength>(e1Values, 1);
+	Entry<2, bitLength>* e2 = new Entry<2, bitLength>(e2Values, 2);
+	Entry<2, bitLength>* e3 = new Entry<2, bitLength>(e3Values, 3);
+	Entry<2, bitLength>* e4 = new Entry<2, bitLength>(e4Values, 4);
+	Entry<2, bitLength>* e5 = new Entry<2, bitLength>(e5Values, 5);
 
 	CountNodeTypesVisitor<2>* visitor = new CountNodeTypesVisitor<2>();
 	uint64_t sta = RDTSC();
-	PHTree<2>* phtree = new PHTree<2>(bitLength);
+	PHTree<2, bitLength>* phtree = new PHTree<2, bitLength>();
 	phtree->insert(e1);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
 	cout << *phtree;
@@ -108,6 +108,10 @@ int main(int argc, char* argv[]) {
 		cout << "assertions enabled!" << endl;
 	#endif
 
+	#ifdef PRINT
+		cout << "printing enabled!" << endl;
+	#endif
+
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
@@ -120,7 +124,7 @@ int main(int argc, char* argv[]) {
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 	} else if (benchmark.compare(argv[1]) == 0) {
 		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
-		PlotUtil::plotAverageInsertTimePerDimension<3>("./benchmark_Java-extract_1M_3D_32bit.dat", 32);
+		PlotUtil::plotAverageInsertTimePerDimension<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat");
 //		cout << "run a benchmark extracted from the Java implementation with 1M 6D 64-bit entries" << endl;
 //		PlotUtil::plotAverageInsertTimePerDimension("./benchmark_Java-extract_1M_6D_64bit.dat", 64);
 //		cout << "run a benchmark extracted from the Java implementation with 1M 10D 96-bit entries" << endl;

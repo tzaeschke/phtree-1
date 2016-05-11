@@ -17,13 +17,14 @@
 template <unsigned int DIM>
 class Node;
 
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryIterator {
 public:
-	RangeQueryIterator(std::vector<Node<DIM>*>* nodeStack, size_t dim, size_t bitLength, const Entry<DIM>* lowerLeft, const Entry<DIM>* upperRight);
+	RangeQueryIterator(std::vector<Node<DIM>*>* nodeStack, size_t dim, size_t bitLength,
+			const Entry<DIM, WIDTH>* lowerLeft, const Entry<DIM, WIDTH>* upperRight);
 	virtual ~RangeQueryIterator();
 
-	Entry<DIM> next();
+	Entry<DIM, WIDTH> next();
 	bool hasNext();
 
 private:
@@ -39,8 +40,8 @@ private:
 	NodeIterator<DIM>* currentEndIterator_;
 	size_t currentLowerMask_;
 	size_t currentUpperMask_;
-	const Entry<DIM>* upperRightCorner_;
-	const Entry<DIM>* lowerLeftCorner_;
+	const Entry<DIM, WIDTH>* upperRightCorner_;
+	const Entry<DIM, WIDTH>* lowerLeftCorner_;
 	bool hasNext_;
 
 
@@ -56,9 +57,9 @@ private:
 using namespace std;
 
 // TODO also provide addresses per node that were followed during the lookup!
-template <unsigned int DIM>
-RangeQueryIterator<DIM>::RangeQueryIterator(vector<Node<DIM>*>* nodeStack, size_t dim,
-		size_t bitLength, const Entry<DIM>* lowerLeft, const Entry<DIM>* upperRight) {
+template <unsigned int DIM, unsigned int WIDTH>
+RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<Node<DIM>*>* nodeStack, size_t dim,
+		size_t bitLength, const Entry<DIM, WIDTH>* lowerLeft, const Entry<DIM, WIDTH>* upperRight) {
 	assert (nodeStack->size() > 0 && "Should at least contain the root node");
 	lowerLeftCorner_ = lowerLeft;
 	upperRightCorner_ = upperRight;
@@ -86,14 +87,14 @@ RangeQueryIterator<DIM>::RangeQueryIterator(vector<Node<DIM>*>* nodeStack, size_
 	}
 }
 
-template <unsigned int DIM>
-RangeQueryIterator<DIM>::~RangeQueryIterator() {
+template <unsigned int DIM, unsigned int WIDTH>
+RangeQueryIterator<DIM, WIDTH>::~RangeQueryIterator() {
 	currentPrefix_->clear();
 	// TODO how to clear stacks
 }
 
-template <unsigned int DIM>
-Entry<DIM> RangeQueryIterator<DIM>::next() {
+template <unsigned int DIM, unsigned int WIDTH>
+Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 	assert (hasNext());
 	assert (currentPrefix_->size() % dim_ == 0);
 	assert (currentPrefix_->size() / dim_ == currentIndex_);
@@ -142,13 +143,13 @@ Entry<DIM> RangeQueryIterator<DIM>::next() {
 	throw "currently not implemented";
 }
 
-template <unsigned int DIM>
-bool RangeQueryIterator<DIM>::hasNext() {
+template <unsigned int DIM, unsigned int WIDTH>
+bool RangeQueryIterator<DIM, WIDTH>::hasNext() {
 	return hasNext_;
 }
 
-template <unsigned int DIM>
-void RangeQueryIterator<DIM>::calculateRangeMasks() {
+template <unsigned int DIM, unsigned int WIDTH>
+void RangeQueryIterator<DIM, WIDTH>::calculateRangeMasks() {
 	// reset masks
 	currentLowerMask_ = 0;
 	currentUpperMask_ = 0;
@@ -183,15 +184,15 @@ void RangeQueryIterator<DIM>::calculateRangeMasks() {
 	assert (currentLowerMask_ <= currentUpperMask_);
 }
 
-template <unsigned int DIM>
-bool RangeQueryIterator<DIM>::isInMaskRange(unsigned long hcAddress) {
+template <unsigned int DIM, unsigned int WIDTH>
+bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) {
 	bool lowerMatch = (hcAddress | currentLowerMask_) == hcAddress;
 	bool upperMatch = (hcAddress & currentUpperMask_) == hcAddress;
 	return lowerMatch && upperMatch;
 }
 
-template <unsigned int DIM>
-void RangeQueryIterator<DIM>::stepUp() {
+template <unsigned int DIM, unsigned int WIDTH>
+void RangeQueryIterator<DIM, WIDTH>::stepUp() {
 	if (nodeStack_->empty()) {
 		hasNext_ = false;
 	} else {
@@ -212,8 +213,8 @@ void RangeQueryIterator<DIM>::stepUp() {
 	}
 }
 
-template <unsigned int DIM>
-void RangeQueryIterator<DIM>::stepDown(Node<DIM>* nextNode) {
+template <unsigned int DIM, unsigned int WIDTH>
+void RangeQueryIterator<DIM, WIDTH>::stepDown(Node<DIM>* nextNode) {
 	// add the prefix of the next node to the current prefix
 	currentPrefix_->pushValueToBack(currentHCAddress_);
 	currentIndex_ += 1;

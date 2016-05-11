@@ -22,8 +22,12 @@ public:
 	AssertionVisitor();
 	virtual ~AssertionVisitor();
 
-	virtual void visit(LHC<DIM>* node, unsigned int depth) override;
-	virtual void visit(AHC<DIM>* node, unsigned int depth) override;
+	template <unsigned int WIDTH>
+	void visitSub(PHTree<DIM, WIDTH>* tree);
+	template <unsigned int PREF_BLOCKS>
+	void visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS>
+	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() override;
 
 protected:
@@ -49,29 +53,38 @@ AssertionVisitor<DIM>::~AssertionVisitor() {
 }
 
 template <unsigned int DIM>
-void AssertionVisitor<DIM>::visit(LHC<DIM>* node, unsigned int depth) {
+template <unsigned int WIDTH>
+void AssertionVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {
+
+}
+
+template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS>
+void AssertionVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	validateContents(node, node->begin(), node->end());
 }
 
 template <unsigned int DIM>
-void AssertionVisitor<DIM>::visit(AHC<DIM>* node, unsigned int depth) {
+template <unsigned int PREF_BLOCKS>
+void AssertionVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	validateContents(node, node->begin(), node->end());
 }
 
 template <unsigned int DIM>
 void AssertionVisitor<DIM>::validateContents(const Node<DIM>* node, NodeIterator<DIM>* begin, NodeIterator<DIM>* end) {
 	bool foundSuffix = false;
+	// TODO
 		size_t suffixLength = 0;
 		for (NodeIterator<DIM>* it = begin; (*it) != *(end); ++(*it)) {
 			NodeAddressContent<DIM> content = *(*it);
 			if (!foundSuffix && content.exists && !content.hasSubnode) {
-				suffixLength = content.suffix->size();
+//				suffixLength = content.suffix->size();
 				foundSuffix = true;
 			}
 
 			assert(content.exists);
-			assert((content.hasSubnode || content.suffix->size() == suffixLength)
-							&& "all suffixes in one node should have the same length");
+//			assert((content.hasSubnode || content.suffix->size() == suffixLength)
+//							&& "all suffixes in one node should have the same length");
 		}
 		delete begin;
 		delete end;

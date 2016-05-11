@@ -10,14 +10,14 @@
 
 #include <vector>
 
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int WIDTH>
 class Entry;
 
 class FileInputUtil {
 public:
 	// parses the file at the given location in the format 'int, int, int, ...\n...'
-	template <unsigned int DIM>
-	static std::vector<Entry<DIM>*> readEntries(std::string fileLocation, size_t bitLength);
+	template <unsigned int DIM, unsigned int WIDTH>
+	static std::vector<Entry<DIM, WIDTH>*> readEntries(std::string fileLocation);
 };
 
 #include <iostream>
@@ -47,18 +47,17 @@ inline vector<unsigned long> getNextLineTokens(ifstream& stream) {
 	return tokens;
 }
 
-template <unsigned int DIM>
-vector<Entry<DIM>*> FileInputUtil::readEntries(string fileLocation, size_t bitLength) {
+template <unsigned int DIM, unsigned int WIDTH>
+vector<Entry<DIM, WIDTH>*> FileInputUtil::readEntries(string fileLocation) {
 
 	ifstream myfile (fileLocation);
-		std::vector<Entry<DIM>*>   result;
+		std::vector<Entry<DIM, WIDTH>*>   result;
 	if (myfile.is_open()) {
 		int id = 0;
 		while (!myfile.eof()) {
 			vector<unsigned long> values = getNextLineTokens(myfile);
 			if (!values.empty()) {
-				Entry<DIM>* entry = new Entry<DIM>(values, bitLength, id++);
-				assert (entry->getBitLength() == bitLength);
+				Entry<DIM, WIDTH>* entry = new Entry<DIM, WIDTH>(values, id++);
 				assert (result.empty() || result.at(0)->getDimensions() == entry->getDimensions());
 				result.push_back(entry);
 			}

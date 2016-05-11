@@ -28,24 +28,24 @@ class AHC: public TNode<DIM, PREF_BLOCKS> {
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
-	AHC();
+	AHC(size_t prefixLength);
 	AHC(TNode<DIM, PREF_BLOCKS>* node);
 	virtual ~AHC();
 	NodeIterator<DIM>* begin() override;
 	NodeIterator<DIM>* end() override;
-	std::ostream& output(std::ostream& os, size_t depth) override;
 	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
 	virtual void recursiveDelete() override;
 	virtual size_t getNumberOfContents() const override;
-
-protected:
-	// TODO use arrays instead by templating the dimensions
-	AHCAddressContent<DIM> contents_[1<<DIM];
-
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
 	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
 	Node<DIM>* adjustSize() override;
+
+protected:
+	string getName() const override;
+
+private:
+	AHCAddressContent<DIM> contents_[1<<DIM];
 };
 
 #include <assert.h>
@@ -58,11 +58,11 @@ protected:
 using namespace std;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHC<DIM, PREF_BLOCKS>::AHC() : TNode<DIM, PREF_BLOCKS>() {
+AHC<DIM, PREF_BLOCKS>::AHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>() {
+AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>(other) {
 
 	// TODO use more efficient way to convert LHC->AHC
 	NodeIterator<DIM>* it;
@@ -99,6 +99,11 @@ void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
+string AHC<DIM,PREF_BLOCKS>::getName() const {
+	return "AHC";
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 size_t AHC<DIM, PREF_BLOCKS>::getNumberOfContents() const {
 	size_t count = 0;
 	for (size_t i = 0; i < 1uL << DIM; ++i) {
@@ -131,14 +136,20 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long* suffixStartBlock, int id) {
 	assert (hcAddress < 1ul << DIM);
-	contents_[hcAddress] = AHCAddressContent<DIM>(suffixStartBlock, id);
-	assert(Node<DIM>::lookup(hcAddress).id == id);
+	contents_[hcAddress].filled = true;
+	contents_[hcAddress].hasSubnode = false;
+	contents_[hcAddress].id = id;
+	contents_[hcAddress].suffixStartBlock = suffixStartBlock;
+	assert(((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 	assert (hcAddress < 1ul << DIM);
-	contents_[hcAddress] = AHCAddressContent<DIM>(subnode);
+	contents_[hcAddress].filled = true;
+	contents_[hcAddress].hasSubnode = true;
+	contents_[hcAddress].subnode = subnode;
+	assert(((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).subnode == subnode);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -160,33 +171,7 @@ NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::end() {
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth)  {
 	visitor->visit(this, depth);
-	Node<DIM>::accept(visitor, depth);
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-ostream& AHC<DIM, PREF_BLOCKS>::output(ostream& os, size_t depth) {
-	os << "AHC";
-	Entry<DIM> prefix(this->prefix_, 0);
-	os << " | prefix: " << prefix << endl;
-
-	for (size_t address = 0; address < (1uL << DIM); ++address) {
-		// print address
-		if (contents_[address].filled){
-			for (size_t i = 0; i < depth; i++) { os << "-";}
-			os << " " << address << ": ";
-		}
-
-		// print subnode or prefix
-		if (contents_[address].filled && contents_[address].hasSubnode) {
-			contents_[address].subnode->output(os, depth + 1);
-		} else if (contents_[address].filled) {
-			Entry<DIM> suffix(suffixes_[address], 0);
-			os << " suffix: " << suffix;
-			os << " (id: " << contents_[address].id << ")" << endl;
-		}
-	}
-
-	return os;
+	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth);
 }
 
 #endif /* SRC_AHC_H_ */

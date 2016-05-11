@@ -23,7 +23,7 @@ class Entry {
 
 public:
 
-	Entry(std::vector<unsigned long> &values, size_t bitLength, int id);
+	Entry(std::vector<unsigned long> &values, int id);
 	Entry(unsigned long* startBlock, unsigned int nBits, int id);
 	~Entry();
 
@@ -32,7 +32,7 @@ public:
 
 	int id_;
 	unsigned int nBits_;
-	unsigned long values_[1 + DIM * WIDTH / sizeof(unsigned long)];
+	unsigned long values_[1 + (DIM * WIDTH - 1) / (sizeof (unsigned long) * 8)];
 };
 
 #include <string>
@@ -41,14 +41,15 @@ public:
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
-Entry<DIM, WIDTH>::Entry(vector<unsigned long> &values, size_t bitLength, int id) : id_(id), nBits_(sizeof(unsigned long) * values.size()) {
-	values_ = MultiDimBitset<DIM>(values, bitLength);
+Entry<DIM, WIDTH>::Entry(vector<unsigned long> &values, int id) : id_(id), nBits_(DIM * WIDTH), values_() {
+	assert (values.size() == DIM);
+	MultiDimBitset<DIM>::template toBitset<WIDTH>(values, values_);
 	assert (nBits_ == getBitLength() * getDimensions());
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 Entry<DIM, WIDTH>::Entry(unsigned long* startBlock, unsigned int nBits, int id) : id_(id), nBits_(nBits) {
-	const size_t nBlocks = 1 + nBits / sizeof (unsigned long);
+	const size_t nBlocks = 1 + nBits / (sizeof (unsigned long) * 8);
 	assert (nBlocks == sizeof(values_) / sizeof(unsigned long));
 	for (int i = 0; i < nBlocks; ++i) {
 		values_[i] = *(startBlock + i);
@@ -73,7 +74,18 @@ size_t Entry<DIM, WIDTH>::getDimensions() const {
 
 template <unsigned int D, unsigned int W>
 ostream& operator <<(ostream& os, const Entry<D, W> &e) {
-	os << e.values_;
+	vector<unsigned long> converted = MultiDimBitset<D>::toLongs(e.values_, e.nBits_);
+	os << "(";
+	unsigned currentD = 0;
+	for (const auto c : converted) {
+		os << c;
+		currentD++;
+		if (currentD != D) os << ", ";
+	}
+	os << ") = ";
+
+	MultiDimBitset<D>::output(os, e.values_, e.nBits_);
+	os << " | ID: " << e.id_;
 	return os;
 }
 

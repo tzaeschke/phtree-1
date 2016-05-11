@@ -17,48 +17,43 @@
 template <unsigned int DIM>
 class Visitor;
 template <unsigned int DIM>
-class RangeQueryIterator;
-template <unsigned int DIM>
 class SizeVisitor;
 template <unsigned int DIM>
 class PrefixSharingVisitor;
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class TNode : public Node<DIM> {
 	// TODO remove friends and use getters and setters
 	friend class NodeIterator<DIM>;
-	friend class RangeQueryIterator<DIM>;
 	friend class SizeVisitor<DIM>;
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	TNode();
+	TNode(size_t prefixLength);
+	TNode(TNode<DIM, PREF_BLOCKS>* other);
 	virtual ~TNode() {}
-	RangeQueryIterator<DIM>* rangeQuery(const Entry<DIM>* lowerLeft, const Entry<DIM>* upperRight, size_t depth, size_t index) override;
-
-	virtual std::ostream& output(std::ostream& os, size_t depth) =0;
+	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) override;
 	virtual NodeIterator<DIM>* begin() = 0;
 	virtual NodeIterator<DIM>* end() = 0;
 	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
 	virtual void recursiveDelete() = 0;
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
-
-protected:
-	size_t prefixBits_;
-	// TODO template block type
-	unsigned long prefix_[PREF_BLOCKS];
-
-	size_t getSuffixSize(NodeAddressContent<DIM>) const override;
 	size_t getPrefixLength() const override;
-
+	unsigned long* getPrefixStartBlock() override;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) = 0;
 	NodeAddressContent<DIM> lookup(unsigned long address) override;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
+
+protected:
+	size_t prefixBits_;
+	// TODO template block type
+	unsigned long prefix_[PREF_BLOCKS];
+	virtual string getName() const =0;
 };
 
 #include <assert.h>
@@ -66,36 +61,31 @@ protected:
 #include "nodes/LHC.h"
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "iterators/RangeQueryIterator.h"
+#include "iterators/NodeIterator.h"
 
 using namespace std;
 
-#define DEBUG false
-
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-TNode<DIM, PREF_BLOCKS>::TNode() : prefixBits_(0) {
+TNode<DIM, PREF_BLOCKS>::TNode(size_t prefixLength) : prefixBits_(prefixLength * DIM), prefix_() {
+	assert (prefixBits_ <= PREF_BLOCKS * sizeof (unsigned long) * 8);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-RangeQueryIterator<DIM>* TNode<DIM, PREF_BLOCKS>::rangeQuery(const Entry<DIM>* lowerLeft, const Entry<DIM>* upperRight, size_t depth, size_t index) {
-	/*vector<Node<DIM>*>* visitedNodes = new vector<Node<DIM>*>();
-	SpatialSelectionOperationsUtil::lookup(lowerLeft, this, visitedNodes);
-	RangeQueryIterator<DIM>* iterator = new RangeQueryIterator<DIM>(visitedNodes, DIM, valueLength_, lowerLeft, upperRight);
-	return iterator;*/
-	return NULL;
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-size_t TNode<DIM, PREF_BLOCKS>::getSuffixSize(NodeAddressContent<DIM> content) const {
-	if (content.hasSubnode) {
-		return 0;
-	} else {
-		return content.suffix->size() / DIM;
+TNode<DIM, PREF_BLOCKS>::TNode(TNode<DIM, PREF_BLOCKS>* other) : prefixBits_(other->prefixBits_) {
+	assert (prefixBits_ <= PREF_BLOCKS * sizeof (unsigned long) * 8);
+	for (unsigned i = 0; i < PREF_BLOCKS; ++i) {
+		prefix_[i] = other->prefix_[i];
 	}
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 size_t TNode<DIM, PREF_BLOCKS>::getPrefixLength() const {
 	return prefixBits_ / DIM;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+unsigned long* TNode<DIM, PREF_BLOCKS>::getPrefixStartBlock() {
+	return prefix_;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -122,8 +112,33 @@ NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-ostream& TNode<DIM, PREF_BLOCKS>::output(ostream& os, size_t depth) {
-	return os << "subclass should overwrite this";
+ostream& TNode<DIM, PREF_BLOCKS>::output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) {
+	os << this->getName() << " | prefix: ";
+	MultiDimBitset<DIM>::output(os, prefix_, prefixBits_);
+	os << endl;
+	const size_t currentIndex = index + this->getPrefixLength() + 1;
+
+	NodeIterator<DIM>* it;
+	NodeIterator<DIM>* endIt = this->end();
+	for (it = this->begin(); *it != *endIt; ++(*it)) {
+		NodeAddressContent<DIM> content = (*(*it));
+		for (size_t i = 0; i < depth; i++) {os << "-";}
+		os << " " << content.address << ": ";
+
+		if (content.hasSubnode) {
+			// print subnode
+			content.subnode->output(os, depth + 1, currentIndex, totalBitLength);
+		} else {
+			// print suffix
+			os << " suffix: ";
+			MultiDimBitset<DIM>::output(os, content.suffixStartBlock, DIM * (totalBitLength - currentIndex));
+			os << " (id: " << content.id << ")" << endl;
+		}
+	}
+
+	delete it;
+	delete endIt;
+	return os;
 }
 
 #endif /* SRC_NODES_TNODE_H_ */

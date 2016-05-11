@@ -12,13 +12,14 @@
 
 template <unsigned int DIM>
 class Node;
-template <unsigned int DIM>
+template <unsigned int DIM, unsigned int WIDTH>
 class Entry;
 
+template <unsigned int DIM, unsigned int WIDTH>
 class SpatialSelectionOperationsUtil {
 public:
-	template <unsigned int DIM>
-	static std::pair<bool, int> lookup(const Entry<DIM>* e, Node<DIM>* rootNode, std::vector<Node<DIM>*>* visitedNodes);
+	static std::pair<bool, int> lookup(const Entry<DIM, WIDTH>* e,
+			Node<DIM>* rootNode, std::vector<Node<DIM>*>* visitedNodes);
 };
 
 #include <assert.h>
@@ -27,11 +28,10 @@ public:
 
 using namespace std;
 
-#define DEBUG false
 
-template <unsigned int DIM>
-pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry<DIM>* e, Node<DIM>* rootNode,
-		std::vector<Node<DIM>*>* visitedNodes) {
+template <unsigned int DIM, unsigned int WIDTH>
+pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>* e, Node<DIM>* rootNode,
+		vector<Node<DIM>*>* visitedNodes) {
 
 	Node<DIM>* currentNode = rootNode;
 	size_t depth = 0;
@@ -40,31 +40,34 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry<DIM>* e, Node
 
 	while (true) {
 
-		if (DEBUG)
+		#ifdef PRINT
 			cout << "depth " << depth << " -> ";
+		#endif
 
 		if (visitedNodes)
 			visitedNodes->push_back(currentNode);
 
 		// validate prefix
 		// TODO move to multi dim bit util
-		pair<bool, size_t> comp = e->values_.compareTo(index,
-				index + currentNode->prefix_.getBitLength(),
-				currentNode->prefix_);
+		pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+				index, index + currentNode->getPrefixLength(),
+				currentNode->getPrefixStartBlock(), currentNode->getPrefixLength() * DIM);
 		if (!comp.first) {
-			if (DEBUG)
-				cout << "prefix missmatch" << endl;
+			#ifdef PRINT
+				cout << "prefix mismatch" << endl;
+			#endif
 			return pair<bool, int>(false, 0);
 		}
 
 		// validate HC address
 		size_t currentIndex = index + currentNode->getPrefixLength();
-		unsigned long hcAddress = e->values_.interleaveBits(currentIndex);
+		unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e->values_, currentIndex, DIM * WIDTH);
 		currentNode->lookup(hcAddress, content);
 
 		if (!content.exists) {
-			if (DEBUG)
-				cout << "HC address missmatch" << endl;
+			#ifdef PRINT
+				cout << "HC address mismatch" << endl;
+			#endif
 			return pair<bool, int>(false, 0);
 		}
 
@@ -74,17 +77,21 @@ pair<bool, int> SpatialSelectionOperationsUtil::lookup(const Entry<DIM>* e, Node
 			index = currentIndex + 1;
 			currentNode = content.subnode;
 		} else {
-			// TODO move to multi dim bit util
-			assert (content.suffix->size() == e->values_.size() - DIM * (currentIndex + 1));
-			pair<bool, size_t> comp = e->values_.compareTo(currentIndex + 1, currentIndex + 1 + content.suffix->getBitLength(), *content.suffix);
+			const size_t suffixBits = DIM * (WIDTH - currentIndex - 1);
+			comp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+							currentIndex + 1, WIDTH,
+							content.suffixStartBlock, suffixBits);
 			if (!comp.first) {
-				if (DEBUG)
-					cout << "suffix missmatch" << endl;
+				#ifdef PRINT
+					cout << "suffix mismatch" << endl;
+				#endif
 				return pair<bool, int>(false, 0);
 			}
 
-			if (DEBUG)
+			#ifdef PRINT
 				cout << "found" << endl;
+			#endif
+
 			return pair<bool, int>(true, content.id);
 		}
 	}

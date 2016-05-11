@@ -16,14 +16,21 @@ class LHC;
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class AHC;
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
+template <unsigned int DIM, unsigned int WIDTH>
+class PHTree;
+
+template <unsigned int DIM>
 class Visitor {
 public:
 	Visitor();
 	virtual ~Visitor();
 
-	virtual void visit(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) =0;
-	virtual void visit(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) =0;
+	template <unsigned int WIDTH>
+	void visit(PHTree<DIM, WIDTH>* tree);
+	template <unsigned int PREF_BLOCKS>
+	void visit(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS>
+	void visit(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() =0;
 	std::ostream& operator <<(std::ostream &out);
 
@@ -31,17 +38,69 @@ protected:
 	virtual std::ostream& output(std::ostream &out) const =0;
 };
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-Visitor<DIM, PREF_BLOCKS>::Visitor() {
+#include <stdexcept>
+#include "visitors/SizeVisitor.h"
+#include "visitors/PrefixSharingVisitor.h"
+#include "visitors/CountNodeTypesVisitor.h"
+#include "visitors/AssertionVisitor.h"
+
+template <unsigned int DIM>
+Visitor<DIM>::Visitor() {}
+
+template <unsigned int DIM>
+Visitor<DIM>::~Visitor() {}
+
+template <unsigned int DIM>
+template <unsigned int WIDTH>
+void Visitor<DIM>::visit(PHTree<DIM, WIDTH>* tree) {
+	if (SizeVisitor<DIM>* sub = dynamic_cast<SizeVisitor<DIM>*>(this)) {
+		sub->visitSub(tree);
+	} else if (PrefixSharingVisitor<DIM>* sub = dynamic_cast<PrefixSharingVisitor<DIM>*>(this)) {
+		sub->visitSub(tree);
+	} else if (CountNodeTypesVisitor<DIM>* sub = dynamic_cast<CountNodeTypesVisitor<DIM>*>(this)) {
+			sub->visitSub(tree);
+	} else if (AssertionVisitor<DIM>* sub = dynamic_cast<AssertionVisitor<DIM>*>(this)) {
+			sub->visitSub(tree);
+	} else {
+		throw std::runtime_error("unknown visitor");
+	}
+}
+
+template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS>
+void Visitor<DIM>::visit(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
+	if (SizeVisitor<DIM>* sub = dynamic_cast<SizeVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth);
+	} else if (PrefixSharingVisitor<DIM>* sub = dynamic_cast<PrefixSharingVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth);
+	} else if (CountNodeTypesVisitor<DIM>* sub = dynamic_cast<CountNodeTypesVisitor<DIM>*>(this)) {
+			sub->visitSub(node, depth);
+	} else if (AssertionVisitor<DIM>* sub = dynamic_cast<AssertionVisitor<DIM>*>(this)) {
+			sub->visitSub(node, depth);
+	} else {
+		throw std::runtime_error("unknown visitor");
+	}
+}
+
+template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS>
+void Visitor<DIM>::visit(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
+	if (SizeVisitor<DIM>* sub = dynamic_cast<SizeVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth);
+	} else if (PrefixSharingVisitor<DIM>* sub = dynamic_cast<PrefixSharingVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth);
+	} else if (CountNodeTypesVisitor<DIM>* sub = dynamic_cast<CountNodeTypesVisitor<DIM>*>(this)) {
+			sub->visitSub(node, depth);
+	} else if (AssertionVisitor<DIM>* sub = dynamic_cast<AssertionVisitor<DIM>*>(this)) {
+			sub->visitSub(node, depth);
+	} else {
+		throw std::runtime_error("unknown visitor");
+	}
 }
 
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-Visitor<DIM, PREF_BLOCKS>::~Visitor() {
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-std::ostream& Visitor<DIM, PREF_BLOCKS>::operator <<(std::ostream &out) {
+template <unsigned int DIM>
+std::ostream& Visitor<DIM>::operator <<(std::ostream &out) {
 	return output(out);
 }
 

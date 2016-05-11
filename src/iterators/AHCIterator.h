@@ -89,7 +89,7 @@ NodeAddressContent<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator*() {
 		if (content.hasSubnode) {
 			content.subnode = node_->contents_[this->address_].subnode;
 		} else {
-			content.suffix = &(node_->suffixes_[this->address_]);
+			content.suffixStartBlock = node_->contents_[this->address_].suffixStartBlock;
 			content.id = node_->contents_[this->address_].id;
 		}
 	}

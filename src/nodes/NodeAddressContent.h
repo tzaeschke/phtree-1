@@ -8,8 +8,6 @@
 #ifndef NODEADDRESSCONTENT_H_
 #define NODEADDRESSCONTENT_H_
 
-#include "util/MultiDimBitset.h"
-
 template <unsigned int DIM>
 class Node;
 

@@ -41,7 +41,8 @@ set title "PH-Tree in-memory size"
 
 plot \
   "plot/data/phtree_average_insert_entries.dat" using 7 t 'AHC size' ls 3,\
-  "" using 8:xticlabels(2) t 'LHC size' ls 5
+  "" using 8:xticlabels(2) t 'LHC size' ls 5,\
+  "" using 9:xticlabels(2) t 'suffix blocks size' ls 6
 
 unset multiplot
 unset output
