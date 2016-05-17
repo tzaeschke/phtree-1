@@ -121,7 +121,6 @@ std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startB
 
 	const size_t upper = nBits - DIM * fromMsbIndex;
 	const size_t lower = nBits - DIM * toMsbIndex;
-	const size_t lsbRange = upper - lower;
 	const size_t b_max = bitsPerBlock;
 	assert(lower <= upper);
 
@@ -129,9 +128,8 @@ std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startB
 		return pair<bool, size_t>(true, 0);
 	}
 
-	assert(nBits >= upper);
-	assert(lsbRange == otherNBits);
-	assert(lsbRange % DIM == 0);
+	assert(nBits >= upper && nBits % DIM == 0);
+	assert(upper - lower == otherNBits);
 
 	const size_t x = upper % b_max;
 	const size_t y = lower % b_max;
@@ -197,7 +195,7 @@ std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startB
 	}
 
 	longestCommonPrefix /= DIM;
-	assert (longestCommonPrefix >= 0 && longestCommonPrefix <= lsbRange / DIM);
+	assert (longestCommonPrefix >= 0 && longestCommonPrefix <= long(toMsbIndex - fromMsbIndex));
 	assert (!allDimSame || otherNBits / DIM == longestCommonPrefix);
 	return pair<bool, size_t>(allDimSame, longestCommonPrefix);
 }

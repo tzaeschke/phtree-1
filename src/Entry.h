@@ -20,6 +20,8 @@ class Entry {
 	friend bool operator ==(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
 	template <unsigned int D, unsigned int W>
 	friend bool operator !=(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
+	template <unsigned int D, unsigned int W>
+	friend bool operator <(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
 
 public:
 
@@ -97,6 +99,11 @@ bool operator ==(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
 template <unsigned int D, unsigned int W>
 bool operator !=(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
 	return !(entry1 == entry2);
+}
+
+template <unsigned int D, unsigned int W>
+bool operator <(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
+	return entry1.id_ < entry2.id_;
 }
 
 #endif /* SRC_ENTRY_H_ */
