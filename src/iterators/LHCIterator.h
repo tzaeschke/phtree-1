@@ -11,7 +11,6 @@
 #include <map>
 #include "iterators/NodeIterator.h"
 #include "nodes/LHC.h"
-#include "nodes/LHCAddressContent.h"
 
 template <unsigned int DIM>
 struct NodeAddressContent;

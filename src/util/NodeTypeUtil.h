@@ -10,7 +10,6 @@
 
 #include <cstdint>
 #include "nodes/LHC.h"
-#include "nodes/AHCAddressContent.h"
 
 template <unsigned int DIM>
 class Node;
@@ -76,22 +75,11 @@ public:
 
 private:
 
-
-	// AHC stores 2^DIM fields with the contents and some blocks with bits for exists and hasSub
-	// TODO remove factor 2/3
-	static const size_t ahcByteSize = (1 << DIM) * (sizeof(int) + sizeof(uintptr_t)
-			+ sizeof (char) * (1 + (2 * (1 << DIM) - 1) / (sizeof(char) * 8)));
-
 	template <unsigned int PREF_BLOCKS>
 	inline static Node<DIM>* determineNodeType(size_t prefixBits, size_t nDirectInserts) {
 		assert (nDirectInserts > 0);
 		const size_t prefixLength = prefixBits / DIM;
-//		const size_t ahcByteSize = NodeTypeUtil<DIM>::ahcByteSize;
-//		const size_t n = nDirectInserts;
-		// LHC stores per entry a reference, ID and compressed addresses and hasSub bits in 64 bit blocks
-//		const size_t lhcByteSize = n * (sizeof(int) + sizeof(uintptr_t))
-//				+ sizeof (unsigned long) * (1 + (n * (DIM + 1) - 1) / (sizeof (unsigned long) * 8));
-		// use LHC as long as it is smaller
+		// TODO use threshold depending on which node is smaller
 		const double switchTypeAtLoadRatio = 0.75;
 		if (float(nDirectInserts) / (1 << DIM) < switchTypeAtLoadRatio) {
 			return determineLhcSize<PREF_BLOCKS>(prefixLength, nDirectInserts);
@@ -107,7 +95,9 @@ private:
 		const float insertToRatio = float(nDirectInserts) / (1 << DIM);
 		assert (0 < insertToRatio && insertToRatio < 1);
 
-		if (insertToRatio < 0.1) {
+		if (nDirectInserts < 3) {
+			return new LHC<DIM, PREF_BLOCKS, 2>(prefixLength);
+		} else if (insertToRatio < 0.1) {
 			return new LHC<DIM, PREF_BLOCKS,  1 + 10 * (1 << DIM) / 100>(prefixLength);
 		} else if (insertToRatio < 0.25) {
 			return new LHC<DIM, PREF_BLOCKS,  1 + 25 * (1 << DIM) / 100>(prefixLength);

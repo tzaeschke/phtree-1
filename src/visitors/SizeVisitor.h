@@ -65,7 +65,6 @@ private:
 #include "nodes/TNode.h"
 #include "nodes/LHC.h"
 #include "nodes/AHC.h"
-#include "nodes/LHCAddressContent.h"
 #include "util/SuffixBlock.h"
 
 using namespace std;
@@ -95,14 +94,19 @@ template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS, unsigned int N>
 void SizeVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
 	totalLHCByteSize += this->template superSize<PREF_BLOCKS>(node);
-	totalLHCByteSize += sizeof (LHC<DIM, PREF_BLOCKS, N>);
+	totalLHCByteSize += sizeof (node->addresses_);
+	totalLHCByteSize += sizeof (node->ids_);
+	totalLHCByteSize += sizeof (node->m);
+	totalLHCByteSize += sizeof (node->references_);
 }
 
 template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 void SizeVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	totalAHCByteSize += this->template superSize<PREF_BLOCKS>(node);
-	totalAHCByteSize += sizeof(AHC<DIM, PREF_BLOCKS>);
+	totalAHCByteSize += sizeof(node->nContents);
+	totalAHCByteSize += sizeof(node->ids_);
+	totalAHCByteSize += sizeof(node->references_);
 }
 
 template <unsigned int DIM>

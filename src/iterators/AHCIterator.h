@@ -53,8 +53,10 @@ void AHCIterator<DIM, PREF_BLOCKS>::setAddress(size_t address) {
 	} else {
 		// find first filled address if the given one is not filled
 		bool filled = false;
+		bool hasSub = false;
+		uintptr_t ref = 0;
 		for (this->address_ = address; this->address_ < (1uL << DIM); this->address_++) {
-			node_->getExistsAndHasSub(this->address_, &filled, NULL);
+			node_->getRef(this->address_, &filled, &hasSub, &ref);
 			if (filled) break;
 		}
 
@@ -80,18 +82,8 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeAddressContent<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator*() {
 
 	NodeAddressContent<DIM> content;
+	node_->lookup(this->address_, content);
 	content.address = this->address_;
-	node_->getExistsAndHasSub(this->address_, &content.exists, &content.hasSubnode);
-
-	if (content.exists) {
-		if (content.hasSubnode) {
-			content.subnode = node_->contents_[this->address_].subnode;
-		} else {
-			content.suffixStartBlock = node_->contents_[this->address_].suffixStartBlock;
-			content.id = node_->contents_[this->address_].id;
-		}
-	}
-
 	return content;
 }
 

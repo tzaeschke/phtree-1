@@ -12,8 +12,6 @@
 #include <vector>
 #include <cstdint>
 #include "nodes/TNode.h"
-#include "nodes/LHCAddressContent.h"
-#include "util/MultiDimBitset.h"
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHCIterator;

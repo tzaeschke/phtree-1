@@ -10,11 +10,10 @@
 
 #include <vector>
 #include <iostream>
+#include <cstdint>
 #include "nodes/TNode.h"
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
-#include "nodes/AHCAddressContent.h"
-#include "util/MultiDimBitset.h"
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class AHCIterator;
@@ -46,15 +45,14 @@ protected:
 	string getName() const override;
 
 private:
-	static const size_t bitsPerBlock = sizeof(char) * 8;
-	// stores 2 bits per entry: exists | hasSub
-	char addresses_[1 + (2 * (1 << DIM) - 1) / bitsPerBlock];
-	AHCAddressContent<DIM> contents_[1<<DIM];
-	size_t nContents;
 
-	void inline getExistsAndHasSub(unsigned long hcAddress, bool* exists, bool* hasSub) const;
-	void inline setExists(unsigned long hcAddress, bool exists);
-	void inline setHasSub(unsigned long hcAddress, bool hasSub);
+	size_t nContents;
+	int ids_[1 << DIM];
+	// stores flags in 2 lowest bits per reference: exists | hasSub
+	std::uintptr_t references_[1 << DIM];
+	static const unsigned long refMask = (-1) << 2; // mask to remove the 2 flag bits
+
+	void inline getRef(unsigned long hcAddress, bool* exists, bool* hasSub, std::uintptr_t* ref) const;
 };
 
 #include <assert.h>
@@ -67,11 +65,11 @@ private:
 using namespace std;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHC<DIM, PREF_BLOCKS>::AHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength), addresses_(), nContents(0) {
+AHC<DIM, PREF_BLOCKS>::AHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength), nContents(0), ids_(), references_() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>(other), addresses_(), nContents(0) {
+AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>(other), nContents(0), ids_(), references_() {
 
 	// TODO use more efficient way to convert LHC->AHC
 	NodeIterator<DIM>* it;
@@ -80,10 +78,10 @@ AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLO
 		NodeAddressContent<DIM> content = *(*it);
 		assert (content.exists);
 		if (content.hasSubnode) {
-			contents_[content.address] = AHCAddressContent<DIM>(content.subnode);
+			insertAtAddress(content.address, content.subnode);
 		} else {
 			assert (content.suffixStartBlock);
-			contents_[content.address] = AHCAddressContent<DIM>(content.suffixStartBlock, content.id);
+			insertAtAddress(content.address, content.suffixStartBlock, content.id);
 		}
 	}
 
@@ -99,11 +97,13 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 	bool hasSubnode = false;
 	bool filled = false;
+	uintptr_t ref = 0;
 	for (size_t i = 0; i < 1uL << DIM; ++i) {
-		getExistsAndHasSub(i, &filled, &hasSubnode);
+		getRef(i, &filled, &hasSubnode, &ref);
 		if (filled && hasSubnode) {
-			assert (contents_[i].subnode);
-			contents_[i].subnode->recursiveDelete();
+			Node<DIM>* subnode = reinterpret_cast<Node<DIM>*>(ref);
+			assert (subnode);
+			subnode->recursiveDelete();
 		}
 	}
 
@@ -116,54 +116,14 @@ string AHC<DIM,PREF_BLOCKS>::getName() const {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM,PREF_BLOCKS>::getExistsAndHasSub(unsigned long hcAddress, bool* exists, bool* hasSub) const {
-	assert (hcAddress < (1 << DIM));
+void AHC<DIM,PREF_BLOCKS>::getRef(unsigned long hcAddress, bool* exists, bool* hasSub, std::uintptr_t* ref) const {
+	assert (hcAddress < 1 << DIM);
+	assert (exists && hasSub && ref);
 
-	if (exists) {
-		const unsigned int existsBits = hcAddress * 2;
-		const unsigned int existsBlockIndex = existsBits / bitsPerBlock;
-		const unsigned int existsBitIndex = existsBits % bitsPerBlock;
-		const char existsBlock = addresses_[existsBlockIndex];
-		(*exists) = (existsBlock >> existsBitIndex) & 1;
-	}
-
-	if (hasSub) {
-		const unsigned int hasSubBits = hcAddress * 2 + 1;
-		const unsigned int hasSubBlockIndex = hasSubBits / bitsPerBlock;
-		const unsigned int hasSubBitIndex = hasSubBits % bitsPerBlock;
-		const char hasSubBlock = addresses_[hasSubBlockIndex];
-		(*hasSub) = (hasSubBlock >> hasSubBitIndex) & 1;
-	}
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM,PREF_BLOCKS>::setExists(unsigned long hcAddress, bool exists) {
-	assert (hcAddress < (1 << DIM));
-
-	const unsigned int existsBits = hcAddress * 2;
-	const unsigned int existsBlockIndex = existsBits / bitsPerBlock;
-	const unsigned int existsBitIndex = existsBits % bitsPerBlock;
-
-	if (exists) {
-		addresses_[existsBlockIndex] |= 1 << existsBitIndex;
-	} else {
-		addresses_[existsBlockIndex] &= ~(1 << existsBitIndex);
-	}
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM,PREF_BLOCKS>::setHasSub(unsigned long hcAddress, bool hasSub) {
-	assert (hcAddress < (1 << DIM));
-
-	const unsigned int hasSubBits = hcAddress * 2 + 1;
-	const unsigned int hasSubBlockIndex = hasSubBits / bitsPerBlock;
-	const unsigned int hasSubBitIndex = hasSubBits % bitsPerBlock;
-
-	if (hasSub) {
-		addresses_[hasSubBlockIndex] |= 1 << hasSubBitIndex;
-	} else {
-		addresses_[hasSubBlockIndex] &= ~(1 << hasSubBitIndex);
-	}
+	const uintptr_t reference = references_[hcAddress];
+	(*ref) = reference & refMask;
+	(*hasSub) = reference & 1;
+	(*exists) = (reference >> 1) & 1;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -180,15 +140,16 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
 	assert (address < 1uL << DIM);
 
+	uintptr_t ref;
 	outContent.address = address;
-	getExistsAndHasSub(address, &outContent.exists, &outContent.hasSubnode);
+	getRef(address, &outContent.exists, &outContent.hasSubnode, &ref);
 
 	if (outContent.exists) {
 		if (outContent.hasSubnode) {
-			outContent.subnode = contents_[address].subnode;
+			outContent.subnode = reinterpret_cast<Node<DIM>*>(ref);
 		} else {
-			outContent.suffixStartBlock = contents_[address].suffixStartBlock;
-			outContent.id = contents_[address].id;
+			outContent.suffixStartBlock = reinterpret_cast<unsigned long*>(ref);
+			outContent.id = ids_[address];
 		}
 	}
 }
@@ -197,20 +158,22 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long* suffixStartBlock, int id) {
 	assert (hcAddress < 1ul << DIM);
 
-	bool exists = false;
-	bool hasSub = false;
-	getExistsAndHasSub(hcAddress, &exists, &hasSub);
+	bool exists;
+	bool hasSubnode;
+	uintptr_t ref;
+	getRef(hcAddress, &exists, &hasSubnode, &ref);
 
 	if (!exists) {
 		nContents++;
-		setExists(hcAddress, true);
+		assert ((references_[hcAddress] & 3) == 0);
 	}
 
-	if (hasSub)
-		setHasSub(hcAddress, false);
+	assert (((reinterpret_cast<uintptr_t>(suffixStartBlock) & 3) == 0) && "last 2 bits must not be set!");
+	// exists flag = true, has subnode flag = false
+	references_[hcAddress] = 2 | reinterpret_cast<uintptr_t>(suffixStartBlock);
+	ids_[hcAddress] = id;
 
-	contents_[hcAddress].id = id;
-	contents_[hcAddress].suffixStartBlock = suffixStartBlock;
+
 	assert(((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
 }
 
@@ -218,20 +181,21 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 	assert (hcAddress < 1ul << DIM);
 
-	bool exists = false;
-	bool hasSub = false;
-	getExistsAndHasSub(hcAddress, &exists, &hasSub);
+	bool exists;
+	bool hasSubnode;
+	uintptr_t ref;
+	getRef(hcAddress, &exists, &hasSubnode, &ref);
+
 
 	if (!exists) {
 		nContents++;
-		setExists(hcAddress, true);
+		assert ((references_[hcAddress] & 3) == 0);
 	}
 
-	if (!hasSub) {
-		setHasSub(hcAddress, true);
-	}
+	assert (((reinterpret_cast<uintptr_t>(subnode) & 3) == 0) && "last 2 bits must not be set!");
+	// exists flag = true, has subnode flag = true
+	references_[hcAddress] = 3 | reinterpret_cast<uintptr_t>(subnode);
 
-	contents_[hcAddress].subnode = subnode;
 	assert(((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).subnode == subnode);
 }
 
