@@ -27,15 +27,15 @@ class LHC: public TNode<DIM, PREF_BLOCKS> {
 public:
 	LHC(size_t prefixLength);
 	virtual ~LHC();
-	NodeIterator<DIM>* begin() override;
-	NodeIterator<DIM>* end() override;
-	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
-	virtual void recursiveDelete() override;
-	virtual size_t getNumberOfContents() const override;
-	virtual size_t getMaximumNumberOfContents() const override;
-	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
-	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
+	NodeIterator<DIM>* begin() const override;
+	NodeIterator<DIM>* end() const override;
+	void accept(Visitor<DIM>* visitor, size_t depth) override;
+	void recursiveDelete() override;
+	size_t getNumberOfContents() const override;
+	size_t getMaximumNumberOfContents() const override;
+	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const override;
+	void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) override;
+	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	Node<DIM>* adjustSize() override;
 
 protected:
@@ -229,7 +229,7 @@ void LHC<DIM, PREF_BLOCKS, N>::lookupAddress(unsigned long hcAddress, bool* outE
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
+void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const {
 	assert (address < 1uL << DIM);
 
 	outContent.address = address;
@@ -297,7 +297,7 @@ void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAdd
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) {
+void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) {
 	assert (hcAddress < 1uL << DIM);
 
 	unsigned int index = m;
@@ -322,7 +322,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
+void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
 	assert (hcAddress < 1uL << DIM);
 
 	unsigned int index = m;
@@ -358,12 +358,12 @@ Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() {
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() const {
 	return new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::end() {
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::end() const {
 	return new LHCIterator<DIM, PREF_BLOCKS, N>(1uL << DIM, *this);
 }
 

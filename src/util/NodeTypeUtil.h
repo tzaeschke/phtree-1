@@ -54,7 +54,7 @@ public:
 	static Node<DIM>* copyIntoLargerNode(size_t newNContents, Node<DIM>* nodeToCopy) {
 		// TODO make more efficient by not using iterators and a bulk insert
 		Node<DIM>* copy = buildNode(nodeToCopy->getPrefixLength() * DIM, newNContents);
-		MultiDimBitset<DIM>::duplicateHighestBits(nodeToCopy->getPrefixStartBlock(),
+		MultiDimBitset<DIM>::duplicateHighestBits(nodeToCopy->getFixPrefixStartBlock(),
 				nodeToCopy->getPrefixLength() * DIM, nodeToCopy->getPrefixLength(),
 				copy->getPrefixStartBlock());
 		NodeIterator<DIM>* it;

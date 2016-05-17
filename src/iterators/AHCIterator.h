@@ -14,8 +14,8 @@
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class AHCIterator: public NodeIterator<DIM> {
 public:
-	AHCIterator(AHC<DIM, PREF_BLOCKS>& node);
-	AHCIterator(unsigned long address, AHC<DIM, PREF_BLOCKS>& node);
+	AHCIterator(const AHC<DIM, PREF_BLOCKS>& node);
+	AHCIterator(unsigned long address, const AHC<DIM, PREF_BLOCKS>& node);
 	virtual ~AHCIterator();
 
 	void setAddress(size_t address) override;
@@ -24,7 +24,7 @@ public:
 	NodeAddressContent<DIM> operator*() override;
 
 private:
-	AHC<DIM, PREF_BLOCKS>* node_;
+	const AHC<DIM, PREF_BLOCKS>* node_;
 };
 
 #include <stdexcept>
@@ -32,14 +32,12 @@ private:
 #include "nodes/Node.h"
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHCIterator<DIM, PREF_BLOCKS>::AHCIterator(AHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>() {
-	node_ = &node;
+AHCIterator<DIM, PREF_BLOCKS>::AHCIterator(const AHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>(), node_(&node) {
 	setAddress(0uL);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHCIterator<DIM, PREF_BLOCKS>::AHCIterator(unsigned long address, AHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>(address) {
-	node_ = &node;
+AHCIterator<DIM, PREF_BLOCKS>::AHCIterator(unsigned long address, const AHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>(address), node_(&node) {
 	setAddress(address);
 }
 

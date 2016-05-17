@@ -30,15 +30,15 @@ public:
 	AHC(size_t prefixLength);
 	AHC(TNode<DIM, PREF_BLOCKS>* node);
 	virtual ~AHC();
-	NodeIterator<DIM>* begin() override;
-	NodeIterator<DIM>* end() override;
-	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
-	virtual void recursiveDelete() override;
-	virtual size_t getNumberOfContents() const override;
-	virtual size_t getMaximumNumberOfContents() const override;
-	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
-	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
+	NodeIterator<DIM>* begin() const override;
+	NodeIterator<DIM>* end() const override;
+	void accept(Visitor<DIM>* visitor, size_t depth) override;
+	void recursiveDelete() override;
+	size_t getNumberOfContents() const override;
+	size_t getMaximumNumberOfContents() const override;
+	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const override;
+	void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) override;
+	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	Node<DIM>* adjustSize() override;
 
 protected:
@@ -137,7 +137,7 @@ size_t AHC<DIM, PREF_BLOCKS>::getMaximumNumberOfContents() const {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
+void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const {
 	assert (address < 1uL << DIM);
 
 	uintptr_t ref;
@@ -155,7 +155,7 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long* suffixStartBlock, int id) {
+void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const unsigned long* const suffixStartBlock, int id) {
 	assert (hcAddress < 1ul << DIM);
 
 	bool exists;
@@ -178,7 +178,7 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
+void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
 	assert (hcAddress < 1ul << DIM);
 
 	bool exists;
@@ -206,12 +206,12 @@ Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::begin() {
+NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::begin() const {
 	return new AHCIterator<DIM, PREF_BLOCKS>(*this);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::end() {
+NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::end() const {
 	return new AHCIterator<DIM, PREF_BLOCKS>(1uL << DIM, *this);
 }
 

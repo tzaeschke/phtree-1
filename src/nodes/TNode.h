@@ -35,8 +35,8 @@ public:
 	TNode(TNode<DIM, PREF_BLOCKS>* other);
 	virtual ~TNode() {}
 	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) override;
-	virtual NodeIterator<DIM>* begin() = 0;
-	virtual NodeIterator<DIM>* end() = 0;
+	virtual NodeIterator<DIM>* begin() const = 0;
+	virtual NodeIterator<DIM>* end() const = 0;
 	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
 	virtual void recursiveDelete() = 0;
 	// gets the number of contents: #suffixes + #subnodes
@@ -44,10 +44,11 @@ public:
 	virtual size_t getMaximumNumberOfContents() const = 0;
 	size_t getPrefixLength() const override;
 	unsigned long* getPrefixStartBlock() override;
-	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) = 0;
-	NodeAddressContent<DIM> lookup(unsigned long address) override;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) = 0;
+	const unsigned long* getFixPrefixStartBlock() const override;
+	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const = 0;
+	NodeAddressContent<DIM> lookup(unsigned long address) const override;
+	virtual void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
 
 protected:
@@ -90,6 +91,11 @@ unsigned long* TNode<DIM, PREF_BLOCKS>::getPrefixStartBlock() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
+const unsigned long* TNode<DIM, PREF_BLOCKS>::getFixPrefixStartBlock() const {
+	return prefix_;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
 	NodeIterator<DIM>* it;
 	NodeIterator<DIM>* endIt = this->end();
@@ -106,7 +112,7 @@ void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address) {
+NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address) const {
 	NodeAddressContent<DIM> content;
 	this->lookup(address, content);
 	return content;

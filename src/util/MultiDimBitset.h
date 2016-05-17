@@ -11,7 +11,6 @@
 #include <vector>
 #include <iostream>
 
-
 template <unsigned int DIM>
 class MultiDimBitset {
 public:
@@ -19,17 +18,17 @@ public:
 	static const size_t filledBlock = -1; // a block with all bits set to 1
 
 	template <unsigned int WIDTH>
-	static void toBitset(std::vector<unsigned long> &values, unsigned long* outStartBlock);
-	static std::pair<bool, size_t> compare(const unsigned long* startBlock, unsigned int nBits,
-			size_t fromIndex, size_t toIndex, const unsigned long* otherStartBlock, unsigned int otherNBits);
-	static std::vector<unsigned long> toLongs(const unsigned long* fromStartBlock, size_t nBits);
-	static unsigned long interleaveBits(const unsigned long* fromStartBlock, size_t index, size_t nBits);
+	static void toBitset(std::vector<unsigned long> &values, unsigned long* const outStartBlock);
+	static std::pair<bool, size_t> compare(const unsigned long* const startBlock, unsigned int nBits,
+			size_t fromIndex, size_t toIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
+	static std::vector<unsigned long> toLongs(const unsigned long* const fromStartBlock, size_t nBits);
+	static unsigned long interleaveBits(const unsigned long* const fromStartBlock, size_t index, size_t nBits);
 	// TODO add: remove x <= 64 bits within block method by applying a bit mask
-	static void removeHighestBits(const unsigned long* startBlock, unsigned int nBits, size_t nBitsToRemove, unsigned long* outStartBlock);
-	static void duplicateHighestBits(const unsigned long* startBlock, unsigned int nBits, unsigned int nBitsToDuplicate, unsigned long* outStartBlock);
-	static size_t calculateLongestCommonPrefix(const unsigned long* startBlock, unsigned int nBits, size_t startIndex,
-			const unsigned long* otherStartBlock, unsigned int otherNBits, unsigned long* outStartBlock);
-	static std::ostream& output(std::ostream &os, const unsigned long* startBlock, unsigned int nBits);
+	static void removeHighestBits(const unsigned long* const startBlock, unsigned int nBits, size_t nBitsToRemove, unsigned long* const outStartBlock);
+	static void duplicateHighestBits(const unsigned long* startBlock, unsigned int nBits, unsigned int nBitsToDuplicate, unsigned long* const outStartBlock);
+	static size_t calculateLongestCommonPrefix(const unsigned long* const startBlock, unsigned int nBits, size_t startIndex,
+			const unsigned long* const otherStartBlock, unsigned int otherNBits, unsigned long* const outStartBlock);
+	static std::ostream& output(std::ostream &os, const unsigned long* const startBlock, unsigned int nBits);
 
 private:
 	static inline std::pair<bool, size_t> compareAlignedBlocks(const unsigned long b1, const unsigned long b2);
@@ -202,9 +201,9 @@ std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startB
 
 template <unsigned int DIM>
 pair<bool, size_t> MultiDimBitset<DIM>::compareAlignedBlocks(const unsigned long b1, const unsigned long b2) {
-	unsigned long comparison = b1 ^ b2;
+	const unsigned long comparison = b1 ^ b2;
 	size_t longestCommonPrefix = sizeof (unsigned long) * 8;
-	bool allDimSame = comparison == 0;
+	const bool allDimSame = comparison == 0;
 	if (!allDimSame) {
 		longestCommonPrefix = __builtin_clzl(comparison);
 	}

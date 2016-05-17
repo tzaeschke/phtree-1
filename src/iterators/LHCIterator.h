@@ -18,8 +18,8 @@ struct NodeAddressContent;
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHCIterator : public NodeIterator<DIM> {
 public:
-	LHCIterator(LHC<DIM, PREF_BLOCKS, N>& node);
-	LHCIterator(unsigned long address, LHC<DIM, PREF_BLOCKS, N>& node);
+	LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node);
+	LHCIterator(unsigned long address, const LHC<DIM, PREF_BLOCKS, N>& node);
 	virtual ~LHCIterator();
 
 	void setAddress(size_t address) override;
@@ -28,7 +28,7 @@ public:
 	NodeAddressContent<DIM> operator*() override;
 
 private:
-	LHC<DIM, PREF_BLOCKS, N>* node_;
+	const LHC<DIM, PREF_BLOCKS, N>* node_;
 	unsigned int currentIndex;
 };
 
@@ -36,13 +36,12 @@ private:
 #include "iterators/LHCIterator.h"
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(), node_(&node) {
+LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(), node_(&node) {
 	setAddress(0);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(unsigned long address, LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(address) {
-	node_ = &node;
+LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(unsigned long address, const LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(address), node_(&node) {
 	setAddress(address);
 }
 

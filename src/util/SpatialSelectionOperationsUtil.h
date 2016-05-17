@@ -34,7 +34,6 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 		vector<Node<DIM>*>* visitedNodes) {
 
 	Node<DIM>* currentNode = rootNode;
-	size_t depth = 0;
 	size_t index = 0;
 	NodeAddressContent<DIM> content;
 
@@ -48,11 +47,11 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 			visitedNodes->push_back(currentNode);
 
 		// validate prefix
-		// TODO move to multi dim bit util
-		pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
-				index, index + currentNode->getPrefixLength(),
-				currentNode->getPrefixStartBlock(), currentNode->getPrefixLength() * DIM);
-		if (!comp.first) {
+		const size_t prefixLength = currentNode->getPrefixLength();
+		const pair<bool, size_t> prefixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+				index, index + prefixLength,
+				currentNode->getFixPrefixStartBlock(), prefixLength * DIM);
+		if (!prefixComp.first) {
 			#ifdef PRINT
 				cout << "prefix mismatch" << endl;
 			#endif
@@ -60,8 +59,8 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 		}
 
 		// validate HC address
-		size_t currentIndex = index + currentNode->getPrefixLength();
-		unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e->values_, currentIndex, DIM * WIDTH);
+		index += prefixLength;
+		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e->values_, index, DIM * WIDTH);
 		currentNode->lookup(hcAddress, content);
 
 		if (!content.exists) {
@@ -71,17 +70,17 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 			return pair<bool, int>(false, 0);
 		}
 
-		// validate suffix or recurse
 		if (content.hasSubnode) {
-			++depth;
-			index = currentIndex + 1;
+			// recurse
+			++index;
 			currentNode = content.subnode;
 		} else {
-			const size_t suffixBits = DIM * (WIDTH - currentIndex - 1);
-			comp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
-							currentIndex + 1, WIDTH,
+			// validate suffix
+			const size_t suffixBits = DIM * (WIDTH - index - 1);
+			const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+							index + 1, WIDTH,
 							content.suffixStartBlock, suffixBits);
-			if (!comp.first) {
+			if (!suffixComp.first) {
 				#ifdef PRINT
 					cout << "suffix mismatch" << endl;
 				#endif

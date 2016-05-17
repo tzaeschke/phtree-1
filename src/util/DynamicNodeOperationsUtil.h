@@ -132,7 +132,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 	const unsigned long newSubnodeEntryHCAddress =
 			MultiDimBitset<DIM>::interleaveBits(entry->values_, currentIndex + 1 + newPrefixLength, DIM * WIDTH);
 	const unsigned long newSubnodePrefixDiffHCAddress =
-		MultiDimBitset<DIM>::interleaveBits(oldSubnode->getPrefixStartBlock(), newPrefixLength, oldSubnode->getPrefixLength() * DIM);
+		MultiDimBitset<DIM>::interleaveBits(oldSubnode->getFixPrefixStartBlock(), newPrefixLength, oldSubnode->getPrefixLength() * DIM);
 	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
 
 	// insert remaining entry bits as suffix in the new subnode
@@ -142,12 +142,12 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 
 	// move A part of the old prefix to the new subnode and remove [A | d] from the old prefix
 	const size_t oldPrefixLength = oldSubnode->getPrefixLength();
-	MultiDimBitset<DIM>::duplicateHighestBits(oldSubnode->getPrefixStartBlock(), DIM * oldPrefixLength,
+	MultiDimBitset<DIM>::duplicateHighestBits(oldSubnode->getFixPrefixStartBlock(), DIM * oldPrefixLength,
 			newPrefixLength, newSubnode->getPrefixStartBlock());
 	// move remaining d part to a copy of the old subnode
 	const size_t remainingOldPrefixBits = DIM * (oldPrefixLength - newPrefixLength - 1);
 	Node<DIM>* oldSubnodeCopy = NodeTypeUtil<DIM>::copyWithoutPrefix(remainingOldPrefixBits, oldSubnode);
-	MultiDimBitset<DIM>::removeHighestBits(oldSubnode->getPrefixStartBlock(),
+	MultiDimBitset<DIM>::removeHighestBits(oldSubnode->getFixPrefixStartBlock(),
 			oldPrefixLength * DIM, newPrefixLength + 1, oldSubnodeCopy->getPrefixStartBlock());
 	delete oldSubnode;
 
@@ -168,7 +168,6 @@ template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>* entry,
 		Node<DIM>* rootNode, PHTree<DIM, WIDTH>* tree) {
 
-	size_t depth = 0;
 	size_t lastHcAddress = 0;
 	size_t index = 0;
 	Node<DIM>* lastNode = NULL;
@@ -193,11 +192,12 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 			// validate prefix of subnode
 			// case 1 (entry contains prefix): recurse on subnode
 			// case 2 (otherwise): split prefix at difference into two subnodes
-			pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry->values_, DIM * WIDTH,
-					currentIndex + 1, currentIndex + 1 + content.subnode->getPrefixLength(),
-					content.subnode->getPrefixStartBlock(), DIM * content.subnode->getPrefixLength());
-			bool prefixIncluded = comp.first;
-			size_t differentBitAtPrefixIndex = comp.second;
+			const size_t subnodePrefixLength = content.subnode->getPrefixLength();
+			const pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry->values_, DIM * WIDTH,
+					currentIndex + 1, currentIndex + 1 + subnodePrefixLength,
+					content.subnode->getFixPrefixStartBlock(), DIM * subnodePrefixLength);
+			const bool prefixIncluded = comp.first;
+			const size_t differentBitAtPrefixIndex = comp.second;
 
 			if (prefixIncluded) {
 				// recurse on subnode
@@ -207,7 +207,6 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 				lastHcAddress = hcAddress;
 				lastNode = currentNode;
 				currentNode = content.subnode;
-				++depth;
 				index = currentIndex + 1;
 			} else {
 				#ifdef PRINT
