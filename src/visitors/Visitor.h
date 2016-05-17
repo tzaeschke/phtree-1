@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHC;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -29,8 +29,8 @@ public:
 	void visit(PHTree<DIM, WIDTH>* tree);
 	template <unsigned int PREF_BLOCKS>
 	void visit(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
-	template <unsigned int PREF_BLOCKS>
-	void visit(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS, unsigned int N>
+	void visit(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth);
 	virtual void reset() =0;
 	std::ostream& operator <<(std::ostream &out);
 
@@ -83,8 +83,8 @@ void Visitor<DIM>::visit(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 }
 
 template <unsigned int DIM>
-template <unsigned int PREF_BLOCKS>
-void Visitor<DIM>::visit(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
+template <unsigned int PREF_BLOCKS, unsigned int N>
+void Visitor<DIM>::visit(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
 	if (SizeVisitor<DIM>* sub = dynamic_cast<SizeVisitor<DIM>*>(this)) {
 		sub->visitSub(node, depth);
 	} else if (PrefixSharingVisitor<DIM>* sub = dynamic_cast<PrefixSharingVisitor<DIM>*>(this)) {

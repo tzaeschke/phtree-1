@@ -52,22 +52,22 @@ void AHCIterator<DIM, PREF_BLOCKS>::setAddress(size_t address) {
 		this->address_ = (1uL << DIM);
 	} else {
 		// find first filled address if the given one is not filled
-		for (this->address_ = address;
-				!node_->contents_[this->address_].filled && address <=(1uL << DIM);
-				this->address_++) {}
-		if ((this->address_ == (1uL << DIM) - 1) && !node_->contents_[this->address_].filled)
-			this->address_++;
+		bool filled = false;
+		for (this->address_ = address; this->address_ < (1uL << DIM); this->address_++) {
+			node_->getExistsAndHasSub(this->address_, &filled, NULL);
+			if (filled) break;
+		}
+
+		if (this->address_ == (1 << DIM) - 1 && !filled) {
+			this->address_ = 1 << DIM;
+		}
 	}
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeIterator<DIM>& AHCIterator<DIM, PREF_BLOCKS>::operator++() {
 	// skip all unfilled fields until the highest address is reached
-	for (this->address_++;
-			this->address_ < (1uL << DIM) && !node_->contents_[this->address_].filled;
-			this->address_++) {}
-	if ((this->address_ == (1uL << DIM) - 1uL) && !node_->contents_[this->address_].filled)
-		this->address_++;
+	setAddress(this->address_ + 1);
 	return *this;
 }
 
@@ -80,12 +80,10 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeAddressContent<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator*() {
 
 	NodeAddressContent<DIM> content;
-	if (!node_->contents_[this->address_].filled) {
-		content.exists = false;
-	} else {
-		content.exists = true;
-		content.address = this->address_;
-		content.hasSubnode = node_->contents_[this->address_].hasSubnode;
+	content.address = this->address_;
+	node_->getExistsAndHasSub(this->address_, &content.exists, &content.hasSubnode);
+
+	if (content.exists) {
 		if (content.hasSubnode) {
 			content.subnode = node_->contents_[this->address_].subnode;
 		} else {

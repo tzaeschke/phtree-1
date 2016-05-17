@@ -16,11 +16,11 @@
 template <unsigned int DIM>
 struct NodeAddressContent;
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHCIterator : public NodeIterator<DIM> {
 public:
-	LHCIterator(LHC<DIM, PREF_BLOCKS>& node);
-	LHCIterator(unsigned long address, LHC<DIM, PREF_BLOCKS>& node);
+	LHCIterator(LHC<DIM, PREF_BLOCKS, N>& node);
+	LHCIterator(unsigned long address, LHC<DIM, PREF_BLOCKS, N>& node);
 	virtual ~LHCIterator();
 
 	void setAddress(size_t address) override;
@@ -29,73 +29,77 @@ public:
 	NodeAddressContent<DIM> operator*() override;
 
 private:
-	LHC<DIM, PREF_BLOCKS>* node_;
-	typename std::map<unsigned long,LHCAddressContent<DIM>>::iterator contentMapIt_;
+	LHC<DIM, PREF_BLOCKS, N>* node_;
+	unsigned int currentIndex;
 };
 
 #include <assert.h>
 #include "iterators/LHCIterator.h"
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHCIterator<DIM, PREF_BLOCKS>::LHCIterator(LHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>(), node_(&node) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(), node_(&node) {
 	setAddress(0);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHCIterator<DIM, PREF_BLOCKS>::LHCIterator(unsigned long address, LHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>(address) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(unsigned long address, LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(address) {
 	node_ = &node;
 	setAddress(address);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHCIterator<DIM, PREF_BLOCKS>::~LHCIterator() { }
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+LHCIterator<DIM, PREF_BLOCKS, N>::~LHCIterator() { }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void LHCIterator<DIM, PREF_BLOCKS>::setAddress(size_t address) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 	// find first filled address if the given one is not filled
-	// TODO implement without starting at the front
-	if (address >= DIM) {
-		this->address_ = 1uL << DIM;
+
+	bool exists = false;
+	bool hasSub = false;
+	node_->lookupAddress(address, &exists, &currentIndex, &hasSub);
+	if (exists) {
+		// found address so set it
+		this-> address_ = address;
+	} else if (currentIndex >= node_->m - 1) {
+		// did not find the address and it is not in the range
+		this->address_ = 1 << DIM;
 	} else {
-		contentMapIt_ = node_->sortedContents_.begin();
-		for (this->address_ = contentMapIt_->first;
-				this->address_ < address && contentMapIt_ != node_->sortedContents_.end();
-				++contentMapIt_) {
-			this->address_ = contentMapIt_->first;
-		}
+		// did not find the address but it is in the range
+		node_->lookupIndex(currentIndex, &(this->address_), &hasSub);
+		this->address_++;
 	}
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS>::operator++() {
-
-	if (++contentMapIt_ != node_->sortedContents_.end()) {
-		this->address_ = contentMapIt_->first;
-	} else {
-		--contentMapIt_;
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS, N>::operator++() {
+	++currentIndex;
+	if (currentIndex >= node_->m) {
 		this->reachedEnd_ = true;
-		this->address_ = 1uL << DIM;
+		currentIndex = node_->m - 1;
+		this->address_ = 1 << DIM;
+	} else {
+		bool hasSub = false;
+		node_->lookupIndex(currentIndex, &(this->address_), &hasSub);
 	}
 	return *this;
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeIterator<DIM> LHCIterator<DIM, PREF_BLOCKS>::operator++(int i) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+NodeIterator<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator++(int i) {
 	throw "++ i not implemented";
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS>::operator*() {
-	assert (contentMapIt_->first == this->address_);
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() {
+
 	NodeAddressContent<DIM> content;
 	content.exists = true;
-	content.address = contentMapIt_->first;
-	content.hasSubnode = contentMapIt_->second.hasSubnode;
-	if (!contentMapIt_->second.hasSubnode) {
-		content.suffixStartBlock = contentMapIt_->second.suffixStartBlock;
-		content.id = contentMapIt_->second.id;
+	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode);
+	if (content.hasSubnode) {
+		content.subnode = (Node<DIM>*) node_->references_[currentIndex];
 	} else {
-		content.subnode = contentMapIt_->second.subnode;
+		content.id = node_->ids_[currentIndex];
+		content.suffixStartBlock = (unsigned long*) node_->references_[currentIndex];
 	}
 
 	return content;

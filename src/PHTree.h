@@ -60,7 +60,7 @@ using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 PHTree<DIM, WIDTH>::PHTree() {
-	root_ = NodeTypeUtil::buildNode<DIM>(0, 0);
+	root_ = NodeTypeUtil<DIM>::buildNode(0, 1);
 	firstSuffixBlock = new SuffixBlock<50>();
 	currentSuffixBlock = firstSuffixBlock;
 }

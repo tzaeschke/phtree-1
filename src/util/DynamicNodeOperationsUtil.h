@@ -27,7 +27,7 @@ private:
 	static inline void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
 			NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree);
 	static inline Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
-			bool adjustNodeSize, const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree);
+			const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree);
 	static inline void splitSubnodePrefix(size_t currentIndex, size_t prefixLength,
 			Node<DIM>* currentNode, NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>* entry,
 			PHTree<DIM, WIDTH>* tree);
@@ -59,7 +59,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 			prefixTmp);
 
 	// 2. create a new node that stores the remaining suffix and the new entry
-	Node<DIM>* subnode = NodeTypeUtil::buildNode<DIM>(prefixLength * DIM, 2);
+	Node<DIM>* subnode = NodeTypeUtil<DIM>::buildNode(prefixLength * DIM, 2);
 	currentNode->insertAtAddress(content.address, subnode);
 
 	// 3. copy the prefix into the subnode
@@ -97,24 +97,25 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 
 template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
-		size_t hcAddress, Node<DIM>* currentNode, bool adjustNodeSize,
+		size_t hcAddress, Node<DIM>* currentNode,
 		const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree) {
+	Node<DIM>* adjustedNode = currentNode;
+	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
+		// need to adjust the node to insert another entry
+		adjustedNode = NodeTypeUtil<DIM>::copyIntoLargerNode(currentNode->getMaximumNumberOfContents() + 1, currentNode);
+	}
+	assert(adjustedNode->getNumberOfContents() < adjustedNode->getMaximumNumberOfContents());
+
 	// TODO reuse this method in other two cases!
 	const size_t suffixLength = WIDTH - (currentIndex + 1);
 	unsigned long* suffixStartBlock = tree->reserveSuffixSpace(suffixLength * DIM);
-	currentNode->insertAtAddress(hcAddress, suffixStartBlock, entry->id_);
+	adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry->id_);
 	MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
-
-	Node<DIM>* adjustedNode = currentNode;
-	if (adjustNodeSize) {
-		// TODO first change node if it needed and then insert entry only once
-		adjustedNode = currentNode->adjustSize();
-	}
 
 	assert(adjustedNode);
 	assert(adjustedNode->lookup(hcAddress).exists);
 	assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);
-	assert (adjustedNode->lookup(hcAddress).id == entry->id_);
+	assert(adjustedNode->lookup(hcAddress).id == entry->id_);
 	return adjustedNode;
 }
 
@@ -125,7 +126,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 		PHTree<DIM, WIDTH>* tree) {
 
 	Node<DIM>* oldSubnode = content.subnode;
-	Node<DIM>* newSubnode = NodeTypeUtil::buildNode<DIM>(DIM * newPrefixLength, 1);
+	Node<DIM>* newSubnode = NodeTypeUtil<DIM>::buildNode(DIM * newPrefixLength, 1);
 	currentNode->insertAtAddress(content.address, newSubnode);
 
 	const unsigned long newSubnodeEntryHCAddress =
@@ -135,7 +136,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
 
 	// insert remaining entry bits as suffix in the new subnode
-	insertSuffix(currentIndex + 1 + newPrefixLength, newSubnodeEntryHCAddress, newSubnode, false, entry, tree);
+	insertSuffix(currentIndex + 1 + newPrefixLength, newSubnodeEntryHCAddress, newSubnode, entry, tree);
 
 	// TODO if the number of prefix blocks does not change: no need to duplicate block
 
@@ -145,7 +146,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 			newPrefixLength, newSubnode->getPrefixStartBlock());
 	// move remaining d part to a copy of the old subnode
 	const size_t remainingOldPrefixBits = DIM * (oldPrefixLength - newPrefixLength - 1);
-	Node<DIM>* oldSubnodeCopy = NodeTypeUtil::copyWithoutPrefix(remainingOldPrefixBits, oldSubnode);
+	Node<DIM>* oldSubnodeCopy = NodeTypeUtil<DIM>::copyWithoutPrefix(remainingOldPrefixBits, oldSubnode);
 	MultiDimBitset<DIM>::removeHighestBits(oldSubnode->getPrefixStartBlock(),
 			oldPrefixLength * DIM, newPrefixLength + 1, oldSubnodeCopy->getPrefixStartBlock());
 	delete oldSubnode;
@@ -237,7 +238,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 			// node entry does not exist:
 			// insert entry + suffix
 			Node<DIM>* adjustedNode = insertSuffix(currentIndex,
-					hcAddress, currentNode, true, entry, tree);
+					hcAddress, currentNode, entry, tree);
 			assert(adjustedNode);
 			if (adjustedNode != currentNode && lastNode) {
 				// the subnode changed: store the new one and delete the old

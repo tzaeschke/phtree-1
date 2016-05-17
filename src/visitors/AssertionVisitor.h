@@ -24,8 +24,8 @@ public:
 
 	template <unsigned int WIDTH>
 	void visitSub(PHTree<DIM, WIDTH>* tree);
-	template <unsigned int PREF_BLOCKS>
-	void visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS, unsigned int N>
+	void visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth);
 	template <unsigned int PREF_BLOCKS>
 	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() override;
@@ -59,9 +59,29 @@ void AssertionVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {
 }
 
 template <unsigned int DIM>
-template <unsigned int PREF_BLOCKS>
-void AssertionVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
-	validateContents(node, node->begin(), node->end());
+template <unsigned int PREF_BLOCKS, unsigned int N>
+void AssertionVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
+	assert (node->getNumberOfContents() > 0);
+
+	unsigned long lastHcAddress = -1;
+	bool hasSubnode = false;
+	NodeAddressContent<DIM> content;
+	node->lookupIndex(0, &lastHcAddress, &hasSubnode);
+	for (unsigned int i = 1; i < node->m; ++i) {
+		unsigned long hcAddress = 0;
+		node->lookupIndex(i, &hcAddress, &hasSubnode);
+		assert (hcAddress > lastHcAddress);
+		bool exists = false;
+		bool hasSubnodeTest = false;
+		unsigned int indexTest = -1;
+		node->lookupAddress(hcAddress, &exists, &indexTest, &hasSubnodeTest);
+		assert (indexTest == i);
+		assert (exists);
+		assert (hasSubnode == hasSubnodeTest);
+		node->lookup(hcAddress, content);
+		assert (content.exists && content.address == hcAddress && content.hasSubnode == hasSubnode);
+		lastHcAddress = hcAddress;
+	}
 }
 
 template <unsigned int DIM>
@@ -72,22 +92,6 @@ void AssertionVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int d
 
 template <unsigned int DIM>
 void AssertionVisitor<DIM>::validateContents(const Node<DIM>* node, NodeIterator<DIM>* begin, NodeIterator<DIM>* end) {
-	bool foundSuffix = false;
-	// TODO
-		size_t suffixLength = 0;
-		for (NodeIterator<DIM>* it = begin; (*it) != *(end); ++(*it)) {
-			NodeAddressContent<DIM> content = *(*it);
-			if (!foundSuffix && content.exists && !content.hasSubnode) {
-//				suffixLength = content.suffix->size();
-				foundSuffix = true;
-			}
-
-			assert(content.exists);
-//			assert((content.hasSubnode || content.suffix->size() == suffixLength)
-//							&& "all suffixes in one node should have the same length");
-		}
-		delete begin;
-		delete end;
 }
 
 template <unsigned int DIM>

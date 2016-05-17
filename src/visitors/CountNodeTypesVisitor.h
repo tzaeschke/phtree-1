@@ -21,8 +21,8 @@ public:
 
 	template <unsigned int WIDTH>
 	void visitSub(PHTree<DIM, WIDTH>* tree);
-	template <unsigned int PREF_BLOCKS>
-	void visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS, unsigned int N>
+	void visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth);
 	template <unsigned int PREF_BLOCKS>
 	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() override;
@@ -70,8 +70,8 @@ unsigned long CountNodeTypesVisitor<DIM>::getNumberOfVisitedLHCNodes() const {
 }
 
 template <unsigned int DIM>
-template <unsigned int PREF_BLOCKS>
-void CountNodeTypesVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
+template <unsigned int PREF_BLOCKS, unsigned int N>
+void CountNodeTypesVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
 	nLHCNodes_++;
 }
 

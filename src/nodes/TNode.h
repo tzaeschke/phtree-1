@@ -41,6 +41,7 @@ public:
 	virtual void recursiveDelete() = 0;
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
+	virtual size_t getMaximumNumberOfContents() const = 0;
 	size_t getPrefixLength() const override;
 	unsigned long* getPrefixStartBlock() override;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) = 0;

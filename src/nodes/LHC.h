@@ -10,19 +10,20 @@
 
 #include <map>
 #include <vector>
+#include <cstdint>
 #include "nodes/TNode.h"
 #include "nodes/LHCAddressContent.h"
 #include "util/MultiDimBitset.h"
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHCIterator;
 
 template <unsigned int DIM>
 class AssertionVisitor;
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHC: public TNode<DIM, PREF_BLOCKS> {
-	friend class LHCIterator<DIM, PREF_BLOCKS>;
+	friend class LHCIterator<DIM, PREF_BLOCKS, N>;
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
@@ -33,6 +34,7 @@ public:
 	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
 	virtual void recursiveDelete() override;
 	virtual size_t getNumberOfContents() const override;
+	virtual size_t getMaximumNumberOfContents() const override;
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) override;
 	void insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) override;
@@ -42,9 +44,25 @@ protected:
 	string getName() const override;
 
 private:
-	std::map<unsigned long, LHCAddressContent<DIM>> sortedContents_;
+	static const unsigned long fullBlock = -1;
+	static const unsigned int bitsPerBlock = sizeof (unsigned long) * 8;
+	static const unsigned int addressSubLength = DIM + 1;
 
-	LHCAddressContent<DIM>* lookupReference(unsigned long hcAddress);
+	// block : <------------------ 64 -------------------><--- ...
+	// bits  : <-   DIM    -><-  1  ->|<-   DIM    -><-  1  -> ...
+	// N rows: [ hc address | hasSub ] [ hc address | hasSub ] ...
+	unsigned long addresses_[1 + ((N * (DIM + 1)) - 1) / bitsPerBlock];
+	int ids_[N];
+	std::uintptr_t references_[N];
+	// number of actually filled rows: 0 <= m <= N
+	unsigned int m;
+
+	// <found?, index, hasSub?>
+	void lookupAddress(unsigned long hcAddress, bool* outExists, unsigned int* outIndex, bool* outHasSub) const;
+	void lookupIndex(unsigned int index, unsigned long* outHcAddress, bool* outHasSub) const;
+	inline void addRow(unsigned int index, unsigned long hcAddress, bool hasSub, std::uintptr_t reference, int id);
+	inline void insertAddress(unsigned int index, unsigned long hcAddress);
+	inline void insertSub(unsigned int index, bool hasSub);
 };
 
 #include <assert.h>
@@ -53,136 +71,316 @@ private:
 #include "nodes/LHC.h"
 #include "iterators/LHCIterator.h"
 #include "visitors/Visitor.h"
+#include "util/NodeTypeUtil.h"
 
 using namespace std;
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHC<DIM, PREF_BLOCKS>::LHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+LHC<DIM, PREF_BLOCKS, N>::LHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength),
+	addresses_(), ids_(), references_(), m(0) {
+	assert (N > 0 && m >= 0 && m <= N);
+	assert (N <= (1 << DIM));
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHC<DIM, PREF_BLOCKS>::~LHC() {
-	sortedContents_.clear();
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+LHC<DIM, PREF_BLOCKS, N>::~LHC() {
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void LHC<DIM, PREF_BLOCKS>::recursiveDelete() {
-	for (auto it = sortedContents_.begin(); it != sortedContents_.end(); ++it) {
-		auto entry = (*it).second;
-		if (entry.hasSubnode) {
-			entry.subnode->recursiveDelete();
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::recursiveDelete() {
+	for (unsigned int i = 0; i < m; ++i) {
+		bool hasSub = false;
+		unsigned long hcAddress = 0;
+		lookupIndex(i, &hcAddress, &hasSub);
+		if (hasSub) {
+			Node<DIM>* subnode = reinterpret_cast<Node<DIM>*>(references_[i]);
+			subnode->recursiveDelete();
 		}
 	}
 
 	delete this;
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-string LHC<DIM,PREF_BLOCKS>::getName() const {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+string LHC<DIM,PREF_BLOCKS, N>::getName() const {
 	return "LHC";
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void LHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
-	assert (address < 1uL << DIM);
-	LHCAddressContent<DIM>* contentRef = lookupReference(address);
-	if (contentRef) {
-		outContent.exists = true;
-		outContent.address = address;
-		outContent.hasSubnode = contentRef->hasSubnode;
-		if (!contentRef->hasSubnode) {
-			outContent.suffixStartBlock = contentRef->suffixStartBlock;
-			outContent.id = contentRef->id;
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM,PREF_BLOCKS, N>::lookupIndex(unsigned int index, unsigned long* outHcAddress, bool* outHasSub) const {
+	assert (index < m && m <= N);
+	assert (addressSubLength <= bitsPerBlock);
+	assert (outHcAddress && outHasSub);
+
+	const unsigned int firstBit = index * addressSubLength;
+	const unsigned int lastBit = (index + 1) * addressSubLength - 1;
+	const unsigned int firstBlockIndex = firstBit / bitsPerBlock;
+	const unsigned int secondBlockIndex = lastBit / bitsPerBlock;
+	const unsigned int firstBitIndex = firstBit % bitsPerBlock;
+	const unsigned int lastBitIndex = lastBit % bitsPerBlock;
+	assert (secondBlockIndex - firstBlockIndex <= 1);
+
+	const unsigned long firstBlock = addresses_[firstBlockIndex];
+	const unsigned long secondBlock = addresses_[secondBlockIndex];
+	if (firstBlockIndex == secondBlockIndex || lastBitIndex == 0) {
+		// the required bits are in one block
+		//     <------->
+		// [   (   x   )   ]
+		const unsigned long singleBlockAddressMask = (1uL << DIM) - 1;
+		const unsigned long extracted = firstBlock >> firstBitIndex;
+		(*outHcAddress) = extracted & singleBlockAddressMask;
+	} else {
+		// the required bits are in two consecutive blocks
+		//       <---------->
+		// [     ( x  ] [ y )    ]
+		assert (DIM > lastBitIndex);
+		const unsigned int firstBlockBits = bitsPerBlock - firstBitIndex;
+		const unsigned int secondBlockBits = DIM - firstBlockBits;
+		assert (0 < secondBlockBits && secondBlockBits < DIM);
+		const unsigned long secondBlockMask = (1 << secondBlockBits) - 1;
+		(*outHcAddress) = (firstBlock >> firstBitIndex)
+				| ((secondBlock & secondBlockMask) << firstBlockBits);
+	}
+
+	(*outHasSub) = (secondBlock >> lastBitIndex) & 1uL;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM,PREF_BLOCKS, N>::insertAddress(unsigned int index, unsigned long hcAddress) {
+	assert (index < m && m <= N);
+	assert (addressSubLength <= bitsPerBlock);
+
+	const unsigned int firstBit = index * (DIM + 1);
+	const unsigned int lastBit = (index + 1) * (DIM + 1) - 1;
+	const unsigned int firstBlockIndex = firstBit / bitsPerBlock;
+	const unsigned int secondBlockIndex = lastBit / bitsPerBlock;
+	const unsigned int firstBitIndex = firstBit % bitsPerBlock;
+	const unsigned int lastBitIndex = lastBit % bitsPerBlock;
+	assert (secondBlockIndex - firstBlockIndex <= 1);
+
+	const unsigned long firstBlockAddressMask = (1uL << DIM) - 1;
+	// [   (   x   )   ]
+	addresses_[firstBlockIndex] &= ~(firstBlockAddressMask << firstBitIndex);
+	addresses_[firstBlockIndex] |= hcAddress << firstBitIndex;
+
+	if (firstBlockIndex != secondBlockIndex && lastBitIndex != 0) {
+		assert (secondBlockIndex - firstBlockIndex == 1);
+		// the required bits are in two consecutive blocks
+		//       <---------->
+		// [     ( x  ] [ y )    ]
+		assert (DIM > lastBitIndex);
+		const unsigned int firstBlockBits = bitsPerBlock - firstBitIndex;
+		const unsigned int secondBlockBits = DIM - firstBlockBits;
+		assert (0 < secondBlockBits && secondBlockBits < DIM);
+		const unsigned long secondBlockMask = fullBlock << secondBlockBits;
+		const unsigned long remainingHcAddress = hcAddress >> firstBlockBits;
+		assert (remainingHcAddress < (1uL << secondBlockBits));
+		addresses_[secondBlockIndex] &= secondBlockMask;
+		addresses_[secondBlockIndex] |= remainingHcAddress;
+	}
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM,PREF_BLOCKS, N>::insertSub(unsigned int index, bool hasSub) {
+	assert (index < m && m <= N);
+
+	const unsigned int nBits = index * (DIM + 1) + DIM;
+	const unsigned int blockIndex = nBits / bitsPerBlock;
+	const unsigned int bitIndex = nBits % bitsPerBlock;
+
+	if (hasSub) {
+		addresses_[blockIndex] |= 1uL << bitIndex;
+	} else {
+		addresses_[blockIndex] &= ~(1uL << bitIndex);
+	}
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::lookupAddress(unsigned long hcAddress, bool* outExists, unsigned int* outIndex, bool* outHasSub) const {
+	if (m == 0) {
+		(*outExists) = false;
+		(*outIndex) = 0;
+		return;
+	}
+
+	// perform binary search in range [0, m)
+	unsigned int l = 0;
+	unsigned int r = m;
+	unsigned long currentHcAddress = -1;
+	while (l < r) {
+		// check interval [l, r)
+		const unsigned int middle = (l + r) / 2;
+		assert (0 <= middle && middle < m);
+		lookupIndex(middle, &currentHcAddress, outHasSub);
+		if (currentHcAddress < hcAddress) {
+			l = middle + 1;
+		} else if (currentHcAddress > hcAddress) {
+			r = middle;
 		} else {
-			outContent.subnode = contentRef->subnode;
+			// found the correct index
+			(*outExists) = true;
+			(*outIndex) = middle;
+			return;
 		}
-	} else {
-		outContent.exists = false;
-		outContent.hasSubnode = false;
+	}
+
+	// did not find the entry so set the position it should have
+	assert (l - r == 0);
+	(*outExists) = false;
+	(*outIndex) = r;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) {
+	assert (address < 1uL << DIM);
+
+	outContent.address = address;
+	unsigned int index = m;
+	lookupAddress(address, &outContent.exists, &index, &outContent.hasSubnode);
+
+	if (outContent.exists) {
+		if (outContent.hasSubnode) {
+			outContent.subnode = reinterpret_cast<Node<DIM>*>(references_[index]);
+		} else {
+			outContent.suffixStartBlock = reinterpret_cast<unsigned long*>(references_[index]);
+			outContent.id = ids_[index];
+		}
 	}
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-LHCAddressContent<DIM>* LHC<DIM, PREF_BLOCKS>::lookupReference(unsigned long hcAddress) {
-	assert (hcAddress < 1uL << DIM);
-	typename map<unsigned long, LHCAddressContent<DIM>>::iterator it = sortedContents_.find(
-			hcAddress);
-	bool contained = it != sortedContents_.end();
-	if (contained) {
-		return &((*it).second);
-	} else {
-		return NULL;
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAddress,
+		bool newHasSub, uintptr_t newReference, int newId) {
+
+	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(newHcAddress)).exists);
+
+	++m;
+	if (index != m - 1) {
+		assert (index < m && m <= N);
+		// move all contents as of the given index
+		// (copying from lower index because of forward prefetching)
+		int lastId = ids_[index];
+		uintptr_t lastRef = references_[index];
+		unsigned long lastAddress = 0;
+		bool lastHasSub = false;
+		lookupIndex(index, &lastAddress, &lastHasSub);
+		assert (lastAddress > newHcAddress);
+		unsigned long tmpAddress = 0;
+		bool tmpHasSub = false;
+
+		for (unsigned i = index + 1; i < m - 1; ++i) {
+			const int tmpId = ids_[i];
+			const uintptr_t tmpRef = references_[i];
+			lookupIndex(i, &tmpAddress, &tmpHasSub);
+			assert (tmpAddress > newHcAddress);
+			ids_[i] = lastId;
+			references_[i] = lastRef;
+			insertAddress(i, lastAddress);
+			insertSub(i, lastHasSub);
+			lastId = tmpId;
+			lastRef = tmpRef;
+			lastAddress = tmpAddress;
+			lastHasSub = tmpHasSub;
+		}
+
+		ids_[m - 1] = lastId;
+		references_[m - 1] = lastRef;
+		insertAddress(m - 1, lastAddress);
+		insertSub(m - 1, lastHasSub);
 	}
+
+	// insert the new entry at the freed index
+	ids_[index] = newId;
+	references_[index] = newReference;
+	insertAddress(index, newHcAddress);
+	insertSub(index, newHasSub);
+
+	assert (m <= N);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long* startSuffixBlock, int id) {
 	assert (hcAddress < 1uL << DIM);
 
-	LHCAddressContent<DIM>* content = lookupReference(hcAddress);
-	if (!content) {
-		auto result = sortedContents_.emplace(piecewise_construct,
-			forward_as_tuple(hcAddress),
-			forward_as_tuple(startSuffixBlock, id));
-		assert (result.second);
-//		content = &((*(result.first)).second);
-	} else {
-		assert (!content->hasSubnode && "cannot insert a suffix at a position with a subnode");
+	unsigned int index = m;
+	bool hasSub = false;
+	bool exists = false;
+	lookupAddress(hcAddress, &exists, &index, &hasSub);
+	assert (index <= m);
+	uintptr_t reference = reinterpret_cast<uintptr_t>(startSuffixBlock);;
 
-		content->hasSubnode = false;
-		content->suffixStartBlock = startSuffixBlock;
+	if (exists) {
+		// replace the contents at the address
+		ids_[index] = id;
+		references_[index] = reference;
+		insertSub(index, false);
+	} else {
+		// add a new entry
+		assert (m < N && "the maximum number of entries must not have been reached");
+		addRow(index, hcAddress, false, reference, id);
 	}
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void LHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, Node<DIM>* subnode) {
 	assert (hcAddress < 1uL << DIM);
-	assert (subnode);
 
-	LHCAddressContent<DIM>* content = lookupReference(hcAddress);
-	if (!content) {
-		sortedContents_.emplace(hcAddress, subnode);
+	unsigned int index = m;
+	bool hasSub = false;
+	bool exists = false;
+	lookupAddress(hcAddress, &exists, &index, &hasSub);
+	assert (index <= m);
+	uintptr_t reference = reinterpret_cast<uintptr_t>(subnode);
+
+	if (exists) {
+		// replace the contents at the address
+		ids_[index] = 0; // TODO not really needed
+		references_[index] = reference;
+		insertSub(index, true);
 	} else {
-		content->hasSubnode = true;
-		content->subnode = subnode;
+		// add a new entry
+		assert (m < N && "the maximum number of entries must not have been reached");
+		addRow(index, hcAddress, true, reference, 0);
 	}
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-Node<DIM>* LHC<DIM, PREF_BLOCKS>::adjustSize() {
-	// TODO find more precise threshold depending on AHC and LHC representation!
-	const size_t n = sortedContents_.size();
-	const size_t k = DIM;
-	const double conversionThreshold = double(1uL << k) / (k);
-	if (n < conversionThreshold) {
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
+	// TODO put this method into insert method instead
+	if (m <= N) {
 		return this;
 	} else {
-		AHC<DIM, PREF_BLOCKS>* convertedNode = new AHC<DIM, PREF_BLOCKS>(this);
-		return convertedNode;
+		return NodeTypeUtil<DIM>::copyIntoLargerNode(N + 1, this);
 	}
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS>::begin() {
-	return new LHCIterator<DIM, PREF_BLOCKS>(*this);
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() {
+	return new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS>::end() {
-	return new LHCIterator<DIM, PREF_BLOCKS>(1uL << DIM, *this);
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::end() {
+	return new LHCIterator<DIM, PREF_BLOCKS, N>(1uL << DIM, *this);
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-size_t LHC<DIM, PREF_BLOCKS>::getNumberOfContents() const {
-	return sortedContents_.size();
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+size_t LHC<DIM, PREF_BLOCKS, N>::getNumberOfContents() const {
+	return m;
 }
 
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void LHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+size_t LHC<DIM, PREF_BLOCKS, N>::getMaximumNumberOfContents() const {
+	return N;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::accept(Visitor<DIM>* visitor, size_t depth) {
 	visitor->visit(this, depth);
 	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth);
 }

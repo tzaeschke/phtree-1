@@ -15,7 +15,7 @@ class Entry;
 
 class FileInputUtil {
 public:
-	// parses the file at the given location in the format 'int, int, int, ...\n...'
+	// parses the file at the given location in the format 'ulong, ulong, ulong, ...\n...'
 	template <unsigned int DIM, unsigned int WIDTH>
 	static std::vector<Entry<DIM, WIDTH>*> readEntries(std::string fileLocation);
 };

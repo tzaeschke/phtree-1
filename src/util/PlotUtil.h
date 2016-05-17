@@ -23,10 +23,10 @@
 #define GNUPLOT_FILE_EXTENSION ".p"
 
 #define BIT_LENGTH 	32
-#define ENTRY_DIM 	3
+#define ENTRY_DIM 	8
 #define ENTRY_DIM_INSERT_SERIES 3
 
-#define INSERT_ENTRY_DIMS {3, 5};
+#define INSERT_ENTRY_DIMS {6, 8};
 #define INSERT_ENTRY_NUMBERS {1000, 10000};
 
 #define N_REPETITIONS 10
@@ -210,12 +210,6 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 	for (size_t test = 0; test < dimTestsSize; test++) {
 		// resolve dynamic dimensions
 		switch (dimTests[test]) {
-		case 1: {
-			vector<Entry<1, BIT_LENGTH>*> randomDimEntries =
-					generateUniqueRandomEntriesList<1, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-			writeAverageInsertTimeOfDimension<1, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
 		case 2: {
 			vector<Entry<2, BIT_LENGTH>*> randomDimEntries =
 								generateUniqueRandomEntriesList<2, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
@@ -228,28 +222,10 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
-		case 4: {
-			vector<Entry<4, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<4, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<4, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
-		case 5: {
-			vector<Entry<5, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<5, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<5, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
 		case 6: {
 			vector<Entry<6, BIT_LENGTH>*> randomDimEntries =
 								generateUniqueRandomEntriesList<6, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<6, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
-		case 7: {
-			vector<Entry<7, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<7, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<7, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 8: {
@@ -258,33 +234,9 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 						writeAverageInsertTimeOfDimension<8, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
-		case 9: {
-			vector<Entry<9, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<9, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<9, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
-		case 10: {
-			vector<Entry<10, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<10, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<10, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
-		case 11: {
-			vector<Entry<11, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<11, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<11, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
-		case 14: {
-			vector<Entry<14, BIT_LENGTH>*> randomDimEntries =
-								generateUniqueRandomEntriesList<14, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<14, BIT_LENGTH>(test, randomDimEntries);
-			break;
-		}
 		default:
 			throw std::runtime_error(
-					"currently the boiler plate code only supports dim <= 11, 14");
+					"given dimensionality currently not supported by boilerplate code");
 		}
 	}
 
@@ -457,6 +409,11 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 		}
 	} catch (const exception& e) {
 		cout << e.what();
+	}
+
+	for (auto entry : entries) {
+		pair<bool, int> contained = phtree.lookup(entry);
+		assert (contained.first && contained.second == entry->id_);
 	}
 
 	plotFile->close();
