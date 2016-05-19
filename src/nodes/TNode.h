@@ -48,8 +48,10 @@ public:
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const = 0;
 	NodeAddressContent<DIM> lookup(unsigned long address) const override;
 	virtual void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
+	virtual bool canStoreSuffixInternally(size_t nSuffixBits) =0;
 
 protected:
 	size_t prefixBits_;

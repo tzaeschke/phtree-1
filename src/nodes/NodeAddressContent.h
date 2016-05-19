@@ -19,7 +19,7 @@ struct NodeAddressContent {
 	unsigned long address;
 	union {
 		Node<DIM>* subnode;
-		unsigned long* suffixStartBlock;
+		const unsigned long* suffixStartBlock;
 	};
 };
 

@@ -37,9 +37,11 @@ public:
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const override;
+	void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	Node<DIM>* adjustSize() override;
+	bool canStoreSuffixInternally(size_t nSuffixBits) override;
 
 protected:
 	string getName() const override;
@@ -203,6 +205,11 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
 	// TODO currently there is no need to switch from AHC to LHC because there is no delete function
 	return this;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool AHC<DIM, PREF_BLOCKS>::canStoreSuffixInternally(size_t nSuffixBits) {
+	return nSuffixBits < 8 * sizeof(uintptr_t);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
