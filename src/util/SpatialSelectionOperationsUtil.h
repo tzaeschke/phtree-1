@@ -19,7 +19,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 class SpatialSelectionOperationsUtil {
 public:
 	static std::pair<bool, int> lookup(const Entry<DIM, WIDTH>* e,
-			Node<DIM>* rootNode, std::vector<Node<DIM>*>* visitedNodes);
+			const Node<DIM>* rootNode, std::vector<std::pair<unsigned long, const Node<DIM>*>>* visitedNodes);
 };
 
 #include <assert.h>
@@ -28,12 +28,12 @@ public:
 
 using namespace std;
 
-
 template <unsigned int DIM, unsigned int WIDTH>
-pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>* e, Node<DIM>* rootNode,
-		vector<Node<DIM>*>* visitedNodes) {
+pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>* e, const Node<DIM>* rootNode,
+		vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes) {
 
-	Node<DIM>* currentNode = rootNode;
+	const Node<DIM>* currentNode = rootNode;
+	unsigned long lastHcAddress = 0;
 	size_t index = 0;
 	NodeAddressContent<DIM> content;
 
@@ -44,7 +44,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 		#endif
 
 		if (visitedNodes)
-			visitedNodes->push_back(currentNode);
+			visitedNodes->push_back(pair<unsigned long, const Node<DIM>*>(lastHcAddress, currentNode));
 
 		// validate prefix
 		const size_t prefixLength = currentNode->getPrefixLength();
@@ -74,6 +74,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 			// recurse
 			++index;
 			currentNode = content.subnode;
+			lastHcAddress = content.address;
 		} else {
 			// validate suffix
 			const size_t suffixBits = DIM * (WIDTH - index - 1);

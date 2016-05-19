@@ -14,16 +14,11 @@ using namespace std;
 
 int mainSimpleExample() {
 	const unsigned int bitLength = 8;
-	vector<unsigned long> e1Values { 10, 5 };
-	vector<unsigned long> e2Values { 11, 12 };
-	vector<unsigned long> e3Values { 60, 7 };
-	vector<unsigned long> e4Values { 1, 3 };
-	vector<unsigned long> e5Values { 11, 5 };
-	Entry<2, bitLength>* e1 = new Entry<2, bitLength>(e1Values, 1);
-	Entry<2, bitLength>* e2 = new Entry<2, bitLength>(e2Values, 2);
-	Entry<2, bitLength>* e3 = new Entry<2, bitLength>(e3Values, 3);
-	Entry<2, bitLength>* e4 = new Entry<2, bitLength>(e4Values, 4);
-	Entry<2, bitLength>* e5 = new Entry<2, bitLength>(e5Values, 5);
+	Entry<2, bitLength>* e1 = new Entry<2, bitLength>({ 74, 21 }, 1);
+	Entry<2, bitLength>* e2 = new Entry<2, bitLength>({ 75, 28 }, 2);
+	Entry<2, bitLength>* e3 = new Entry<2, bitLength>({ 124, 7 }, 3);
+	Entry<2, bitLength>* e4 = new Entry<2, bitLength>({ 65, 19 }, 4);
+	Entry<2, bitLength>* e5 = new Entry<2, bitLength>({ 75, 21 }, 5);
 
 	CountNodeTypesVisitor<2>* visitor = new CountNodeTypesVisitor<2>();
 	uint64_t sta = RDTSC();
@@ -72,19 +67,23 @@ int mainSimpleExample() {
 	phtree->accept(visitor);
 	cout << *visitor << endl;
 
-	/*cout << "The following entries are in the range (0,0) - (20,20):" << endl;
-	RangeQueryIterator* it = phtree->rangeQuery(new Entry({0,0}, BIT_LENGTH), new Entry({20,20}, BIT_LENGTH));
+	cout << "The following entries are in the range (0,0) - (100,100):" << endl;
+	RangeQueryIterator<2, bitLength>* it = phtree->rangeQuery(
+			new Entry<2, bitLength>({0,0}, 0),
+			new Entry<2, bitLength>({100,100}, 0));
 	while (it->hasNext()) {
-		Entry entryInRange = it->next();
+		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
 
-	cout << "The following entries are in the range (1,2) - (100,10):" << endl;
-	RangeQueryIterator* it = phtree->rangeQuery(new Entry({1,2}, BIT_LENGTH), new Entry( {100,10}, BIT_LENGTH));
+	cout << "The following entries are in the range (65,10) - (100,40):" << endl;
+	it = phtree->rangeQuery(
+			new Entry<2, bitLength>({65,10}, 0),
+			new Entry<2, bitLength>({100,40}, 0));
 	while (it->hasNext()) {
-		Entry entryInRange = it->next();
+		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
-	}*/
+	}
 
 	delete visitor;
 	delete phtree;

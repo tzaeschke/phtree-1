@@ -11,6 +11,7 @@
 #include <stack>
 #include "nodes/Node.h"
 #include "iterators/NodeIterator.h"
+#include "iterators/RangeQueryStackContent.h"
 #include "util/MultiDimBitset.h"
 #include "Entry.h"
 
@@ -20,35 +21,30 @@ class Node;
 template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryIterator {
 public:
-	RangeQueryIterator(std::vector<Node<DIM>*>* nodeStack, size_t dim, size_t bitLength,
-			const Entry<DIM, WIDTH>* lowerLeft, const Entry<DIM, WIDTH>* upperRight);
+	RangeQueryIterator(std::vector<std::pair<unsigned long, const Node<DIM>*>>* nodeStack,
+			const Entry<DIM, WIDTH>* lowerLeft,
+			const Entry<DIM, WIDTH>* upperRight);
 	virtual ~RangeQueryIterator();
 
 	Entry<DIM, WIDTH> next();
-	bool hasNext();
+	bool hasNext() const;
 
 private:
-	size_t dim_;
-	size_t currentIndex_;
-	size_t bitLength_;
-	unsigned long currentHCAddress_;
-	std::stack<Node<DIM>*>* nodeStack_;
-	std::stack<unsigned long>* lastAddressStack_;
-	MultiDimBitset<DIM>* currentPrefix_;
-	Node<DIM>* currentNode_;
-	NodeIterator<DIM>* currentStartIterator_;
-	NodeIterator<DIM>* currentEndIterator_;
-	size_t currentLowerMask_;
-	size_t currentUpperMask_;
-	const Entry<DIM, WIDTH>* upperRightCorner_;
-	const Entry<DIM, WIDTH>* lowerLeftCorner_;
 	bool hasNext_;
+	size_t currentIndex_;
+
+	std::stack<RangeQueryStackContent<DIM>> stack_;
+	RangeQueryStackContent<DIM> currentContent;
+	unsigned long currentValue[1 + (DIM * WIDTH - 1) / (sizeof (unsigned long) * 8)];
+
+	const Entry<DIM, WIDTH>* lowerLeftCorner_;
+	const Entry<DIM, WIDTH>* upperRightCorner_;
 
 
-	void calculateRangeMasks();
 	void stepUp();
-	void stepDown(Node<DIM>* nextNode);
-	bool isInMaskRange(unsigned long hcAddress);
+	void stepDown(const Node<DIM>* nextNode, unsigned long hcAddress);
+	inline bool isInMaskRange(unsigned long hcAddress) const;
+	void createCurrentContent(const Node<DIM>* nextNode, size_t prefixLength);
 };
 
 #include <assert.h>
@@ -58,181 +54,145 @@ using namespace std;
 
 // TODO also provide addresses per node that were followed during the lookup!
 template <unsigned int DIM, unsigned int WIDTH>
-RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<Node<DIM>*>* nodeStack, size_t dim,
-		size_t bitLength, const Entry<DIM, WIDTH>* lowerLeft, const Entry<DIM, WIDTH>* upperRight) {
-	assert (nodeStack->size() > 0 && "Should at least contain the root node");
-	lowerLeftCorner_ = lowerLeft;
-	upperRightCorner_ = upperRight;
-	dim_ = dim;
-	bitLength_ = bitLength;
-	// TODO check of range is empty
-	hasNext_ = true;
+RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes,
+		const Entry<DIM, WIDTH>* lowerLeft, const Entry<DIM, WIDTH>* upperRight) : hasNext_(true),
+		currentIndex_(0), stack_(),
+		currentValue(), lowerLeftCorner_(lowerLeft),
+		upperRightCorner_(upperRight) {
 
-	currentPrefix_ = new MultiDimBitset<DIM>(dim);
-
-	nodeStack_ = new stack<Node<DIM>*>();
-	lastAddressStack_ = new stack<unsigned long>();
-	currentNode_ = nodeStack->at(0);
-	currentIndex_ = 0;
-	calculateRangeMasks();
-	// TODO use masks
-	currentHCAddress_ = 0;
-	currentStartIterator_ = currentNode_->begin();
-	currentStartIterator_->setAddress(currentHCAddress_);
-	currentEndIterator_ = currentNode_->end();
-
-	for (size_t i = 1; i < nodeStack->size(); ++i) {
-		// do not push the current address of the root node
-		stepDown(nodeStack->at(i));
+	assert (!visitedNodes->empty());
+	if (visitedNodes->empty()) {
+		hasNext_ = false;
+	} else {
+		// the first node has to bee the root node which does not have a prefix!
+		createCurrentContent(visitedNodes->at(0).second, 0);
+		for (unsigned int i = 1; i < visitedNodes->size(); ++i) {
+			const pair<unsigned long, const Node<DIM>*> nextNode = (*visitedNodes)[i];
+			stepDown(nextNode.second, nextNode.first);
+		}
 	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 RangeQueryIterator<DIM, WIDTH>::~RangeQueryIterator() {
-	currentPrefix_->clear();
-	// TODO how to clear stacks
+	while (!stack_.empty()) {
+		stepUp();
+	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 	assert (hasNext());
-	assert (currentPrefix_->size() % dim_ == 0);
-	assert (currentPrefix_->size() / dim_ == currentIndex_);
 
 	// extract the next entry from a suffix
 	// (potentially need to descend into subnodes)
-	NodeAddressContent<DIM> content = *(*currentStartIterator_);
-	while (!isInMaskRange(content.address)) {
-		++(*currentStartIterator_);
-		content = *(*currentStartIterator_);
-	}
-
-	assert(content.exists);
-	currentHCAddress_ = content.address;
+	NodeAddressContent<DIM> content = *(*currentContent.startIt_);
+	assert(content.exists && isInMaskRange(content.address));
 	while (content.hasSubnode) {
-		stepDown(content.subnode);
+		assert(content.exists && isInMaskRange(content.address));
+		stepDown(content.subnode, content.address);
+		content = *(*currentContent.startIt_);
 	}
 
 	// found a valid suffix in the range
-	/*Entry entry = //TODO MultiDimBitTool::createEntryFrom(dim_, currentPrefix_, currentHCAddress_, content.suffix, content.id);
-	assert (entry.getDimensions() == dim_);
-	assert (entry.getBitLength() == bitLength_);
+	Entry<DIM, WIDTH> entry(currentValue, content.id);
+	// copy the suffix into the entry
+	MultiDimBitset<DIM>::pushBackValue(content.address, entry.values_, DIM * (WIDTH - currentIndex_ - 1));
+	const size_t suffixBits = DIM * (WIDTH - (currentIndex_ + 1));
+	MultiDimBitset<DIM>::pushBackBitset(content.suffixStartBlock, suffixBits, entry.values_, 0);
 
-	// set the iterator to the next element
-	// (which is potentially in a higher node if the end was reached
-	// and might not be the next element returned by the iterator as it can
-	// be invalid according to the range mask)
-	++(*currentStartIterator_);
-	while (hasNext_ && (*currentStartIterator_) == (*currentEndIterator_)) {
-		stepUp();
-		if (hasNext_) {
-			// ascended to the position from which the last node was handled -> go to next value
-			++(*currentStartIterator_);
-			// stop at the next value that is inside the range (otherwise iterate to end of mask)
-			while ((*currentStartIterator_) != (*currentEndIterator_)) {
-				content = *(*currentStartIterator_);
-				if (isInMaskRange(content.address)) {
-					break;
-				}
-				++(*currentStartIterator_);
-			}
+	// iterate to the next valid address (might be in a higher node)
+	do {
+		++(*currentContent.startIt_);
+		if ((*currentContent.startIt_) == (*currentContent.endIt_) && hasNext_) {
+			// reached the end of the range in the node so ascend to a higher node
+			stepUp();
 		}
-	}
 
-	return entry;*/
-	throw "currently not implemented";
+		content = *(*currentContent.startIt_);
+		// go to next valid entry in the node range
+		while ((*currentContent.startIt_) != (*currentContent.endIt_) && isInMaskRange(content.address)) {
+			++(*currentContent.startIt_);
+			content = *(*currentContent.startIt_);
+		}
+	} while (hasNext_ && (*currentContent.startIt_) == (*currentContent.endIt_));
+
+	return entry;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-bool RangeQueryIterator<DIM, WIDTH>::hasNext() {
+bool RangeQueryIterator<DIM, WIDTH>::hasNext() const {
 	return hasNext_;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void RangeQueryIterator<DIM, WIDTH>::calculateRangeMasks() {
-	// reset masks
-	currentLowerMask_ = 0;
-	currentUpperMask_ = 0;
+bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) const {
 
-	// compare the lower left / upper right corner of the current node (including previous prefixes)
-	// with the lower left / upper right corner of the range (i.e. only bit stings of same length)
-	// for each dimension
-	/*
-	for (size_t d = 0; d < dim_; ++d)
-	{
-		// TODO compare center of current node to lower left / upper right!!!
-		unsigned long prefixVal = MultiDimBitTool::bitsetToLong(&(currentPrefix_->at(d)));
-		unsigned long nodeLowerLeft = prefixVal << (bitLength_ - currentIndex_);
-		unsigned long nodeUpperRight = (prefixVal << (bitLength_ - currentIndex_));
-		nodeUpperRight += ((1 << (bitLength_ - currentIndex_)) - 1);
-		unsigned long currentLowerLeft = MultiDimBitTool::bitsetToLong(&(lowerLeftCorner_->values_.at(d)));
-		unsigned long currentUpperRight = MultiDimBitTool::bitsetToLong(&(upperRightCorner_->values_.at(d)));
-		if (currentLowerLeft > nodeLowerLeft) {
-			// the lower left corner of the current node is outside of the range (in this dimension)
-			currentLowerMask_ |= 1 << d;
-		}
+	assert (currentContent.upperMask_ < (1uL << DIM));
+	assert (currentContent.lowerMask_ <= currentContent.upperMask_);
 
-		if (currentUpperRight >= nodeUpperRight) {
-			// the upper right corner of the current node is inside the range (in this dimension)
-			currentUpperMask_ |= 1 << d;
-		}
-	}
-	*/
-	// TODO implement with new format
-	assert (false);
-
-	assert (currentLowerMask_ <= currentUpperMask_);
-}
-
-template <unsigned int DIM, unsigned int WIDTH>
-bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) {
-	bool lowerMatch = (hcAddress | currentLowerMask_) == hcAddress;
-	bool upperMatch = (hcAddress & currentUpperMask_) == hcAddress;
+	bool lowerMatch = (hcAddress | currentContent.lowerMask_) == hcAddress;
+	bool upperMatch = (hcAddress & currentContent.upperMask_) == hcAddress;
 	return lowerMatch && upperMatch;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void RangeQueryIterator<DIM, WIDTH>::stepUp() {
-	if (nodeStack_->empty()) {
+	if (stack_.empty()) {
 		hasNext_ = false;
 	} else {
 		// remove the prefix of the last node
-		currentPrefix_->removeHighestBits(currentNode_->getPrefixLength() + 1);
-		currentIndex_ -= (currentNode_->getPrefixLength() + 1);
+		const size_t prefixLength = currentContent.prefixLength_;
+		MultiDimBitset<DIM>::removeHighestBits(currentValue, currentIndex_ * DIM, (1 + prefixLength) * DIM);
+		currentIndex_ -= (prefixLength + 1);
+
+		// clear memory
+		delete currentContent.startIt_;
+		delete currentContent.endIt_;
+
 		// restore the node and the HC address from the stack
-		currentNode_ = nodeStack_->top();
-		nodeStack_->pop();
-		currentHCAddress_ = lastAddressStack_->top();
-		lastAddressStack_->pop();
-		// restore the iterators from the last HC address on the stack
-		calculateRangeMasks();
-		currentStartIterator_ = currentNode_->begin();
-		currentStartIterator_->setAddress(currentHCAddress_);
-		// TODO set lower and upper as addresses for the start and end iterator
-		currentEndIterator_ = currentNode_->end();
+		currentContent = stack_.top();
+		stack_.pop();
 	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void RangeQueryIterator<DIM, WIDTH>::stepDown(Node<DIM>* nextNode) {
+void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigned long hcAddress) {
+
 	// add the prefix of the next node to the current prefix
-	currentPrefix_->pushValueToBack(currentHCAddress_);
 	currentIndex_ += 1;
-	currentPrefix_->pushBitsToBack(&(nextNode->prefix_));
-	currentIndex_ += nextNode->getPrefixLength();
-	// store the node and the current HC address on a stack
-	lastAddressStack_->push(currentHCAddress_);
-	nodeStack_->push(currentNode_);
-	currentNode_ = nextNode;
-	// create the iterators for the new node
-	calculateRangeMasks();
-	// TODO set lower and upper as addresses for the start and end iterator
-	currentHCAddress_ = currentLowerMask_;
-	currentStartIterator_ = currentNode_->begin();
-	currentStartIterator_->setAddress(currentLowerMask_);
-	currentEndIterator_ = currentNode_->begin();
-	// the current upper mask is the last address potentially contained in the range
-	currentEndIterator_->setAddress(currentUpperMask_ + 1);
+	MultiDimBitset<DIM>::pushBackValue(hcAddress, currentValue, (WIDTH - currentIndex_) * DIM);
+	const size_t prefixLength = nextNode->getPrefixLength();
+	currentIndex_ += prefixLength;
+	MultiDimBitset<DIM>::pushBackBitset(nextNode->getFixPrefixStartBlock(), prefixLength * DIM,
+			currentValue, (WIDTH - currentIndex_) * DIM);
+
+	stack_.push(currentContent);
+	createCurrentContent(nextNode, prefixLength);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextNode, size_t prefixLength) {
+	assert (nextNode->getPrefixLength() == prefixLength);
+	currentContent.node_ = nextNode;
+	currentContent.prefixLength_ = prefixLength;
+
+	// calculate the range masks for the next node
+	const unsigned int ignoreNLowestBits = DIM * (WIDTH - currentIndex_);
+	// <isSmaller bitset, isEqual bitset>
+	pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
+			compareSmallerEqual(lowerLeftCorner_->values_, currentValue, DIM * WIDTH, ignoreNLowestBits);
+	pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
+			compareSmallerEqual(upperRightCorner_->values_, currentValue, DIM * WIDTH, ignoreNLowestBits);
+
+	const unsigned int dimMask = (1u << DIM) - 1u;
+	currentContent.lowerMask_ = lowerComp.first | ((~lowerComp.second) & dimMask);
+	currentContent.upperMask_ = ((~upperComp.first) & dimMask) | upperComp.second;
+	currentContent.currentHcAddress_ = currentContent.lowerMask_;
+	currentContent.startIt_ = nextNode->begin();
+	currentContent.startIt_->setAddress(currentContent.lowerMask_);
+	currentContent.endIt_ = nextNode->begin();
+	currentContent.endIt_->setAddress(currentContent.upperMask_);
 }
 
 

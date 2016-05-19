@@ -25,8 +25,8 @@ class Entry {
 
 public:
 
-	Entry(std::vector<unsigned long> &values, int id);
-	Entry(unsigned long* startBlock, unsigned int nBits, int id);
+	Entry(const std::vector<unsigned long> &values, int id);
+	Entry(const unsigned long* startBlock, int id);
 	~Entry();
 
 	size_t getBitLength() const;
@@ -43,15 +43,16 @@ public:
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
-Entry<DIM, WIDTH>::Entry(vector<unsigned long> &values, int id) : id_(id), nBits_(DIM * WIDTH), values_() {
+Entry<DIM, WIDTH>::Entry(const vector<unsigned long> &values, int id) : id_(id), nBits_(DIM * WIDTH), values_() {
 	assert (values.size() == DIM);
 	MultiDimBitset<DIM>::template toBitset<WIDTH>(values, values_);
 	assert (nBits_ == getBitLength() * getDimensions());
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-Entry<DIM, WIDTH>::Entry(unsigned long* startBlock, unsigned int nBits, int id) : id_(id), nBits_(nBits) {
-	const size_t nBlocks = 1 + nBits / (sizeof (unsigned long) * 8);
+Entry<DIM, WIDTH>::Entry(const unsigned long* startBlock, int id) : id_(id), nBits_(DIM * WIDTH) {
+	// TODO move logic to multi dim bitset
+	const size_t nBlocks = 1 + nBits_ / (sizeof (unsigned long) * 8);
 	assert (nBlocks == sizeof(values_) / sizeof(unsigned long));
 	for (int i = 0; i < nBlocks; ++i) {
 		values_[i] = *(startBlock + i);
