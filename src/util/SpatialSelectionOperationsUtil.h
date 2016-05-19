@@ -46,17 +46,21 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 		if (visitedNodes)
 			visitedNodes->push_back(currentNode);
 
-		// validate prefix
 		const size_t prefixLength = currentNode->getPrefixLength();
-		const pair<bool, size_t> prefixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
-				index, index + prefixLength,
-				currentNode->getFixPrefixStartBlock(), prefixLength * DIM);
-		if (!prefixComp.first) {
-			#ifdef PRINT
-				cout << "prefix mismatch" << endl;
-			#endif
-			return pair<bool, int>(false, 0);
+		if (prefixLength > 0) {
+			// validate prefix
+			const pair<bool, size_t> prefixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+					index, index + prefixLength,
+					currentNode->getFixPrefixStartBlock(), prefixLength * DIM);
+
+			if (!prefixComp.first) {
+				#ifdef PRINT
+					cout << "prefix mismatch" << endl;
+				#endif
+				return pair<bool, int>(false, 0);
+			}
 		}
+
 
 		// validate HC address
 		index += prefixLength;
@@ -75,16 +79,18 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 			++index;
 			currentNode = content.subnode;
 		} else {
-			// validate suffix
 			const size_t suffixBits = DIM * (WIDTH - index - 1);
-			const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
-							index + 1, WIDTH,
-							content.suffixStartBlock, suffixBits);
-			if (!suffixComp.first) {
-				#ifdef PRINT
-					cout << "suffix mismatch" << endl;
-				#endif
-				return pair<bool, int>(false, 0);
+			if (suffixBits > 0) {
+				// validate suffix
+				const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+								index + 1, WIDTH,
+								content.suffixStartBlock, suffixBits);
+				if (!suffixComp.first) {
+					#ifdef PRINT
+						cout << "suffix mismatch" << endl;
+					#endif
+					return pair<bool, int>(false, 0);
+				}
 			}
 
 			#ifdef PRINT

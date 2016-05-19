@@ -193,11 +193,15 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 			// case 1 (entry contains prefix): recurse on subnode
 			// case 2 (otherwise): split prefix at difference into two subnodes
 			const size_t subnodePrefixLength = content.subnode->getPrefixLength();
-			const pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry->values_, DIM * WIDTH,
-					currentIndex + 1, currentIndex + 1 + subnodePrefixLength,
-					content.subnode->getFixPrefixStartBlock(), DIM * subnodePrefixLength);
-			const bool prefixIncluded = comp.first;
-			const size_t differentBitAtPrefixIndex = comp.second;
+			bool prefixIncluded = true;
+			size_t differentBitAtPrefixIndex = -1;
+			if (subnodePrefixLength > 0) {
+				const pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry->values_, DIM * WIDTH,
+						currentIndex + 1, currentIndex + 1 + subnodePrefixLength,
+						content.subnode->getFixPrefixStartBlock(), DIM * subnodePrefixLength);
+				prefixIncluded = comp.first;
+				differentBitAtPrefixIndex = comp.second;
+			}
 
 			if (prefixIncluded) {
 				// recurse on subnode
