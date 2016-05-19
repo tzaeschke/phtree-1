@@ -34,7 +34,7 @@ public:
 	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) = 0;
 	virtual NodeIterator<DIM>* begin() const = 0;
 	virtual NodeIterator<DIM>* end() const = 0;
-	virtual void accept(Visitor<DIM>* visitor, size_t depth) =0;
+	virtual void accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) =0;
 	virtual void recursiveDelete() = 0;
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;

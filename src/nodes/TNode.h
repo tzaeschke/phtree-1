@@ -37,7 +37,7 @@ public:
 	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) override;
 	virtual NodeIterator<DIM>* begin() const = 0;
 	virtual NodeIterator<DIM>* end() const = 0;
-	virtual void accept(Visitor<DIM>* visitor, size_t depth) override;
+	virtual void accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) override;
 	virtual void recursiveDelete() = 0;
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
@@ -96,14 +96,16 @@ const unsigned long* TNode<DIM, PREF_BLOCKS>::getFixPrefixStartBlock() const {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
+void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) {
+
+	const size_t prefixLength = getPrefixLength();
 	NodeIterator<DIM>* it;
 	NodeIterator<DIM>* endIt = this->end();
 	for (it = this->begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent<DIM> content = *(*it);
 		assert (content.exists);
 		if (content.hasSubnode) {
-			content.subnode->accept(visitor, depth + 1);
+			content.subnode->accept(visitor, depth + 1, index + prefixLength + 1);
 		}
 	}
 

@@ -43,7 +43,6 @@ private:
 	void visitGeneral(const TNode<DIM, PREF_BLOCKS>* node);
 };
 
-#include <visitors/PrefixSharingVisitor.h>
 #include "nodes/TNode.h"
 
 template <unsigned int DIM>
