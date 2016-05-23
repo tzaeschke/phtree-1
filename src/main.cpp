@@ -69,17 +69,17 @@ int mainSimpleExample() {
 
 	cout << "The following entries are in the range (0,0) - (100,100):" << endl;
 	RangeQueryIterator<2, bitLength>* it = phtree->rangeQuery(
-			new Entry<2, bitLength>({0,0}, 0),
-			new Entry<2, bitLength>({100,100}, 0));
+			Entry<2, bitLength>({0,0}, 0),
+			Entry<2, bitLength>({100,100}, 0));
 	while (it->hasNext()) {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
 
-	cout << "The following entries are in the range (65,10) - (100,40):" << endl;
+	cout << "The following entries are in the range (65,10) - (150,20):" << endl;
 	it = phtree->rangeQuery(
-			new Entry<2, bitLength>({65,10}, 0),
-			new Entry<2, bitLength>({100,40}, 0));
+			Entry<2, bitLength>({65,10}, 0),
+			Entry<2, bitLength>({150,20}, 0));
 	while (it->hasNext()) {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;

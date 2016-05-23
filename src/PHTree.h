@@ -35,7 +35,7 @@ public:
 	virtual ~PHTree();
 	void insert(const Entry<DIM, WIDTH>* e);
 	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>* e) const;
-	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const Entry<DIM, WIDTH>* lowerLeft, const Entry<DIM, WIDTH>* upperRight) const;
+	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const Entry<DIM, WIDTH> lowerLeft, const Entry<DIM, WIDTH> upperRight) const;
 
 	void accept(Visitor<DIM>* visitor);
 	unsigned long* reserveSuffixSpace(size_t nSuffixBits);
@@ -93,11 +93,11 @@ std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>* e) const
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, WIDTH>* lowerLeft,
-		const Entry<DIM, WIDTH>* upperRight) const {
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, WIDTH> lowerLeft,
+		const Entry<DIM, WIDTH> upperRight) const {
 	// TODO check if lower left and upper right corners are correctly set
 	vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes = new vector<pair<unsigned long, const Node<DIM>*>>();
-	SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(lowerLeft, root_, visitedNodes);
+	SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(&lowerLeft, root_, visitedNodes);
 	RangeQueryIterator<DIM, WIDTH>* it = new RangeQueryIterator<DIM, WIDTH>(visitedNodes, lowerLeft, upperRight);
 
 	return it;
