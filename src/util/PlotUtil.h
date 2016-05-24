@@ -26,7 +26,7 @@
 #define ENTRY_DIM 	3
 #define ENTRY_DIM_INSERT_SERIES 3
 
-#define INSERT_ENTRY_DIMS {3, 6, 8, 10};
+#define INSERT_ENTRY_DIMS {3, 5, 6, 8, 10};
 #define INSERT_ENTRY_NUMBERS {100, 10000, 100000, 1000000};
 
 #define N_REPETITIONS 10
@@ -219,6 +219,12 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 			vector<Entry<3, BIT_LENGTH>>* randomDimEntries =
 								generateUniqueRandomEntriesList<3, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries);
+			break;
+		}
+		case 5: {
+			vector<Entry<5, BIT_LENGTH>>* randomDimEntries =
+								generateUniqueRandomEntriesList<5, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
+						writeAverageInsertTimeOfDimension<5, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 6: {

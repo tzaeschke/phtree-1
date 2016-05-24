@@ -51,7 +51,7 @@ public:
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
-	virtual bool canStoreSuffixInternally(size_t nSuffixBits) =0;
+	bool canStoreSuffixInternally(size_t nSuffixBits) const override;
 
 protected:
 	size_t prefixBits_;
@@ -114,6 +114,12 @@ void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool TNode<DIM, PREF_BLOCKS>::canStoreSuffixInternally(size_t nSuffixBits) const {
+	// needs to store 2 bits for meta data
+	return nSuffixBits < (8 * sizeof(uintptr_t) - 2);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address) const {
 	NodeAddressContent<DIM> content;
 	this->lookup(address, content);
@@ -140,7 +146,7 @@ ostream& TNode<DIM, PREF_BLOCKS>::output(std::ostream& os, size_t depth, size_t 
 		} else {
 			// print suffix
 			os << " suffix: ";
-			MultiDimBitset<DIM>::output(os, content.suffixStartBlock, DIM * (totalBitLength - currentIndex));
+			MultiDimBitset<DIM>::output(os, content.getSuffixStartBlock(), DIM * (totalBitLength - currentIndex));
 			os << " (id: " << content.id << ")" << endl;
 		}
 	}

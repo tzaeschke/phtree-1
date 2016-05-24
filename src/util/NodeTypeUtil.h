@@ -31,49 +31,44 @@ public:
 		}
 	}
 
-	static Node<DIM>* copyWithoutPrefix(size_t newPrefixBits, Node<DIM>* nodeToCopy) {
-		// TODO make more efficient by not using iterators and a bulk insert
+	static Node<DIM>* copyWithoutPrefix(size_t newPrefixBits, const Node<DIM>* nodeToCopy) {
 		size_t nDirectInsert = nodeToCopy->getNumberOfContents();
 		Node<DIM>* copy = buildNode(newPrefixBits, nDirectInsert);
-		NodeIterator<DIM>* it;
-		NodeIterator<DIM>* endIt = nodeToCopy->end();
-		for (it = nodeToCopy->begin(); (*it) != *endIt; ++(*it)) {
-			NodeAddressContent<DIM> content = *(*it);
-			if (content.hasSubnode) {
-				copy->insertAtAddress(content.address, content.subnode);
-			} else {
-				copy->insertAtAddress(content.address, content.suffixStartBlock, content.id);
-			}
-		}
-
-		delete it;
-		delete endIt;
+		copyContents(*nodeToCopy, *copy);
 		return copy;
 	}
 
-	static Node<DIM>* copyIntoLargerNode(size_t newNContents, Node<DIM>* nodeToCopy) {
+	static Node<DIM>* copyIntoLargerNode(size_t newNContents, const Node<DIM>* nodeToCopy) {
 		// TODO make more efficient by not using iterators and a bulk insert
 		Node<DIM>* copy = buildNode(nodeToCopy->getPrefixLength() * DIM, newNContents);
 		MultiDimBitset<DIM>::duplicateHighestBits(nodeToCopy->getFixPrefixStartBlock(),
 				nodeToCopy->getPrefixLength() * DIM, nodeToCopy->getPrefixLength(),
 				copy->getPrefixStartBlock());
+		copyContents(*nodeToCopy, *copy);
+		return copy;
+	}
+
+
+private:
+
+	inline static void copyContents(const Node<DIM>& from, Node<DIM>& to) {
+		// TODO make more efficient by not using iterators and a bulk insert
 		NodeIterator<DIM>* it;
-		NodeIterator<DIM>* endIt = nodeToCopy->end();
-		for (it = nodeToCopy->begin(); (*it) != *endIt; ++(*it)) {
+		NodeIterator<DIM>* endIt = from.end();
+		for (it = from.begin(); (*it) != *endIt; ++(*it)) {
 			NodeAddressContent<DIM> content = *(*it);
 			if (content.hasSubnode) {
-				copy->insertAtAddress(content.address, content.subnode);
+				to.insertAtAddress(content.address, content.subnode);
+			} else if (content.directlyStoredSuffix) {
+				to.insertAtAddress(content.address, content.suffix, content.id);
 			} else {
-				copy->insertAtAddress(content.address, content.suffixStartBlock, content.id);
+				to.insertAtAddress(content.address, content.suffixStartBlock, content.id);
 			}
 		}
 
 		delete it;
 		delete endIt;
-		return copy;
 	}
-
-private:
 
 	template <unsigned int PREF_BLOCKS>
 	inline static Node<DIM>* determineNodeType(size_t prefixBits, size_t nDirectInserts) {

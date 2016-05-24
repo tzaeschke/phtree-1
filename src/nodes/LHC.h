@@ -38,7 +38,6 @@ public:
 	void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) override;
 	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	Node<DIM>* adjustSize() override;
-	bool canStoreSuffixInternally(size_t nSuffixBits) override;
 
 protected:
 	string getName() const override;
@@ -47,8 +46,9 @@ private:
 	static const unsigned long fullBlock = -1;
 	static const unsigned int bitsPerBlock = sizeof (unsigned long) * 8;
 	// store address, hasSub flag and directlyStored flag
-	static const unsigned int addressSubLength = DIM + 2;
+	static const unsigned int addressSubLength = DIM + 2uL;
 
+	// TODO also store flags in reference like in AHC node
 	// block : <--------------------------- 64 ---------------------------><--- ...
 	// bits  : <-   DIM    -><-  1    |     1          ->|<-   DIM    -><-  1    |     1          -> ...
 	// N rows: [ hc address | hasSub? | directlyStored? ] [ hc address | hasSub? | directlyStored? ] ...
@@ -90,10 +90,10 @@ LHC<DIM, PREF_BLOCKS, N>::~LHC() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::recursiveDelete() {
+	bool directlyStored;
+	bool hasSub = false;
+	unsigned long hcAddress = 0;
 	for (unsigned int i = 0; i < m; ++i) {
-		bool hasSub = false;
-		bool directlyStored = false;
-		unsigned long hcAddress = 0;
 		lookupIndex(i, &hcAddress, &hasSub, &directlyStored);
 		if (hasSub) {
 			Node<DIM>* subnode = reinterpret_cast<Node<DIM>*>(references_[i]);
@@ -116,46 +116,56 @@ void LHC<DIM,PREF_BLOCKS, N>::lookupIndex(unsigned int index, unsigned long* out
 	assert (outHcAddress && outHasSub);
 
 	const unsigned int firstBit = index * addressSubLength;
-	const unsigned int lastBit = (index + 1) * addressSubLength - 1;
-	const unsigned int hasSubBit = lastBit - 1;
-	const unsigned int firstBlockIndex = firstBit / bitsPerBlock;
-	const unsigned int secondBlockIndex = lastBit / bitsPerBlock;
-	const unsigned int hasSubBlockIndex = hasSubBit / bitsPerBlock;
-	const unsigned int firstBitIndex = firstBit % bitsPerBlock;
-	const unsigned int lastBitIndex = lastBit % bitsPerBlock;
-	const unsigned int hasSubBitIndex = hasSubBit % bitsPerBlock;
-	assert (secondBlockIndex - firstBlockIndex <= 1);
+	const unsigned int firstFlag = (index + 1) * addressSubLength - 2;
+	const unsigned int secondFlag = firstFlag + 1;
 
-	const unsigned long firstBlock = addresses_[firstBlockIndex];
-	const unsigned long secondBlock = addresses_[secondBlockIndex];
-	if (firstBlockIndex == secondBlockIndex || lastBitIndex == 0) {
-		// the required bits are in one block
-		//     <------->
-		// [   (   x   )   ]
-		const unsigned long singleBlockAddressMask = (1uL << DIM) - 1;
+	const unsigned int firstBitBlockIndex = firstBit / bitsPerBlock;
+	const unsigned int lastBitBlockIndex = secondFlag / bitsPerBlock;
+	const unsigned int firstBitIndex = firstBit % bitsPerBlock;
+	const unsigned int firstFlagIndex = firstFlag % bitsPerBlock;
+	const unsigned int lastBitIndex = secondFlag % bitsPerBlock;
+
+	const unsigned long firstBlock = addresses_[firstBitBlockIndex];
+	assert (lastBitBlockIndex - firstBitBlockIndex <= 1);
+	if (firstBitBlockIndex == lastBitBlockIndex) {
+		// all required bits are in one block
+		const unsigned long singleBlockAddressMask = (1uL << DIM) - 1uL;
 		const unsigned long extracted = firstBlock >> firstBitIndex;
 		(*outHcAddress) = extracted & singleBlockAddressMask;
+		(*outHasSub) = (firstBlock >> firstFlagIndex) & 1uL;
+		(*outDirectlyStored) = (firstBlock >> lastBitIndex) & 1uL;
+	} else if (lastBitIndex < 2) {
+		// the address is entirely in one block but the flags are not
+		const unsigned long singleBlockAddressMask = (1uL << DIM) - 1uL;
+		const unsigned long extracted = firstBlock >> firstBitIndex;
+		(*outHcAddress) = extracted & singleBlockAddressMask;
+
+		const unsigned long secondBlock = addresses_[lastBitBlockIndex];
+		if (lastBitIndex == 1) {
+			// both flags are in the second block
+			assert (firstFlagIndex == 0 && lastBitIndex == 1);
+			(*outHasSub) = secondBlock & 1uL;
+			(*outDirectlyStored) = (secondBlock >> lastBitIndex) & 1uL;
+		} else {
+			// the first flag is in the first block and the second flag is in the second block
+			assert (firstFlagIndex == bitsPerBlock - 1 && lastBitIndex == 0);
+			(*outHasSub) = (firstBlock >> firstFlagIndex) & 1uL;
+			(*outDirectlyStored) = secondBlock & 1uL;
+		}
 	} else {
-		// the required bits are in two consecutive blocks
-		//       <---------->
-		// [     ( x  ] [ y )    ]
-		assert (DIM > lastBitIndex);
+		// the address is split into two blocks and both flags are in the second block
+		const unsigned long secondBlock = addresses_[lastBitBlockIndex];
+		assert (1 < lastBitIndex && lastBitIndex < addressSubLength - 1);
 		const unsigned int firstBlockBits = bitsPerBlock - firstBitIndex;
 		const unsigned int secondBlockBits = DIM - firstBlockBits;
 		assert (0 < secondBlockBits && secondBlockBits < DIM);
-		const unsigned long secondBlockMask = (1 << secondBlockBits) - 1;
+		const unsigned long secondBlockMask = (1uL << secondBlockBits) - 1uL;
 		(*outHcAddress) = (firstBlock >> firstBitIndex)
-				| ((secondBlock & secondBlockMask) << firstBlockBits);
+						| ((secondBlock & secondBlockMask) << firstBlockBits);
+		assert (*outHcAddress < (1uL << DIM));
+		(*outHasSub) = (secondBlock >> firstFlagIndex) & 1uL;
+		(*outDirectlyStored) = (secondBlock >> lastBitIndex) & 1uL;
 	}
-
-	assert (hasSubBlockIndex == firstBlockIndex || hasSubBlockIndex == secondBlockIndex);
-	if (hasSubBlockIndex == firstBlockIndex) {
-		(*outHasSub) = (firstBlock >> hasSubBitIndex) & 1uL;
-	} else {
-		(*outHasSub) = (secondBlockIndex >> hasSubBitIndex) & 1uL;
-	}
-
-	(*outDirectlyStored) = (secondBlock >> lastBitIndex) & 1uL;
 
 	assert ((!(*outDirectlyStored) || !(*outHasSub)) && "the directly stored flag can only be set if the hasSub flag is false");
 }
@@ -165,13 +175,14 @@ void LHC<DIM,PREF_BLOCKS, N>::insertAddress(unsigned int index, unsigned long hc
 	assert (index < m && m <= N);
 	assert (addressSubLength <= bitsPerBlock);
 
-	const unsigned int firstBit = index * (DIM + 1);
-	const unsigned int lastBit = (index + 1) * (DIM + 1) - 1;
+	const unsigned int firstBit = index * addressSubLength;
+	const unsigned int lastBit = (index + 1) * addressSubLength - 2;
 	const unsigned int firstBlockIndex = firstBit / bitsPerBlock;
 	const unsigned int secondBlockIndex = lastBit / bitsPerBlock;
 	const unsigned int firstBitIndex = firstBit % bitsPerBlock;
 	const unsigned int lastBitIndex = lastBit % bitsPerBlock;
 	assert (secondBlockIndex - firstBlockIndex <= 1);
+	assert (lastBit - firstBit == DIM);
 
 	const unsigned long firstBlockAddressMask = (1uL << DIM) - 1;
 	// [   (   x   )   ]
@@ -268,20 +279,17 @@ void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<
 
 	outContent.address = address;
 	unsigned int index = m;
-	bool directlyStored = false;
-	lookupAddress(address, &outContent.exists, &index, &outContent.hasSubnode, &directlyStored);
+	lookupAddress(address, &outContent.exists, &index, &outContent.hasSubnode, &outContent.directlyStoredSuffix);
 
 	if (outContent.exists) {
 		if (outContent.hasSubnode) {
 			outContent.subnode = reinterpret_cast<Node<DIM>*>(references_[index]);
 		} else {
-			if (directlyStored) {
-				// return a reference to the local block
-				const uintptr_t* refToLocal = &(references_[index]);
-				outContent.suffixStartBlock = reinterpret_cast<const unsigned long*>(refToLocal);
+			if (outContent.directlyStoredSuffix) {
+				outContent.suffix = reinterpret_cast<unsigned long>(references_[index]);
 			} else {
 				// return the stored reference
-				outContent.suffixStartBlock = reinterpret_cast<unsigned long*>(references_[index]);
+				outContent.suffixStartBlock = reinterpret_cast<const unsigned long*>(references_[index]);
 			}
 			outContent.id = ids_[index];
 		}
@@ -368,11 +376,14 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const un
 		addRow(index, hcAddress, false, false, reference, id);
 	}
 
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
+	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).hasSubnode);
+	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).directlyStoredSuffix);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) {
+void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) {
 	assert (hcAddress < 1uL << DIM);
 
 	unsigned int index = m;
@@ -381,7 +392,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 	bool directlyStored = false;
 	lookupAddress(hcAddress, &exists, &index, &hasSub, &directlyStored);
 	assert (index <= m);
-	uintptr_t reference = reinterpret_cast<uintptr_t>(startSuffixBlock);
+	uintptr_t reference = reinterpret_cast<uintptr_t>(suffix);
 
 	if (exists) {
 		// replace the contents at the address
@@ -395,7 +406,10 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 		addRow(index, hcAddress, false, true, reference, id);
 	}
 
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).directlyStoredSuffix);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).suffix == suffix);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -423,6 +437,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 	}
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).hasSubnode);
 }
 
 
@@ -434,11 +449,6 @@ Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
 	} else {
 		return NodeTypeUtil<DIM>::copyIntoLargerNode(N + 1, this);
 	}
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-bool LHC<DIM, PREF_BLOCKS, N>::canStoreSuffixInternally(size_t nSuffixBits) {
-	return nSuffixBits < 8 * sizeof(uintptr_t);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>

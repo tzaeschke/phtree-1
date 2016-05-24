@@ -94,13 +94,17 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() {
 
 	NodeAddressContent<DIM> content;
 	content.exists = true;
-	bool directlyStored = false;
-	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode, &directlyStored);
+	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode, &content.directlyStoredSuffix);
 	if (content.hasSubnode) {
 		content.subnode = (Node<DIM>*) node_->references_[currentIndex];
 	} else {
 		content.id = node_->ids_[currentIndex];
-		content.suffixStartBlock = (unsigned long*) node_->references_[currentIndex];
+
+		if (content.directlyStoredSuffix) {
+			content.suffix = static_cast<unsigned long>(node_->references_[currentIndex]);
+		} else {
+			content.suffixStartBlock = reinterpret_cast<const unsigned long*>(node_->references_[currentIndex]);
+		}
 	}
 
 	return content;

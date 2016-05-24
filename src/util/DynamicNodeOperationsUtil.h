@@ -51,11 +51,12 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 		const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree) {
 
 	const size_t currentSuffixBits = DIM * (WIDTH - currentIndex - 1);
+	const unsigned long* suffixStartBlock = content.getSuffixStartBlock();
 	// create a temporary storage for the new prefix (all blocks are 0 filled)
 	unsigned long prefixTmp[1 + (DIM * WIDTH - 1) / (sizeof(unsigned long) * 8)] = {};
 	// 1. calculate the longest common prefix between the entry and the current suffix
 	const size_t prefixLength = MultiDimBitset<DIM>::calculateLongestCommonPrefix(
-			entry->values_, DIM * WIDTH, currentIndex + 1, content.suffixStartBlock, currentSuffixBits,
+			entry->values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock, currentSuffixBits,
 			prefixTmp);
 
 	// 2. create a new node that stores the remaining suffix and the new entry
@@ -71,13 +72,13 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	// 4. paste the new suffixes into the new subnode
 	// addresses in the subnode starts after common prefix
 	const long insertEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(entry->values_, currentIndex + 1 + prefixLength, entry->nBits_);
-	const long existingEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(content.suffixStartBlock, prefixLength, currentSuffixBits);
+	const long existingEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(suffixStartBlock, prefixLength, currentSuffixBits);
 	assert(insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 	// 5. add remaining bits after prefix and addresses as suffixes
 	// TODO what if suffix length == 0?!
 	const size_t newSuffixLength = WIDTH - (currentIndex + 1 + prefixLength + 1);
-	bool storeSuffixInNode = subnode->canStoreSuffixInternally(newSuffixLength * DIM);
+	const bool storeSuffixInNode = subnode->canStoreSuffixInternally(newSuffixLength * DIM);
 	// create the required suffix blocks for both entries and insert a reference into the subnode
 	unsigned long* insertEntrySuffixStartBlock = NULL;
 	unsigned long* existingEntrySuffixStartBlock = NULL;
@@ -94,7 +95,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	}
 
 	// trim the existing entry's suffix by the common prefix length
-	MultiDimBitset<DIM>::removeHighestBits(content.suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
+	MultiDimBitset<DIM>::removeHighestBits(suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
 	// insert the last bits of the new entry
 	MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
 

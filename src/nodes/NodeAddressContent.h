@@ -13,14 +13,21 @@ class Node;
 
 template <unsigned int DIM>
 struct NodeAddressContent {
-	int id;
 	bool exists;
 	bool hasSubnode;
+	bool directlyStoredSuffix;
+	int id;
 	unsigned long address;
 	union {
 		Node<DIM>* subnode;
 		const unsigned long* suffixStartBlock;
+		unsigned long suffix;
 	};
+
+	const unsigned long* getSuffixStartBlock() const {
+		assert (exists && !hasSubnode);
+		return (directlyStoredSuffix)? &suffix : suffixStartBlock;
+	}
 };
 
 

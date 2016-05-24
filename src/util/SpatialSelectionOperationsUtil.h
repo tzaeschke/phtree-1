@@ -81,10 +81,10 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 		} else {
 			const size_t suffixBits = DIM * (WIDTH - index - 1);
 			if (suffixBits > 0) {
-				// validate suffix
+				// validate suffix which is either directly stored or a reference
 				const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
 								index + 1, WIDTH,
-								content.suffixStartBlock, suffixBits);
+								content.getSuffixStartBlock(), suffixBits);
 				if (!suffixComp.first) {
 					#ifdef PRINT
 						cout << "suffix mismatch" << endl;
