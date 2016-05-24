@@ -385,6 +385,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const un
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) {
 	assert (hcAddress < 1uL << DIM);
+	assert (suffix < (1uL << (sizeof(uintptr_t) * 8uL - 2uL)));
 
 	unsigned int index = m;
 	bool hasSub = false;

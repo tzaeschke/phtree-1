@@ -55,6 +55,7 @@ private:
 	unsigned long totalLHCByteSize;
 	unsigned long totalAHCByteSize;
 	unsigned long totalTreeByteSize;
+	size_t externalSuffixBlocks;
 
 	template <unsigned int PREF_BLOCKS>
 	unsigned long superSize(const TNode<DIM, PREF_BLOCKS>* node);
@@ -85,6 +86,7 @@ void SizeVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {
 	SuffixBlock<suffixBlockSize>* currentBlock = tree->firstSuffixBlock;
 	assert (currentBlock);
 	do {
+		externalSuffixBlocks++;
 		totalTreeByteSize += sizeof(SuffixBlock<suffixBlockSize>);
 		currentBlock = currentBlock->next;
 	} while (currentBlock);
@@ -122,6 +124,7 @@ void SizeVisitor<DIM>::reset() {
 	totalLHCByteSize = 0;
 	totalAHCByteSize = 0;
 	totalTreeByteSize = 0;
+	externalSuffixBlocks = 0;
 }
 
 template <unsigned int DIM>
@@ -131,7 +134,7 @@ std::ostream& SizeVisitor<DIM>::output(std::ostream &out) const {
 	return out << "total size: " << getTotalKByteSize()
 			<< "KByte | " << getTotalMByteSize()
 			<< "MByte (LHC: " << lhcSizePercent << "%, AHC: "
-			<< ahcSizePercent << "%)" << std::endl;
+			<< ahcSizePercent << "%), external suffix superblocks: " << externalSuffixBlocks << std::endl;
 }
 
 template <unsigned int D>
