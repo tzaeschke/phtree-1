@@ -46,6 +46,8 @@ public:
 	static std::pair<unsigned int, unsigned int> compareSmallerEqual(const unsigned long* v1Start,
 			const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits);
 
+	static bool checkRangeUnset(const unsigned long* startBlock, unsigned int nBits,
+			unsigned int lsbStartBit, unsigned int lsbEndBit);
 
 	static std::ostream& output(std::ostream &os, const unsigned long* const startBlock, unsigned int nBits);
 private:
@@ -435,10 +437,11 @@ template <unsigned int DIM>
 void MultiDimBitset<DIM>::pushBackBitset(const unsigned long* fromStartBlock, unsigned int fromNBits,
 			unsigned long* const pushToStartBlock, unsigned int toNBits) {
 	assert (fromStartBlock && pushToStartBlock && fromNBits % DIM == 0 && toNBits % DIM == 0);
+	assert (fromNBits > 0);
 
 	const unsigned int startPushToBlockIndex = toNBits / bitsPerBlock;
 	const unsigned int startPushToBitIndex = toNBits % bitsPerBlock;
-	const unsigned int pushNBlocks = 1 + (fromNBits - 1) / bitsPerBlock;
+	const unsigned int pushNBlocks = 1uL + (fromNBits - 1uL) / bitsPerBlock;
 	const unsigned long firstBlockMask = filledBlock << startPushToBitIndex;
 
 	for (unsigned i = 0; i < pushNBlocks; ++i) {
@@ -455,8 +458,40 @@ void MultiDimBitset<DIM>::pushBackBitset(const unsigned long* fromStartBlock, un
 }
 
 template <unsigned int DIM>
+bool MultiDimBitset<DIM>::checkRangeUnset(const unsigned long* startBlock, unsigned int nBits,
+			unsigned int lsbStartBit, unsigned int lsbEndBit) {
+	assert (lsbEndBit <= nBits);
+	assert (lsbStartBit <= lsbEndBit);
+
+	const unsigned int startCompareBlockIndex = lsbStartBit / bitsPerBlock;
+	const unsigned int startCompareBitIndex = lsbStartBit % bitsPerBlock;
+	const unsigned int endCompareBlockIndex = lsbEndBit / bitsPerBlock;
+	const unsigned int endCompareBitIndex = lsbEndBit % bitsPerBlock;
+
+	bool rangeBitsUnset = true;
+	for (unsigned blockIndex = startCompareBlockIndex;
+			blockIndex < endCompareBlockIndex + 1uL && rangeBitsUnset;
+			++blockIndex) {
+		unsigned long block = startBlock[blockIndex];
+		if (blockIndex == startCompareBlockIndex) {
+			// mask out lower bits
+			block &= filledBlock << startCompareBitIndex;
+		}
+		if (blockIndex == endCompareBlockIndex) {
+			// mask out upper bits
+			block &= filledBlock >> endCompareBitIndex;
+		}
+
+		rangeBitsUnset = (block == 0uL);
+	}
+
+	return rangeBitsUnset;
+}
+
+template <unsigned int DIM>
 pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const unsigned long* v1Start,
 		const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits) {
+	assert (nBits != skipLowestNBits);
 	bool isSmaller[DIM] = {};
 	bool isEqual[DIM] = {};
 	bool allCompared = false;

@@ -85,6 +85,15 @@ int mainSimpleExample() {
 		cout << entryInRange << endl;
 	}
 
+	cout << "The following entries are in the range (74,20) - (74,21):" << endl;
+	it = phtree->rangeQuery(
+			Entry<2, bitLength>({74,20}, 0),
+			Entry<2, bitLength>({74,21}, 0));
+	while (it->hasNext()) {
+		Entry<2, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+
 	delete visitor;
 	delete phtree;
 	delete e1;
@@ -114,8 +123,7 @@ int main(int argc, char* argv[]) {
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		return mainSimpleExample();
 	} else if (plot.compare(argv[1]) == 0) {
-//		PlotUtil::plotAverageInsertTimePerDimension("./plot/data/phtree_java_rand_unique_entries.dat", 32);
-		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotTimeSeriesOfInserts();
 		PlotUtil::plotAverageInsertTimePerDimensionRandom();
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 		return 0;

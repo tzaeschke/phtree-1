@@ -26,7 +26,7 @@
 #define ENTRY_DIM 	3
 #define ENTRY_DIM_INSERT_SERIES 3
 
-#define INSERT_ENTRY_DIMS {3, 6, 8, 10};
+#define INSERT_ENTRY_DIMS {6, 8, 10};
 #define INSERT_ENTRY_NUMBERS {100, 10000, 100000, 1000000};
 
 #define N_REPETITIONS 10
@@ -82,6 +82,7 @@ private:
 #include "visitors/PrefixSharingVisitor.h"
 #include "util/FileInputUtil.h"
 #include "util/rdtsc.h"
+#include "util/RangeQueryUtil.h"
 
 using namespace std;
 
@@ -125,59 +126,66 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<
 
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
 
-		// clock() -> insert all entries of one dim into the appropriate tree -> clock()
-		unsigned int insertTicks = 0;
-		unsigned int lookupTicks = 0;
-		unsigned int nAHCNodes = 0;
-		unsigned int nLHCNodes = 0;
-		unsigned int totalLhcBitSize = 0;
-		unsigned int totalAhcBitSize = 0;
-		unsigned int totalTreeBitSize = 0;
 		CountNodeTypesVisitor<DIM>* visitor = new CountNodeTypesVisitor<DIM>();
 		SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
 		PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
 
+		// insertion
+		// clock() -> insert all entries of one dim into the appropriate tree -> clock()
 		unsigned int startInsertTime = clock();
 		for (size_t iEntry = 0; iEntry < entries->size(); iEntry++) {
 			Entry<DIM, WIDTH> entry = (*entries)[iEntry];
 			phtree->insert(&entry);
 		}
-		unsigned int totalInsertTicks = clock() - startInsertTime;
+		unsigned int insertTicks = clock() - startInsertTime;
+		// lookup
 		unsigned int startLookupTime = clock();
 		for (size_t iEntry = 0; iEntry < entries->size(); iEntry++) {
 			Entry<DIM, WIDTH> entry = (*entries)[iEntry];
 			bool contained = phtree->lookup(&entry).first;
 			assert (contained);
 		}
-		unsigned int totalLookupTicks = clock() - startLookupTime;
+		unsigned int lookupTicks = clock() - startLookupTime;
+		// range query
+		const unsigned int startRangeQueryTicks = clock();
+		RangeQueryIterator<DIM, WIDTH>* it = RangeQueryUtil<DIM, WIDTH>::getSkewedRangeIterator(*phtree, 0.1, 0.7);
+		unsigned int nElementsInRange = 0;
+		while (it->hasNext()) {
+			it->next();
+			++nElementsInRange;
+		}
+		const unsigned int rangeQueryTicks = clock() - startRangeQueryTicks;
+
 		phtree->accept(visitor);
 		phtree->accept(sizeVisitor);
 		phtree->accept(prefixVisitor);
 		cout << "d=" << DIM << endl << *visitor << *prefixVisitor << *sizeVisitor << endl;
-		insertTicks = totalInsertTicks;
-		lookupTicks = totalLookupTicks;
-		nAHCNodes = visitor->getNumberOfVisitedAHCNodes();
-		nLHCNodes = visitor->getNumberOfVisitedLHCNodes();
-		totalAhcBitSize = sizeVisitor->getTotalAhcBitSize();
-		totalLhcBitSize = sizeVisitor->getTotalLhcBitSize();
-		totalTreeBitSize = sizeVisitor->getTotalTreeBitSize();
+
+		unsigned int nAHCNodes = visitor->getNumberOfVisitedAHCNodes();
+		unsigned int nLHCNodes = visitor->getNumberOfVisitedLHCNodes();
+		unsigned int totalAhcBitSize = sizeVisitor->getTotalAhcBitSize();
+		unsigned int totalLhcBitSize = sizeVisitor->getTotalLhcBitSize();
+		unsigned int totalTreeBitSize = sizeVisitor->getTotalTreeBitSize();
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME, false);
-		cout << "\tdim\tinsert [ms]\t\tlookup [ms]\t\tsize [bit per dimension]" << endl;
-			float insertMs = (float (insertTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
-			float lookupMs = (float (lookupTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
-			float totalSizeBit = (float(totalAhcBitSize + totalLhcBitSize + totalTreeBitSize)) / entries->size();
-			(*plotFile) << runNumber
-				<< "\t" << DIM
-				<< "\t"	<< insertMs
-				<< "\t" << lookupMs
-				<< "\t"	<< nAHCNodes
-				<< "\t" << nLHCNodes
-				<< "\t" << (float(totalAhcBitSize) / entries->size() / DIM)
-				<< "\t" << (float(totalLhcBitSize) / entries->size() / DIM)
-				<< "\t" << (float(totalTreeBitSize) / entries->size() / DIM) << "\n";
-			cout << runNumber << "\t" << DIM << "\t" << insertMs << "\t\t" << lookupMs  << "\t\t" << totalSizeBit << endl;
+		float insertMs = (float (insertTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
+		float lookupMs = (float (lookupTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
+		float rangeQueryMs = (float (rangeQueryTicks) / nElementsInRange / (CLOCKS_PER_SEC / 1000));
+		float totalSizeBit = (float(totalAhcBitSize + totalLhcBitSize + totalTreeBitSize)) / entries->size();
+		(*plotFile) << runNumber
+			<< "\t" << DIM
+			<< "\t"	<< insertMs
+			<< "\t" << lookupMs
+			<< "\t" << rangeQueryMs
+			<< "\t"	<< nAHCNodes
+			<< "\t" << nLHCNodes
+			<< "\t" << (float(totalAhcBitSize) / entries->size() / DIM)
+			<< "\t" << (float(totalLhcBitSize) / entries->size() / DIM)
+			<< "\t" << (float(totalTreeBitSize) / entries->size() / DIM) << "\n";
+		cout << "\tdim\tinsert [ms]\t\tlookup [ms]\t\trange query [ms]\tsize [bit per dimension]" << endl;
+		cout << runNumber << "\t" << DIM << "\t" << insertMs << "\t\t"
+				<< lookupMs << "\t\t" << rangeQueryMs  << "\t\t" << totalSizeBit << endl;
 
 		// clear
 		delete phtree;
@@ -254,6 +262,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, WIDTH>>*> entries) {
 		vector<unsigned int> insertTicks(entries.size());
 		vector<unsigned int> lookupTicks(entries.size());
+		vector<unsigned int> rangeQueryTicks(entries.size());
+		vector<unsigned int> nElementsInRange(entries.size());
 		vector<unsigned int> nAHCNodes(entries.size());
 		vector<unsigned int> nLHCNodes(entries.size());
 		vector<unsigned int> totalLhcBitSize(entries.size());
@@ -281,6 +291,16 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 			}
 			const unsigned int totalLookupTicks = clock() - startLookupTime;
 			CALLGRIND_STOP_INSTRUMENTATION;
+
+			const unsigned int startRangeQueryTicks = clock();
+			RangeQueryIterator<DIM, WIDTH>* it = RangeQueryUtil<DIM, WIDTH>::getSkewedRangeIterator(*tree, 0.1, 0.7);
+			unsigned int elementsInRange = 0;
+			while (it->hasNext()) {
+				it->next();
+				++elementsInRange;
+			}
+			const unsigned int totalRangeQueryTicks = clock() - startRangeQueryTicks;
+
 			tree->accept(visitor);
 			tree->accept(sizeVisitor);
 			tree->accept(prefixVisitor);
@@ -288,6 +308,8 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 
 			insertTicks.at(test) = totalInsertTicks;
 			lookupTicks.at(test) = totalLookupTicks;
+			rangeQueryTicks.at(test) = totalRangeQueryTicks;
+			nElementsInRange.at(test) = elementsInRange;
 			nAHCNodes.at(test) = visitor->getNumberOfVisitedAHCNodes();
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
 			totalLhcBitSize.at(test) = sizeVisitor->getTotalLhcBitSize();
@@ -313,6 +335,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 					<< sizes[test] << "\t"
 					<< (float (insertTicks[test]) / sizes[test] / CLOCKS_PER_SEC * 1000) << "\t"
 					<< (float (lookupTicks[test]) / sizes[test] / CLOCKS_PER_SEC * 1000) << "\t"
+					<< (float (rangeQueryTicks[test]) / nElementsInRange[test] / CLOCKS_PER_SEC * 1000) << "\t"
 					<< nAHCNodes.at(test) << "\t"
 					<< nLHCNodes.at(test) << "\t"
 					<< (float(totalAhcBitSize.at(test)) / sizes[test] / ENTRY_DIM_INSERT_SERIES) << "\t"
@@ -391,6 +414,8 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 			phtree.insert(&entry);
 			uint64_t totalInsertTicks = RDTSC() - startInsert;
 //			cout << phtree << endl;
+			size_t nEntries = RangeQueryUtil<ENTRY_DIM, BIT_LENGTH>::countEntriesInFullRange(phtree);
+			assert (nEntries == iEntry + 1);
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
 			phtree.accept(sizeVisitor);

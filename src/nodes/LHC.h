@@ -364,7 +364,9 @@ NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() const {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::end() const {
-	return new LHCIterator<DIM, PREF_BLOCKS, N>(1uL << DIM, *this);
+	NodeIterator<DIM>* it = new LHCIterator<DIM, PREF_BLOCKS, N>(1uL << DIM, *this);
+	++(*it); // TODO needed?
+	return it;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>

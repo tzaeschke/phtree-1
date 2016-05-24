@@ -54,7 +54,7 @@ Entry<DIM, WIDTH>::Entry(const unsigned long* startBlock, int id) : id_(id), nBi
 	// TODO move logic to multi dim bitset
 	const size_t nBlocks = 1 + nBits_ / (sizeof (unsigned long) * 8);
 	assert (nBlocks == sizeof(values_) / sizeof(unsigned long));
-	for (int i = 0; i < nBlocks; ++i) {
+	for (unsigned i = 0; i < nBlocks; ++i) {
 		values_[i] = *(startBlock + i);
 	}
 

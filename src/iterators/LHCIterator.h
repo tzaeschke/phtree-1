@@ -64,7 +64,6 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 	} else {
 		// did not find the address but it is in the range
 		node_->lookupIndex(currentIndex, &(this->address_), &hasSub);
-		this->address_++;
 	}
 }
 
