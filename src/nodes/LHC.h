@@ -29,7 +29,7 @@ public:
 	virtual ~LHC();
 	NodeIterator<DIM>* begin() const override;
 	NodeIterator<DIM>* end() const override;
-	void accept(Visitor<DIM>* visitor, size_t depth) override;
+	void accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) override;
 	void recursiveDelete() override;
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
@@ -472,9 +472,9 @@ size_t LHC<DIM, PREF_BLOCKS, N>::getMaximumNumberOfContents() const {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::accept(Visitor<DIM>* visitor, size_t depth) {
-	visitor->visit(this, depth);
-	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth);
+void LHC<DIM, PREF_BLOCKS, N>::accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) {
+	visitor->visit(this, depth, index);
+	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth, index);
 }
 
 #endif /* LHC_H_ */

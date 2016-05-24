@@ -32,7 +32,7 @@ public:
 	virtual ~AHC();
 	NodeIterator<DIM>* begin() const override;
 	NodeIterator<DIM>* end() const override;
-	void accept(Visitor<DIM>* visitor, size_t depth) override;
+	void accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) override;
 	void recursiveDelete() override;
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
@@ -273,9 +273,9 @@ NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::end() const {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth)  {
-	visitor->visit(this, depth);
-	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth);
+void AHC<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth, unsigned int index)  {
+	visitor->visit(this, depth, index);
+	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth, index);
 }
 
 #endif /* SRC_AHC_H_ */

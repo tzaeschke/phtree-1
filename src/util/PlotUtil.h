@@ -136,6 +136,7 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<
 		CountNodeTypesVisitor<DIM>* visitor = new CountNodeTypesVisitor<DIM>();
 		SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
 		PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
+		SuffixVisitor<DIM>* suffixVisitor = new SuffixVisitor<DIM>();
 
 		unsigned int startInsertTime = clock();
 		for (size_t iEntry = 0; iEntry < entries->size(); iEntry++) {
@@ -153,7 +154,8 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<
 		phtree->accept(visitor);
 		phtree->accept(sizeVisitor);
 		phtree->accept(prefixVisitor);
-		cout << "d=" << DIM << endl << *visitor << *prefixVisitor << *sizeVisitor << endl;
+		phtree->accept(suffixVisitor);
+		cout << "d=" << DIM << endl << *visitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
 		insertTicks = totalInsertTicks;
 		lookupTicks = totalLookupTicks;
 		nAHCNodes = visitor->getNumberOfVisitedAHCNodes();
@@ -184,6 +186,7 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<
 		delete visitor;
 		delete sizeVisitor;
 		delete prefixVisitor;
+		delete suffixVisitor;
 		plotFile->close();
 		delete plotFile;
 		delete entries;
@@ -271,6 +274,8 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 		CountNodeTypesVisitor<DIM>* visitor = new CountNodeTypesVisitor<DIM>();
 		SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
 		PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
+		SuffixVisitor<DIM>* suffixVisitor = new SuffixVisitor<DIM>();
+
 		for (size_t test = 0; test < entries.size(); test++) {
 			PHTree<DIM, WIDTH>* tree = new PHTree<DIM, WIDTH>();
 			const unsigned int startInsertTime = clock();
@@ -290,7 +295,8 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 			tree->accept(visitor);
 			tree->accept(sizeVisitor);
 			tree->accept(prefixVisitor);
-			cout << "n=" << entries[test]->size() << endl << *visitor << *prefixVisitor << *sizeVisitor << endl;
+			tree->accept(suffixVisitor);
+			cout << "n=" << entries[test]->size() << endl << *visitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
 
 			insertTicks.at(test) = totalInsertTicks;
 			lookupTicks.at(test) = totalLookupTicks;
@@ -304,12 +310,14 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 			visitor->reset();
 			sizeVisitor->reset();
 			prefixVisitor->reset();
+			suffixVisitor->reset();
 			delete tree;
 			delete entries[test];
 		}
 		delete visitor;
 		delete sizeVisitor;
 		delete prefixVisitor;
+		delete suffixVisitor;
 
 		cout << " ok" << endl;
 		// write gathered data into a file

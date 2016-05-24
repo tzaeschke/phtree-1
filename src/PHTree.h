@@ -102,7 +102,7 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(Entry<DIM, WIDTH>
 template <unsigned int DIM, unsigned int WIDTH>
 void PHTree<DIM, WIDTH>::accept(Visitor<DIM>* visitor) {
 	(*visitor).template visit<WIDTH>(this);
-	root_->accept(visitor, 0);
+	root_->accept(visitor, 0, 0);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
