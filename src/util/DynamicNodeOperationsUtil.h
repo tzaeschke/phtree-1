@@ -77,24 +77,36 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	// 5. add remaining bits after prefix and addresses as suffixes
 	// TODO what if suffix length == 0?!
 	const size_t newSuffixLength = WIDTH - (currentIndex + 1 + prefixLength + 1);
+	bool storeSuffixInNode = subnode->canStoreSuffixInternally(newSuffixLength * DIM);
 	// create the required suffix blocks for both entries and insert a reference into the subnode
-	if (subnode->canStoreSuffixInternally(newSuffixLength * DIM)) {
+	unsigned long* insertEntrySuffixStartBlock = NULL;
+	unsigned long* existingEntrySuffixStartBlock = NULL;
+	unsigned long insertEntrySuffix = 0uL;
+	unsigned long existingEntrySuffix = 0uL;
 
+	if (storeSuffixInNode) {
+		assert (newSuffixLength <= 8 * sizeof(unsigned long));
+		insertEntrySuffixStartBlock = &insertEntrySuffix;
+		existingEntrySuffixStartBlock = &existingEntrySuffix;
 	} else {
-		unsigned long* insertEntrySuffixStartBlock = tree->reserveSuffixSpace(newSuffixLength * DIM);
-		unsigned long* existingEntrySuffixStartBlock = tree->reserveSuffixSpace(newSuffixLength * DIM);
-		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry->id_);
-		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffixStartBlock, content.id);
-
+		insertEntrySuffixStartBlock = tree->reserveSuffixSpace(newSuffixLength * DIM);
+		existingEntrySuffixStartBlock = tree->reserveSuffixSpace(newSuffixLength * DIM);
 	}
-
 
 	// trim the existing entry's suffix by the common prefix length
 	MultiDimBitset<DIM>::removeHighestBits(content.suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
 	// insert the last bits of the new entry
 	MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
-	// remove the old suffix
-// TODO free space	tree->freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
+
+	if (storeSuffixInNode) {
+		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffix, entry->id_);
+		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffix, content.id);
+	} else {
+		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry->id_);
+		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffixStartBlock, content.id);
+		// remove the old suffix
+		// TODO free space	tree->freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
+	}
 
 	// no need to adjust the size of the node because the correct node type was already provided
 	assert (currentNode->lookup(content.address).subnode == subnode);
@@ -105,6 +117,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
 		const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree) {
+	// TODO reuse this method in other two cases!
 	Node<DIM>* adjustedNode = currentNode;
 	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
 		// need to adjust the node to insert another entry
@@ -112,15 +125,20 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	}
 	assert(adjustedNode->getNumberOfContents() < adjustedNode->getMaximumNumberOfContents());
 
-	// TODO reuse this method in other two cases!
 	const size_t suffixLength = WIDTH - (currentIndex + 1);
-	unsigned long* suffixStartBlock = tree->reserveSuffixSpace(suffixLength * DIM);
-	adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry->id_);
-	MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
+	if (adjustedNode->canStoreSuffixInternally(suffixLength * DIM)) {
+		unsigned long suffix = 0uL;
+		MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, &suffix);
+		adjustedNode->insertAtAddress(hcAddress, suffix, entry->id_);
+	} else {
+		unsigned long* suffixStartBlock = tree->reserveSuffixSpace(suffixLength * DIM);
+		adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry->id_);
+		MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
+		assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);
+	}
 
 	assert(adjustedNode);
 	assert(adjustedNode->lookup(hcAddress).exists);
-	assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);
 	assert(adjustedNode->lookup(hcAddress).id == entry->id_);
 	return adjustedNode;
 }

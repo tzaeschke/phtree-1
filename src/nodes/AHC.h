@@ -50,7 +50,11 @@ private:
 
 	size_t nContents;
 	int ids_[1 << DIM];
-	// stores flags in 2 lowest bits per reference: exists | hasSub
+	// stores flags in 2 lowest bits per reference: isPointer | isSuffix
+	// 00 - entry does not exist
+	// 01 - the entry directly stores a suffix
+	// 10 - the entry holds a reference to a subnode
+	// 11 - the entry holds a reference to a suffix
 	std::uintptr_t references_[1 << DIM];
 	static const unsigned long refMask = (-1) << 2; // mask to remove the 2 flag bits
 
@@ -157,6 +161,29 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long  suffix, int id) {
+	assert (hcAddress < 1ul << DIM);
+
+	bool exists;
+	bool hasSubnode;
+	uintptr_t ref;
+	getRef(hcAddress, &exists, &hasSubnode, &ref);
+
+	if (!exists) {
+		nContents++;
+		assert ((references_[hcAddress] & 3) == 0);
+	}
+
+	assert (((reinterpret_cast<uintptr_t>(suffixStartBlock) & 3) == 0) && "last 2 bits must not be set!");
+	// exists flag = true, has subnode flag = false
+	references_[hcAddress] = 2 | reinterpret_cast<uintptr_t>(suffixStartBlock);
+	ids_[hcAddress] = id;
+
+
+	assert(((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const unsigned long* const suffixStartBlock, int id) {
 	assert (hcAddress < 1ul << DIM);
 
@@ -209,7 +236,8 @@ Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 bool AHC<DIM, PREF_BLOCKS>::canStoreSuffixInternally(size_t nSuffixBits) {
-	return nSuffixBits < 8 * sizeof(uintptr_t);
+	// needs to store 2 bit
+	return nSuffixBits < (8 * sizeof(uintptr_t) - 2);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

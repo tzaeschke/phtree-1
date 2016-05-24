@@ -54,7 +54,8 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 
 	bool exists = false;
 	bool hasSub = false;
-	node_->lookupAddress(address, &exists, &currentIndex, &hasSub);
+	bool directlyStored = false;
+	node_->lookupAddress(address, &exists, &currentIndex, &hasSub, &directlyStored);
 	if (exists) {
 		// found address so set it
 		this-> address_ = address;
@@ -63,7 +64,7 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 		this->address_ = 1 << DIM;
 	} else {
 		// did not find the address but it is in the range
-		node_->lookupIndex(currentIndex, &(this->address_), &hasSub);
+		node_->lookupIndex(currentIndex, &(this->address_), &hasSub, &directlyStored);
 		this->address_++;
 	}
 }
@@ -77,7 +78,8 @@ NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS, N>::operator++() {
 		this->address_ = 1 << DIM;
 	} else {
 		bool hasSub = false;
-		node_->lookupIndex(currentIndex, &(this->address_), &hasSub);
+		bool directlyStored = false;
+		node_->lookupIndex(currentIndex, &(this->address_), &hasSub, &directlyStored);
 	}
 	return *this;
 }
@@ -92,7 +94,8 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() {
 
 	NodeAddressContent<DIM> content;
 	content.exists = true;
-	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode);
+	bool directlyStored = false;
+	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode, &directlyStored);
 	if (content.hasSubnode) {
 		content.subnode = (Node<DIM>*) node_->references_[currentIndex];
 	} else {
