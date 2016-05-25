@@ -416,6 +416,8 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 //			cout << phtree << endl;
 			size_t nEntries = RangeQueryUtil<ENTRY_DIM, BIT_LENGTH>::countEntriesInFullRange(phtree);
 			assert (nEntries == iEntry + 1);
+			bool entryInFullRange = RangeQueryUtil<ENTRY_DIM, BIT_LENGTH>::fullRangeContainsEntry(phtree, entry);
+			assert (entryInFullRange);
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
 			phtree.accept(sizeVisitor);

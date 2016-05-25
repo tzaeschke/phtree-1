@@ -51,8 +51,9 @@ Entry<DIM, WIDTH>::Entry(const vector<unsigned long> &values, int id) : id_(id),
 
 template <unsigned int DIM, unsigned int WIDTH>
 Entry<DIM, WIDTH>::Entry(const unsigned long* startBlock, int id) : id_(id), nBits_(DIM * WIDTH) {
+	assert (nBits_ > 0);
 	// TODO move logic to multi dim bitset
-	const size_t nBlocks = 1 + nBits_ / (sizeof (unsigned long) * 8);
+	const size_t nBlocks = 1u + (nBits_ - 1u) / (sizeof (unsigned long) * 8u);
 	assert (nBlocks == sizeof(values_) / sizeof(unsigned long));
 	for (unsigned i = 0; i < nBlocks; ++i) {
 		values_[i] = *(startBlock + i);
