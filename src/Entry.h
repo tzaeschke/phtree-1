@@ -95,7 +95,7 @@ ostream& operator <<(ostream& os, const Entry<D, W> &e) {
 
 template <unsigned int D, unsigned int W>
 bool operator ==(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
-	return entry1.values_ == entry2.values_;
+	return entry1.id_ == entry2.id_;
 }
 
 template <unsigned int D, unsigned int W>

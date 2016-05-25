@@ -350,8 +350,11 @@ void MultiDimBitset<DIM>::removeHighestBits(unsigned long* startBlock,
 	} else {
 		// clear within several block (lsb and msb masks can be applied!)
 		// retain the lsb bits that are not within the removal scope
-		const unsigned long lsbBlockMask = filledBlock >> (bitsPerBlock - firstClearBitIndex);
-		startBlock[firstClearBlockIndex] &= lsbBlockMask;
+		if (firstClearBitIndex == 0) startBlock[firstClearBlockIndex] = 0;
+		else {
+			const unsigned long lsbBlockMask = filledBlock >> (bitsPerBlock - firstClearBitIndex);
+			startBlock[firstClearBlockIndex] &= lsbBlockMask;
+		}
 
 		if (lastClearBlockIndex - firstClearBlockIndex > 1) {
 			// fully clear all blocks that are completely in the removal range:
@@ -362,8 +365,11 @@ void MultiDimBitset<DIM>::removeHighestBits(unsigned long* startBlock,
 		}
 
 		// retain the msb bits that are not within the removal scope
-		const unsigned long msbBlockMask = filledBlock << (lastClearBlockBitIndex + 1);
-		startBlock[lastClearBlockIndex] &= msbBlockMask;
+		if (lastClearBlockIndex == bitsPerBlock - 1) startBlock[lastClearBlockIndex] = 0;
+		else {
+			const unsigned long msbBlockMask = filledBlock << (lastClearBlockBitIndex + 1);
+			startBlock[lastClearBlockIndex] &= msbBlockMask;
+		}
 	}
 }
 
@@ -420,7 +426,8 @@ void MultiDimBitset<DIM>::clearValue(unsigned long* startBlock, unsigned int lsb
 
 	assert (endBlockIndex - startBlockIndex <= 1);
 	if (startBlockIndex != endBlockIndex) {
-		startBlock[startBlockIndex + 1] &= ~(addressMask >> (bitsPerBlock - startBitIndex));
+		assert (startBitIndex != 0 && "otherwise the shift does not work");
+		startBlock[startBlockIndex + 1] &= filledBlock << (bitsPerBlock - startBitIndex + 1);
 	}
 }
 
