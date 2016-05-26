@@ -14,6 +14,7 @@
 #include <iostream>
 
 #define AVERAGE_INSERT_DIM_PLOT_NAME "phtree_average_insert_dimensions"
+#define RANGE_QUERY_RATIO_PLOT_NAME "phtree_average_range_query_ratio"
 #define AVERAGE_INSERT_ENTRIES_PLOT_NAME "phtree_average_insert_entries"
 #define INSERT_SERIES_PLOT_NAME "phtree_insert_series"
 
@@ -27,11 +28,13 @@
 #define ENTRY_DIM_INSERT_SERIES 3
 
 #define INSERT_ENTRY_DIMS {3, 6, 8, 10};
-#define INSERT_ENTRY_NUMBERS {100, 10000, 100000, 1000000};
+#define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
+#define SQUARE_WIDTH_PERCENT {0.05, 0.1, 0.15, 0.2, 0.25, 0.5};
 
 #define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
 #define N_RANDOM_ENTRIES_INSERT_SERIES 100
+#define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
 
 template <unsigned int DIM, unsigned int WIDTH>
 class Entry;
@@ -53,6 +56,10 @@ public:
 	static void plotAverageInsertTimePerNumberOfEntries(std::string file);
 	static void plotAverageInsertTimePerNumberOfEntriesRandom();
 	static void plotAverageInsertTimePerNumberOfEntriesRandom(std::vector<size_t> nEntries);
+
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotRangeQueryTimePerPercentFilled(std::vector<Entry<DIM, WIDTH>>& entries);
+	static void plotRangeQueryTimePerPercentFilledRandom();
 
 	static void plotTimeSeriesOfInserts();
 
@@ -206,7 +213,67 @@ void PlotUtil::plotAverageInsertTimePerDimension(std::string file) {
 	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries);
 }
 
-inline
+void PlotUtil::plotRangeQueryTimePerPercentFilledRandom() {
+
+	cout << "creating " << N_RANDOM_ENTRIES_RANGE_QUERY << " entries for the range query...";
+	vector<Entry<ENTRY_DIM, BIT_LENGTH>>* entries = generateUniqueRandomEntriesList<ENTRY_DIM, BIT_LENGTH>(N_RANDOM_ENTRIES_RANGE_QUERY);
+	cout << " ok" << endl;
+	plotRangeQueryTimePerPercentFilled(*entries);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotRangeQueryTimePerPercentFilled(std::vector<Entry<DIM, WIDTH>>& entries) {
+
+	// create a PH-Tree with the given entries
+	cout << "inserting all entries into a PH-Tree...";
+	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
+	for (size_t iEntry = 0; iEntry < entries.size(); iEntry++) {
+		Entry<DIM, WIDTH> entry = entries[iEntry];
+		phtree->insert(&entry);
+	}
+	cout << " ok" << endl;
+
+	entries.clear();
+
+	double squareWidth[] = SQUARE_WIDTH_PERCENT;
+	size_t nTests = sizeof (squareWidth) / sizeof (double);
+
+	ofstream* plotFile = openPlotFile(RANGE_QUERY_RATIO_PLOT_NAME, true);
+	cout << "range width\taverage init [ms]\taverage query time [ms]\t #elements in range" << endl;
+	for (unsigned test = 0; test < nTests; ++test) {
+
+		const double sideLengthPercent = squareWidth[test];
+		// create a centered square with the given side length
+		const double lowerPercent = (1.0 - sideLengthPercent) / 2.0;
+		const double upperPercent = 1.0 - lowerPercent;
+		const unsigned int startInitRangeQueryTicks = clock();
+		RangeQueryIterator<DIM, WIDTH>* it = RangeQueryUtil<DIM, WIDTH>::getSkewedRangeIterator(*phtree, lowerPercent, upperPercent);
+		const unsigned int initRangeQueryTicks = clock() - startInitRangeQueryTicks;
+		unsigned int nElementsInRange = 0;
+		const unsigned int startRangeQueryTicks = clock();
+		while (it->hasNext()) {
+			it->next();
+			++nElementsInRange;
+		}
+		const unsigned int rangeQueryTicks = clock() - startRangeQueryTicks;
+		delete it;
+
+		const double avgInitMs = double(initRangeQueryTicks) / CLOCKS_PER_SEC * 1000 / nElementsInRange;
+		const double avgRangeQueryMs = double(rangeQueryTicks) / CLOCKS_PER_SEC * 1000 / nElementsInRange;
+
+		cout << squareWidth[test] << "\t\t" << avgInitMs << "\t\t"
+				<< avgRangeQueryMs << "\t\t" << nElementsInRange << endl;
+		(*plotFile) << test << "\t" << squareWidth[test] << "\t"
+				<< avgInitMs << "\t" << avgRangeQueryMs << "\t"
+				<< nElementsInRange << endl;
+	}
+
+	plotFile->close();
+	delete plotFile;
+	delete phtree;
+
+	plot(RANGE_QUERY_RATIO_PLOT_NAME);
+}
 
 void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 	size_t dimTests[] = INSERT_ENTRY_DIMS
