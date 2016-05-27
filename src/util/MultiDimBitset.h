@@ -15,30 +15,80 @@ template <unsigned int DIM>
 class MultiDimBitset {
 public:
 	static const size_t bitsPerBlock = sizeof(unsigned long) * 8;
-	static const size_t filledBlock = -1; // a block with all bits set to 1
 
 	template <unsigned int WIDTH>
 	static void toBitset(const std::vector<unsigned long> &values, unsigned long* const outStartBlock);
+
 	static std::pair<bool, size_t> compare(const unsigned long* const startBlock, unsigned int nBits,
 			size_t fromIndex, size_t toIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
+
 	static std::vector<unsigned long> toLongs(const unsigned long* const fromStartBlock, size_t nBits);
+
 	static unsigned long interleaveBits(const unsigned long* const fromStartBlock, size_t index, size_t nBits);
+
 	// TODO add: remove x <= 64 bits within block method by applying a bit mask
 	static void removeHighestBits(const unsigned long* const startBlock, unsigned int nBits, size_t nBitsToRemove, unsigned long* const outStartBlock);
+
+	static void removeHighestBits(unsigned long* const startBlock, unsigned int nBits, size_t nBitsToRemove);
+
 	static void duplicateHighestBits(const unsigned long* startBlock, unsigned int nBits, unsigned int nBitsToDuplicate, unsigned long* const outStartBlock);
+
 	static size_t calculateLongestCommonPrefix(const unsigned long* const startBlock, unsigned int nBits, size_t startIndex,
 			const unsigned long* const otherStartBlock, unsigned int otherNBits, unsigned long* const outStartBlock);
-	static std::ostream& output(std::ostream &os, const unsigned long* const startBlock, unsigned int nBits);
 
+	static void pushBackValue(unsigned long value, unsigned long* pushStartBlock, unsigned int nBits);
+
+	static void clearValue(unsigned long* startBlock, unsigned int lsbBits);
+
+	static void pushBackBitset(const unsigned long* fromStartBlock, unsigned int fromNBits,
+			unsigned long* const pushToStartBlock, unsigned int toNBits);
+
+	static std::pair<unsigned int, unsigned int> compareSmallerEqual(const unsigned long* v1Start,
+			const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits);
+
+	static bool checkRangeUnset(const unsigned long* startBlock, unsigned int nBits,
+			unsigned int lsbStartBit, unsigned int lsbEndBit);
+
+	static std::ostream& output(std::ostream &os, const unsigned long* const startBlock, unsigned int nBits);
 private:
 	static inline std::pair<bool, size_t> compareAlignedBlocks(const unsigned long b1, const unsigned long b2);
+
+	static const unsigned long filledBlock = -1; // a block with all bits set to 1
+	// TODO reuse this mask in all the methods
+	static const unsigned long addressMask = (1uL << DIM) - 1;
+
+
+	// off DIM DIM DIM
+	// [01 001 001 001]
+	static unsigned long dimBlock;
+	static const unsigned int dimBlockOffset = (bitsPerBlock % DIM == 0)? 0 : bitsPerBlock - (((bitsPerBlock / DIM) * DIM) % bitsPerBlock);
+	static unsigned long initDimBlock();
 };
+
+template <unsigned int DIM>
+unsigned long MultiDimBitset<DIM>::dimBlock = initDimBlock();
 
 #include <string.h>
 #include <float.h>
 #include <math.h>
 
 using namespace std;
+
+template <unsigned int DIM>
+unsigned long MultiDimBitset<DIM>::initDimBlock() {
+	const unsigned int offset = dimBlockOffset;
+	assert (offset < DIM);
+
+	const size_t dimChunksPerBlock = 1 + bitsPerBlock / DIM;
+	unsigned long dimBlock = 0;
+	for (unsigned i = 0; i < dimChunksPerBlock; ++i) {
+		dimBlock <<= DIM;
+		dimBlock |= 1uL;
+	}
+
+	return dimBlock;
+}
+
 
 template <unsigned int DIM>
 template <unsigned int WIDTH>
@@ -51,7 +101,6 @@ void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, uns
 	assert (sizeof (unsigned long) * 8 >= WIDTH);
 	assert (values.size() == DIM);
 	assert (outStartBlock[0] == 0);
-	const size_t nBits = DIM * WIDTH;
 	// TODO change loop order?
 	for (size_t d = 0; d < DIM; ++d) {
 		for (size_t i = 0; i < WIDTH; ++i) {
@@ -64,7 +113,7 @@ void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, uns
 		}
 	}
 
-	assert(toLongs(outStartBlock, nBits) == values);
+	assert(toLongs(outStartBlock, DIM * WIDTH) == values);
 }
 
 
@@ -276,66 +325,53 @@ void MultiDimBitset<DIM>::removeHighestBits(const unsigned long* startBlock,
 	// removed further bits by simply not copying them
 }
 
-/*template <unsigned int DIM>
-void MultiDimBitset<DIM>::pushBitsToBack(const MultiDimBitset<DIM>* source) {
-	assert(source);
-	assert(source->getDim() == DIM);
-	assert (bits.bits_per_block == source->bits.bits_per_block);
-
-	if (source->bits.empty()) {
-		return;
-	}
-
-	// before push: | before   \ free |
-	// source:      | v_1 \   r_1     | , | v_2 \   r_2     | , | v_3 \ r_3 \ free|
-	//              | vL  \  rL       | , |-----\-----------| , |-----\-----------|
-	// after push:  | before   \ v_1  | , |   r_1    \ v_2  | , |   r_2     \ v_3 | , |   r_3  \ free  |
-
-	const size_t initialSize = bits.size();
-	const unsigned long vL = initialSize % bits.bits_per_block;
-	const unsigned long rL = bits.bits_per_block - vL;
-	const unsigned long vMask = (1uL << vL) - 1;
-	const unsigned long rMask = ULLONG_MAX << vL;
-	assert (vL + rL == bits.bits_per_block && ((vMask ^ rMask) == ULLONG_MAX));
-
-	const auto lastBlockIndex = initialSize / bits.bits_per_block;
-	const auto sourceBlocks = source->bits.size() / source->bits.bits_per_block;
-
-	// set value in last unfilled block
-	unsigned long sourceBlock = source->bits.m_bits[0];
-	unsigned long v = sourceBlock & vMask;
-	unsigned long r = sourceBlock & rMask;
-	bits.m_bits[lastBlockIndex] &= v << rL;
-	unsigned long currentBlock = r;
-
-	// add current value to free space in current block and set remainder to next block
-	for (size_t b = 1; b < sourceBlocks; ++b) {
-		const unsigned long sourceBlock = source->bits.m_bits[b];
-		const unsigned long v = sourceBlock & vMask;
-		const unsigned long r = sourceBlock & rMask;
-		currentBlock &= v << rL;
-		bits.append(currentBlock);
-		currentBlock = r;
-	}
-	bits.append(currentBlock);
-	bits.resize(initialSize + source->bits.size());
-
-	assert(this->size() == initialSize + source->size());
-}
-
 template <unsigned int DIM>
-void MultiDimBitset<DIM>::pushValueToBack(unsigned long newValue) {
-		boost::dynamic_bitset<> convertedValue = longToBitset(newValue, DIM);
-		assert (convertedValue.size() == DIM);
-		const size_t initialSize = bits.size();
+void MultiDimBitset<DIM>::removeHighestBits(unsigned long* startBlock,
+		unsigned int nBits, size_t nBitsToRemove) {
+	assert (startBlock);
+	assert (nBits >= nBitsToRemove && nBitsToRemove > 0);
 
-		bits.resize(initialSize + DIM);
-		for (size_t i = 0; i < DIM; ++i) {
-			bits[i] = convertedValue[i];
+	// lsb                        msb
+	//      <-remove-><-not changed->
+	// <----nBits---->
+	// [part][full][part][ -- ][ -- ]
+
+	const unsigned int firstClearedBit = nBits - nBitsToRemove;
+	const unsigned int firstClearBlockIndex = firstClearedBit / bitsPerBlock;
+	const unsigned int firstClearBitIndex = firstClearedBit % bitsPerBlock;
+	const unsigned int lastClearBlockIndex = (nBits - 1) / bitsPerBlock;
+	const unsigned int lastClearBlockBitIndex = (nBits - 1) % bitsPerBlock;
+
+	if (firstClearBlockIndex == lastClearBlockIndex) {
+		// clear within one block
+		const unsigned long singleBlockMask = ~(((1uL << nBitsToRemove) - 1uL) << firstClearBitIndex);
+		assert (singleBlockMask != 0);
+		startBlock[firstClearBlockIndex] &= singleBlockMask;
+	} else {
+		// clear within several block (lsb and msb masks can be applied!)
+		// retain the lsb bits that are not within the removal scope
+		if (firstClearBitIndex == 0) startBlock[firstClearBlockIndex] = 0;
+		else {
+			const unsigned long lsbBlockMask = filledBlock >> (bitsPerBlock - firstClearBitIndex);
+			startBlock[firstClearBlockIndex] &= lsbBlockMask;
 		}
 
-		assert (bits.size() == initialSize + DIM);
-}*/
+		if (lastClearBlockIndex - firstClearBlockIndex > 1) {
+			// fully clear all blocks that are completely in the removal range:
+			const unsigned int nFullClearBlocks = lastClearBlockIndex - firstClearBlockIndex - 1;
+			for (unsigned i = 0; i < nFullClearBlocks; ++i) {
+				startBlock[firstClearBlockIndex + 1 + i] = 0;
+			}
+		}
+
+		// retain the msb bits that are not within the removal scope
+		if (lastClearBlockIndex == bitsPerBlock - 1) startBlock[lastClearBlockIndex] = 0;
+		else {
+			const unsigned long msbBlockMask = filledBlock << (lastClearBlockBitIndex + 1);
+			startBlock[lastClearBlockIndex] &= msbBlockMask;
+		}
+	}
+}
 
 template <unsigned int DIM>
 void MultiDimBitset<DIM>::duplicateHighestBits(const unsigned long* startBlock,
@@ -376,6 +412,162 @@ void MultiDimBitset<DIM>::duplicateHighestBits(const unsigned long* startBlock,
 	}
 	outStartBlock[lastBlockIndex - startCopyBlock] = currentBlock;
 	// TODO might need to set the nBits of the out blocks or remove the trailing ones using a mask
+}
+
+template <unsigned int DIM>
+void MultiDimBitset<DIM>::clearValue(unsigned long* startBlock, unsigned int lsbBits) {
+	assert (lsbBits % DIM == 0);
+
+	const unsigned int startBlockIndex = lsbBits / bitsPerBlock;
+	const unsigned int startBitIndex = lsbBits % bitsPerBlock;
+	const unsigned int endBlockIndex = (lsbBits + DIM - 1) / bitsPerBlock;
+
+	startBlock[startBlockIndex] &= ~(addressMask << startBitIndex);
+
+	assert (endBlockIndex - startBlockIndex <= 1);
+	if (startBlockIndex != endBlockIndex) {
+		assert (startBitIndex != 0 && "otherwise the shift does not work");
+		startBlock[startBlockIndex + 1] &= filledBlock << (bitsPerBlock - startBitIndex + 1);
+	}
+}
+
+template <unsigned int DIM>
+void MultiDimBitset<DIM>::pushBackValue(unsigned long interleavedValue, unsigned long* pushStartBlock, unsigned int nBits) {
+	assert (pushStartBlock && nBits % DIM == 0 && interleavedValue < 1<<DIM);
+
+	// the first bit of the interleaved address ought to be placed at index nBits
+	const unsigned int startBlockIndex = nBits / bitsPerBlock;
+	const unsigned int startBitIndex = nBits % bitsPerBlock;
+	const unsigned int endBlockIndex = (nBits + DIM - 1u) / bitsPerBlock;
+
+	pushStartBlock[startBlockIndex] |= interleavedValue << startBitIndex;
+
+	assert (endBlockIndex - startBlockIndex <= 1);
+	if (startBlockIndex != endBlockIndex) {
+		pushStartBlock[endBlockIndex] |= interleavedValue >> (bitsPerBlock - startBitIndex);
+	}
+}
+
+template <unsigned int DIM>
+void MultiDimBitset<DIM>::pushBackBitset(const unsigned long* fromStartBlock, unsigned int fromNBits,
+			unsigned long* const pushToStartBlock, unsigned int toNBits) {
+	assert (fromStartBlock && pushToStartBlock && fromNBits % DIM == 0 && toNBits % DIM == 0);
+	assert (fromNBits > 0);
+
+	//       <--fromNBits-->
+	// from: [    ][    ][  00]
+	//       <--toNBits--->
+	// to:   [    ][    ][ 000]
+	//       <--toNBits---><--fromNBits-->
+	// to:   [ -- ][ -- ][    ][    ][    ]
+
+	const unsigned int fromNBitsIndex = fromNBits - 1u;
+	const unsigned int startPushToBlockIndex = toNBits / bitsPerBlock;
+	const unsigned int startPushToBitIndex = toNBits % bitsPerBlock;
+	const unsigned int pushNBlocks = 1u + fromNBitsIndex / bitsPerBlock;
+
+	for (unsigned i = 0; i < pushNBlocks; ++i) {
+		pushToStartBlock[startPushToBlockIndex + i] |= fromStartBlock[i] << startPushToBitIndex;
+
+		if (startPushToBitIndex != 0 && (i * bitsPerBlock + bitsPerBlock - startPushToBitIndex - 1 < fromNBits)) {
+			pushToStartBlock[startPushToBlockIndex + i + 1] |= fromStartBlock[i] >> (bitsPerBlock - startPushToBitIndex);
+		}
+	}
+}
+
+template <unsigned int DIM>
+bool MultiDimBitset<DIM>::checkRangeUnset(const unsigned long* startBlock, unsigned int nBits,
+			unsigned int lsbStartBit, unsigned int lsbEndBit) {
+	assert (lsbEndBit <= nBits);
+	assert (lsbStartBit <= lsbEndBit);
+
+	if (lsbStartBit == lsbEndBit) return true;
+
+	const unsigned int lsbStartIndex = (lsbStartBit == 0)? 0 : lsbStartBit - 1;
+	const unsigned int lsbEndIndex = (lsbEndBit == 0)? 0 : lsbEndBit - 1;
+	const unsigned int startCompareBlockIndex = lsbStartIndex / bitsPerBlock;
+	const unsigned int startCompareBitIndex = lsbStartIndex % bitsPerBlock;
+	const unsigned int endCompareBlockIndex = lsbEndIndex / bitsPerBlock;
+	const unsigned int endCompareBitIndex = lsbEndIndex % bitsPerBlock;
+
+	bool rangeBitsUnset = true;
+	for (unsigned blockIndex = startCompareBlockIndex;
+			blockIndex < endCompareBlockIndex + 1uL && rangeBitsUnset;
+			++blockIndex) {
+		unsigned long block = startBlock[blockIndex];
+		if (blockIndex == startCompareBlockIndex) {
+			// mask out lower bits
+			block &= filledBlock << startCompareBitIndex;
+		}
+		if (blockIndex == endCompareBlockIndex) {
+			// mask out upper bits
+			block &= filledBlock >> (bitsPerBlock - endCompareBitIndex - 1u);
+		}
+
+		rangeBitsUnset = (block == 0uL);
+	}
+
+	return rangeBitsUnset;
+}
+
+template <unsigned int DIM>
+pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const unsigned long* v1Start,
+		const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits) {
+	assert (nBits != skipLowestNBits);
+	assert (nBits > 0);
+
+	bool isSmaller[DIM] = {};
+	bool isEqual[DIM] = {};
+	bool allCompared = false;
+
+	const unsigned int nBitsIndex = nBits - 1u;
+	const unsigned int skipLowestNBitsIndex = (skipLowestNBits == 0)? 0 : skipLowestNBits - 1u;
+	const unsigned int highestBlock = nBitsIndex / bitsPerBlock;
+	const unsigned int lowestBlock = skipLowestNBitsIndex / bitsPerBlock;
+	const unsigned int cancelBitIndex = skipLowestNBitsIndex % bitsPerBlock;
+	const unsigned long cancelLowestBitsMask = filledBlock << cancelBitIndex;
+
+	for (unsigned int block = highestBlock; !allCompared; --block) {
+		// apply offset to lowest dim bit mask
+		const unsigned int blockOffset = (dimBlockOffset * block) % DIM;
+		assert (blockOffset < DIM);
+
+		unsigned long currentBlockLowestDimMask = dimBlock << blockOffset;
+		const bool hasFurtherBlocks = block != lowestBlock;
+		if (!hasFurtherBlocks) currentBlockLowestDimMask &= cancelLowestBitsMask;
+
+		allCompared = true;
+		const unsigned long v1Block = v1Start[block];
+		const unsigned long v2Block = v2Start[block];
+		for (unsigned d = 0; d < DIM; ++d) {
+			if (isSmaller[d] || isEqual[d]) continue;
+
+			const unsigned long dimExtractionMask = (currentBlockLowestDimMask << d) | (hasFurtherBlocks << blockOffset);
+			const unsigned long v1BlockDimExtracted = v1Block & dimExtractionMask;
+			const unsigned long v2BlockDimExtracted = v2Block & dimExtractionMask;
+			isSmaller[d] = v1BlockDimExtracted < v2BlockDimExtracted;
+			isEqual[d] = !isSmaller[d] && (v1BlockDimExtracted == v2BlockDimExtracted);
+			allCompared = isSmaller[d] || isEqual[d];
+		}
+
+		if (!hasFurtherBlocks) break;
+	}
+
+
+	unsigned int dimLowerComparison = 0;
+	unsigned int dimEqualComparison = 0;
+	for (unsigned d = 0; d < DIM; ++d) {
+		if (isSmaller[d]) {
+			dimLowerComparison |= 1uL << d;
+		} else if (isEqual[d]) {
+			dimEqualComparison |= 1uL << d;
+		}
+	}
+
+	assert (dimLowerComparison < 1uL << DIM);
+	assert (dimEqualComparison < 1uL << DIM);
+	assert ((dimLowerComparison & dimEqualComparison) == 0);
+	return pair<unsigned int, unsigned int>(dimLowerComparison, dimEqualComparison);
 }
 
 // find the longest common prefix starting at the msbStartIndex and sets it to the result to reference

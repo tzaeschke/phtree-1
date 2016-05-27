@@ -20,7 +20,7 @@ class LHCIterator : public NodeIterator<DIM> {
 public:
 	LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node);
 	LHCIterator(unsigned long address, const LHC<DIM, PREF_BLOCKS, N>& node);
-	virtual ~LHCIterator();
+	~LHCIterator();
 
 	void setAddress(size_t address) override;
 	NodeIterator<DIM>& operator++() override;
@@ -64,7 +64,6 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 	} else {
 		// did not find the address but it is in the range
 		node_->lookupIndex(currentIndex, &(this->address_), &hasSub);
-		this->address_++;
 	}
 }
 

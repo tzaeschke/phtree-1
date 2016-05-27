@@ -50,7 +50,6 @@ vector<vector<unsigned long>>* FileInputUtil::readEntries(string fileLocation) {
 	ifstream myfile (fileLocation);
 	vector<vector<unsigned long>>* result = new vector<vector<unsigned long>>();
 	if (myfile.is_open()) {
-		int id = 0;
 		while (!myfile.eof()) {
 			vector<unsigned long> values = getNextLineTokens(myfile);
 			if (!values.empty()) {

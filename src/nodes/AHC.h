@@ -31,6 +31,7 @@ public:
 	AHC(TNode<DIM, PREF_BLOCKS>* node);
 	virtual ~AHC();
 	NodeIterator<DIM>* begin() const override;
+	NodeIterator<DIM>* it(unsigned long hcAddress) const override;
 	NodeIterator<DIM>* end() const override;
 	void accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) override;
 	void recursiveDelete() override;
@@ -208,6 +209,11 @@ Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::begin() const {
 	return new AHCIterator<DIM, PREF_BLOCKS>(*this);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::it(unsigned long hcAddress) const {
+	return new AHCIterator<DIM, PREF_BLOCKS>(hcAddress, *this);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

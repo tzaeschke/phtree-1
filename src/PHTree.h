@@ -38,8 +38,8 @@ public:
 	void insert(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
 	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>& e) const;
 	std::pair<bool,int> lookup(const std::vector<unsigned long>& values) const;
-	std::pair<bool,int> lookup(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues);
-	RangeQueryIterator<DIM, WIDTH>* rangeQuery(Entry<DIM, WIDTH>* lowerLeft, Entry<DIM, WIDTH>* upperRight);
+	std::pair<bool,int> lookup(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
+	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const Entry<DIM, WIDTH> lowerLeft, const Entry<DIM, WIDTH> upperRight) const;
 
 	void accept(Visitor<DIM>* visitor);
 	unsigned long* reserveSuffixSpace(size_t nSuffixBits);
@@ -50,8 +50,6 @@ private:
 	// TODO whats the best size for each suffix block?
 	SuffixBlock<50>* firstSuffixBlock;
 	SuffixBlock<50>* currentSuffixBlock;
-
-
 };
 
 #include <assert.h>
@@ -114,7 +112,7 @@ void PHTree<DIM, WIDTH>::insert(
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>& e) const {
+pair<bool,int> PHTree<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>& e) const {
 	#ifdef PRINT
 		cout << "searching: " << e << endl;
 	#endif
@@ -122,15 +120,15 @@ std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>& e) const
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const std::vector<unsigned long>& values) const {
+pair<bool,int> PHTree<DIM, WIDTH>::lookup(const std::vector<unsigned long>& values) const {
 	const Entry<DIM, WIDTH> entry(values, 0);
 	return lookup(entry);
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
-std::pair<bool, int> PHTree<DIM, WIDTH>::lookup(
+pair<bool, int> PHTree<DIM, WIDTH>::lookup(
 		const std::vector<unsigned long>& lowerLeftValues,
-		const std::vector<unsigned long>& upperRightValues) {
+		const std::vector<unsigned long>& upperRightValues) const {
 
 	assert(lowerLeftValues.size() == upperRightValues.size());
 	assert(lowerLeftValues.size() + upperRightValues.size() == DIM);
@@ -147,10 +145,14 @@ std::pair<bool, int> PHTree<DIM, WIDTH>::lookup(
 
 
 template <unsigned int DIM, unsigned int WIDTH>
-RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(Entry<DIM, WIDTH>* lowerLeft, Entry<DIM, WIDTH>* upperRight) {
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, WIDTH> lowerLeft,
+		const Entry<DIM, WIDTH> upperRight) const {
 	// TODO check if lower left and upper right corners are correctly set
-	//return root_->rangeQuery(lowerLeft, upperRight, 0, 0);
-	return NULL;
+	vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes = new vector<pair<unsigned long, const Node<DIM>*>>();
+	SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(lowerLeft, root_, visitedNodes);
+	RangeQueryIterator<DIM, WIDTH>* it = new RangeQueryIterator<DIM, WIDTH>(visitedNodes, lowerLeft, upperRight);
+
+	return it;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

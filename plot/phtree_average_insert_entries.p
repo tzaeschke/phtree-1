@@ -22,7 +22,8 @@ set xtic scale 0
 set title "PH-Tree operations" 
 plot \
   "plot/data/phtree_average_insert_entries.dat" using 3:xtic(2) t 'insert time',\
-  "" using 4 t 'lookup time'
+  "" using 4 t 'lookup time',\
+  "" using 5 t 'range query time' ls 4
 
 set key right top
 set style data histograms
@@ -33,16 +34,16 @@ set ylabel "number of nodes"
 set title "PH-Tree nodes"
 
 plot \
-  "plot/data/phtree_average_insert_entries.dat" using 5 t '#AHC' ls 3,\
-  "" using 6:xticlabels(2) t '#LHC' ls 5
+  "plot/data/phtree_average_insert_entries.dat" using 6 t '#AHC' ls 3,\
+  "" using 7:xticlabels(2) t '#LHC' ls 5
 
 set ylabel "bits per inserted entry per dimension"
 set title "PH-Tree in-memory size"
 
 plot \
-  "plot/data/phtree_average_insert_entries.dat" using 7 t 'AHC size' ls 3,\
-  "" using 8:xticlabels(2) t 'LHC size' ls 5,\
-  "" using 9:xticlabels(2) t 'suffix blocks size' ls 6
+  "plot/data/phtree_average_insert_entries.dat" using 8 t 'AHC size' ls 3,\
+  "" using 9:xticlabels(2) t 'LHC size' ls 5,\
+  "" using 10:xticlabels(2) t 'suffix blocks size' ls 6
 
 unset multiplot
 unset output

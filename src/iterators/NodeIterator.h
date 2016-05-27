@@ -18,6 +18,8 @@ public:
 	NodeIterator(unsigned long address);
 	virtual ~NodeIterator();
 	bool operator==(const NodeIterator& rhs);
+	bool operator<=(const NodeIterator& rhs);
+	bool operator<(const NodeIterator& rhs);
 	bool operator!=(const NodeIterator& rhs);
 
 	virtual void setAddress(size_t address);
@@ -46,6 +48,16 @@ NodeIterator<DIM>::~NodeIterator() { }
 template <unsigned int DIM>
 bool NodeIterator<DIM>::operator==(const NodeIterator<DIM>& rhs) {
 	 return address_ == rhs.address_;
+}
+
+template <unsigned int DIM>
+bool NodeIterator<DIM>::operator<=(const NodeIterator<DIM>& rhs) {
+	 return address_ <= rhs.address_;
+}
+
+template <unsigned int DIM>
+bool NodeIterator<DIM>::operator<(const NodeIterator<DIM>& rhs) {
+	 return address_ < rhs.address_;
 }
 
 template <unsigned int DIM>

@@ -26,7 +26,7 @@ class Entry {
 public:
 
 	Entry(const std::vector<unsigned long> &values, int id);
-	Entry(unsigned long* startBlock, unsigned int nBits, int id);
+	Entry(const unsigned long* startBlock, int id);
 	~Entry();
 
 	size_t getBitLength() const;
@@ -50,10 +50,12 @@ Entry<DIM, WIDTH>::Entry(const vector<unsigned long> &values, int id) : id_(id),
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-Entry<DIM, WIDTH>::Entry(unsigned long* startBlock, unsigned int nBits, int id) : id_(id), nBits_(nBits) {
-	const size_t nBlocks = 1 + nBits / (sizeof (unsigned long) * 8);
+Entry<DIM, WIDTH>::Entry(const unsigned long* startBlock, int id) : id_(id), nBits_(DIM * WIDTH) {
+	assert (nBits_ > 0);
+	// TODO move logic to multi dim bitset
+	const size_t nBlocks = 1u + (nBits_ - 1u) / (sizeof (unsigned long) * 8u);
 	assert (nBlocks == sizeof(values_) / sizeof(unsigned long));
-	for (int i = 0; i < nBlocks; ++i) {
+	for (unsigned i = 0; i < nBlocks; ++i) {
 		values_[i] = *(startBlock + i);
 	}
 
@@ -93,7 +95,7 @@ ostream& operator <<(ostream& os, const Entry<D, W> &e) {
 
 template <unsigned int D, unsigned int W>
 bool operator ==(const Entry<D, W> &entry1, const Entry<D, W> &entry2) {
-	return entry1.values_ == entry2.values_;
+	return entry1.id_ == entry2.id_;
 }
 
 template <unsigned int D, unsigned int W>

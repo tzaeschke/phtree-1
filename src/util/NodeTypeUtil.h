@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include "nodes/LHC.h"
+#include "nodes/AHC.h"
 
 template <unsigned int DIM>
 class Node;
