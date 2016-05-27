@@ -28,6 +28,7 @@ public:
 	LHC(size_t prefixLength);
 	virtual ~LHC();
 	NodeIterator<DIM>* begin() const override;
+	NodeIterator<DIM>* it(unsigned long hcAddress) const override;
 	NodeIterator<DIM>* end() const override;
 	void accept(Visitor<DIM>* visitor, size_t depth) override;
 	void recursiveDelete() override;
@@ -360,6 +361,11 @@ Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() const {
 	return new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::it(unsigned long hcAddress) const {
+	return new LHCIterator<DIM, PREF_BLOCKS, N>(hcAddress, *this);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>

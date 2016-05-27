@@ -347,11 +347,9 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 	assert (currentContent.lowerMask_ <= currentContent.upperMask_ && currentContent.upperMask_ < (1uL << DIM));
 
 	// start at the lower mask (= smallest possible interleaved address)
-	currentContent.startIt_ = nextNode->begin();
-	currentContent.startIt_->setAddress(currentContent.lowerMask_);
+	currentContent.startIt_ = nextNode->it(currentContent.lowerMask_);
 	// end before the upper mask (= highest possible interleaved address)
-	currentContent.endIt_ = nextNode->begin();
-	currentContent.endIt_->setAddress(currentContent.upperMask_ + 1);
+	currentContent.endIt_ = nextNode->it(currentContent.upperMask_ + 1);
 	assert ((*currentContent.startIt_) <= (*currentContent.endIt_));
 }
 

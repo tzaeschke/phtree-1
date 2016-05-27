@@ -29,12 +29,12 @@
 
 #define INSERT_ENTRY_DIMS {3, 6, 8, 10};
 #define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
-#define SQUARE_WIDTH_PERCENT {0.05, 0.1, 0.15, 0.2, 0.25, 0.5};
+#define SQUARE_WIDTH_PERCENT {0.5};
 
 #define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
 #define N_RANDOM_ENTRIES_INSERT_SERIES 100
-#define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
+#define N_RANDOM_ENTRIES_RANGE_QUERY 100000
 
 template <unsigned int DIM, unsigned int WIDTH>
 class Entry;
@@ -235,11 +235,14 @@ void PlotUtil::plotRangeQueryTimePerPercentFilled(std::vector<Entry<DIM, WIDTH>>
 
 	entries.clear();
 
+
+
 	double squareWidth[] = SQUARE_WIDTH_PERCENT;
 	size_t nTests = sizeof (squareWidth) / sizeof (double);
 
 	ofstream* plotFile = openPlotFile(RANGE_QUERY_RATIO_PLOT_NAME, true);
 	cout << "range width\taverage init [ms]\taverage query time [ms]\t #elements in range" << endl;
+	CALLGRIND_START_INSTRUMENTATION;
 	for (unsigned test = 0; test < nTests; ++test) {
 
 		const double sideLengthPercent = squareWidth[test];
@@ -267,6 +270,7 @@ void PlotUtil::plotRangeQueryTimePerPercentFilled(std::vector<Entry<DIM, WIDTH>>
 				<< avgInitMs << "\t" << avgRangeQueryMs << "\t"
 				<< nElementsInRange << endl;
 	}
+	CALLGRIND_STOP_INSTRUMENTATION;
 
 	plotFile->close();
 	delete plotFile;

@@ -20,7 +20,7 @@ class LHCIterator : public NodeIterator<DIM> {
 public:
 	LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node);
 	LHCIterator(unsigned long address, const LHC<DIM, PREF_BLOCKS, N>& node);
-	virtual ~LHCIterator();
+	~LHCIterator();
 
 	void setAddress(size_t address) override;
 	NodeIterator<DIM>& operator++() override;
