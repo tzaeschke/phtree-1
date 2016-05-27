@@ -126,13 +126,13 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	}
 	assert(adjustedNode->getNumberOfContents() < adjustedNode->getMaximumNumberOfContents());
 
-	const size_t suffixLength = WIDTH - (currentIndex + 1);
-	if (adjustedNode->canStoreSuffixInternally(suffixLength * DIM)) {
+	const size_t suffixBits= DIM * (WIDTH - (currentIndex + 1));
+	if (adjustedNode->canStoreSuffixInternally(suffixBits)) {
 		unsigned long suffix = 0uL;
 		MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, &suffix);
 		adjustedNode->insertAtAddress(hcAddress, suffix, entry->id_);
 	} else {
-		unsigned long* suffixStartBlock = tree->reserveSuffixSpace(suffixLength * DIM);
+		unsigned long* suffixStartBlock = tree->reserveSuffixSpace(suffixBits);
 		adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry->id_);
 		MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
 		assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);

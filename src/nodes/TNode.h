@@ -100,13 +100,13 @@ const unsigned long* TNode<DIM, PREF_BLOCKS>::getFixPrefixStartBlock() const {
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) {
 
-	const size_t prefixLength = getPrefixLength();
 	NodeIterator<DIM>* it;
 	NodeIterator<DIM>* endIt = this->end();
 	for (it = this->begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent<DIM> content = *(*it);
 		assert (content.exists);
 		if (content.hasSubnode) {
+			const size_t prefixLength = content.subnode->getPrefixLength();
 			content.subnode->accept(visitor, depth + 1, index + prefixLength + 1);
 		}
 	}

@@ -35,7 +35,7 @@ public:
 	size_t getMaximumNumberOfContents() const override;
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const override;
 	void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) override;
+	void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
 	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	Node<DIM>* adjustSize() override;
 

@@ -27,7 +27,7 @@
 #define ENTRY_DIM_INSERT_SERIES 3
 
 #define INSERT_ENTRY_DIMS {3, 5, 6, 8, 10};
-#define INSERT_ENTRY_NUMBERS {100, 10000, 100000, 1000000};
+#define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
 
 #define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
@@ -87,12 +87,16 @@ using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 set<Entry<DIM, WIDTH>>* PlotUtil::generateUniqueRandomEntries(size_t nUniqueEntries) {
+	assert (WIDTH <= 8 * sizeof (unsigned long));
+
 	srand(time(NULL));
 	set<Entry<DIM, WIDTH>>* randomDimEntries = new set<Entry<DIM, WIDTH>>();
 	for (size_t nEntry = 0; nEntry < nUniqueEntries; nEntry++) {
 		vector<unsigned long>* entryValues = new vector<unsigned long>(DIM);
 		for (size_t d = 0; d < DIM; d++) {
-			entryValues->at(d) = rand() % (1ul << WIDTH);
+			if (WIDTH < 8 * sizeof(unsigned long))
+				entryValues->at(d) = rand() % (1ul << WIDTH);
+			else entryValues->at(d) = rand();
 		}
 		Entry<DIM, WIDTH> entry(*entryValues, nEntry);
 		bool inserted = randomDimEntries->insert(entry).second;

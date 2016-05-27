@@ -97,7 +97,7 @@ void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsig
 				internallyStoredSuffixBits += currentSuffixBits;
 			} else {
 				externallyStoredSuffixBits += currentSuffixBits;
-				externalSuffixBlocks += 1 + currentSuffixBits / MultiDimBitset<DIM>::bitsPerBlock;
+				externalSuffixBlocks += 1uL + currentSuffixBits / MultiDimBitset<DIM>::bitsPerBlock;
 			}
 		}
 	}
@@ -130,7 +130,8 @@ std::ostream& SuffixVisitor<DIM>::output(std::ostream &out) const {
 	const double avgExternalSuffixBits = double(externallyStoredSuffixBits) / double(externallyStoredSuffixes);
 	const double avgExternalSuffixBlocks = double(externalSuffixBlocks) / double(externallyStoredSuffixes);
 
-	return out << "suffixes internally stored: " << internallyStoredRatioPercent << "% (avg "
+	return out << "suffixes internally stored: " << internallyStoredSuffixes << " / "
+			<< internallyStoredRatioPercent << "% (avg "
 			<< avgInternalSuffixBits << " bits), avg external bits: " << avgExternalSuffixBits << " bits ("
 			<< avgExternalSuffixBlocks << " blocks)" << endl;
 }

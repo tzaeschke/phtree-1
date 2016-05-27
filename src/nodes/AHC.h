@@ -179,6 +179,7 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long  suffix, int id) {
 	assert (hcAddress < 1ul << DIM);
 	assert (sizeof (unsigned long) == sizeof (uintptr_t));
+	assert (suffix < (1uL << (sizeof(uintptr_t) * 8uL - 2uL)));
 
 	bool exists;
 	bool hasSubnode;
@@ -191,7 +192,6 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 		assert ((references_[hcAddress] & 3) == 0);
 	}
 
-	assert (suffix < (1uL << (sizeof(uintptr_t) * 8 - 2)));
 	// 01 -> internally stored suffix
 	// need to shift the suffix in order to have enough space for the meta flags
 	const unsigned long suffixShifted = 1 | (suffix << 2);
