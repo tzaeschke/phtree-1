@@ -25,7 +25,7 @@ class Entry {
 
 public:
 
-	Entry(std::vector<unsigned long> &values, int id);
+	Entry(const std::vector<unsigned long> &values, int id);
 	Entry(unsigned long* startBlock, unsigned int nBits, int id);
 	~Entry();
 
@@ -43,7 +43,7 @@ public:
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
-Entry<DIM, WIDTH>::Entry(vector<unsigned long> &values, int id) : id_(id), nBits_(DIM * WIDTH), values_() {
+Entry<DIM, WIDTH>::Entry(const vector<unsigned long> &values, int id) : id_(id), nBits_(DIM * WIDTH), values_() {
 	assert (values.size() == DIM);
 	MultiDimBitset<DIM>::template toBitset<WIDTH>(values, values_);
 	assert (nBits_ == getBitLength() * getDimensions());

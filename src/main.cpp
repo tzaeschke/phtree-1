@@ -19,11 +19,11 @@ int mainSimpleExample() {
 	vector<unsigned long> e3Values { 60, 7 };
 	vector<unsigned long> e4Values { 1, 3 };
 	vector<unsigned long> e5Values { 11, 5 };
-	Entry<2, bitLength>* e1 = new Entry<2, bitLength>(e1Values, 1);
-	Entry<2, bitLength>* e2 = new Entry<2, bitLength>(e2Values, 2);
-	Entry<2, bitLength>* e3 = new Entry<2, bitLength>(e3Values, 3);
-	Entry<2, bitLength>* e4 = new Entry<2, bitLength>(e4Values, 4);
-	Entry<2, bitLength>* e5 = new Entry<2, bitLength>(e5Values, 5);
+	Entry<2, bitLength> e1(e1Values, 1);
+	Entry<2, bitLength> e2(e2Values, 2);
+	Entry<2, bitLength> e3(e3Values, 3);
+	Entry<2, bitLength> e4(e4Values, 4);
+	Entry<2, bitLength> e5(e5Values, 5);
 
 	CountNodeTypesVisitor<2>* visitor = new CountNodeTypesVisitor<2>();
 	uint64_t sta = RDTSC();
@@ -88,11 +88,6 @@ int mainSimpleExample() {
 
 	delete visitor;
 	delete phtree;
-	delete e1;
-	delete e2;
-	delete e3;
-	delete e4;
-	delete e5;
 
 	return 0;
 }

@@ -33,20 +33,25 @@ class PHTree {
 public:
 	PHTree();
 	virtual ~PHTree();
-	void insert(const Entry<DIM, WIDTH>* e);
-	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>* e);
+	void insert(const Entry<DIM, WIDTH>& e);
+	void insert(const std::vector<unsigned long>& values, int id);
+	void insert(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
+	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>& e) const;
+	std::pair<bool,int> lookup(const std::vector<unsigned long>& values) const;
+	std::pair<bool,int> lookup(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues);
 	RangeQueryIterator<DIM, WIDTH>* rangeQuery(Entry<DIM, WIDTH>* lowerLeft, Entry<DIM, WIDTH>* upperRight);
 
 	void accept(Visitor<DIM>* visitor);
 	unsigned long* reserveSuffixSpace(size_t nSuffixBits);
 	void freeSuffixSpace(unsigned long* suffixStartBlock, size_t nSuffixBits);
 
-protected:
-	// TODO no pointer for better locality
+private:
 	Node<DIM>* root_;
 	// TODO whats the best size for each suffix block?
 	SuffixBlock<50>* firstSuffixBlock;
 	SuffixBlock<50>* currentSuffixBlock;
+
+
 };
 
 #include <assert.h>
@@ -72,12 +77,12 @@ PHTree<DIM, WIDTH>::~PHTree() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PHTree<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>* e) {
+void PHTree<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& e) {
 	#ifdef PRINT
-		cout << "inserting: " << (*e) << endl;
+		cout << "inserting: " << e << endl;
 	#endif
 
-	Node<DIM>* updatedRoot = DynamicNodeOperationsUtil<DIM, WIDTH>::insert(e, root_, this);
+	Node<DIM>* updatedRoot = DynamicNodeOperationsUtil<DIM, WIDTH>::insert(e, root_, *this);
 	if (updatedRoot != root_) {
 		delete root_;
 		root_ = updatedRoot;
@@ -85,12 +90,61 @@ void PHTree<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>* e) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>* e) {
+void PHTree<DIM, WIDTH>::insert(const vector<unsigned long>& values, int id) {
+	assert (values.size() == DIM);
+	const Entry<DIM, WIDTH> entry(values, id);
+	insert(entry);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::insert(
+		const vector<unsigned long>& lowerLeftValues,
+		const vector<unsigned long>& upperRightValues, int id) {
+	assert (lowerLeftValues.size() == upperRightValues.size());
+	assert (lowerLeftValues.size() + upperRightValues.size() == DIM);
+
+	const size_t individualDimension = lowerLeftValues.size();
+	vector<unsigned long> combinedValues(DIM);
+	for (unsigned i = 0; i < individualDimension; ++i) {
+		combinedValues[i] = lowerLeftValues[i];
+		combinedValues[i + individualDimension] = upperRightValues[i];
+	}
+
+	insert(combinedValues, id);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>& e) const {
 	#ifdef PRINT
-		cout << "searching: " << *e << endl;
+		cout << "searching: " << e << endl;
 	#endif
 	return SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(e, root_, NULL);
 }
+
+template <unsigned int DIM, unsigned int WIDTH>
+std::pair<bool,int> PHTree<DIM, WIDTH>::lookup(const std::vector<unsigned long>& values) const {
+	const Entry<DIM, WIDTH> entry(values, 0);
+	return lookup(entry);
+}
+
+template<unsigned int DIM, unsigned int WIDTH>
+std::pair<bool, int> PHTree<DIM, WIDTH>::lookup(
+		const std::vector<unsigned long>& lowerLeftValues,
+		const std::vector<unsigned long>& upperRightValues) {
+
+	assert(lowerLeftValues.size() == upperRightValues.size());
+	assert(lowerLeftValues.size() + upperRightValues.size() == DIM);
+
+	const size_t individualDimension = lowerLeftValues.size();
+	vector<unsigned long> combinedValues(DIM);
+	for (unsigned i = 0; i < individualDimension; ++i) {
+		combinedValues[i] = lowerLeftValues[i];
+		combinedValues[i + individualDimension] = upperRightValues[i];
+	}
+
+	return lookup(combinedValues);
+}
+
 
 template <unsigned int DIM, unsigned int WIDTH>
 RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(Entry<DIM, WIDTH>* lowerLeft, Entry<DIM, WIDTH>* upperRight) {

@@ -18,7 +18,7 @@ public:
 	static const size_t filledBlock = -1; // a block with all bits set to 1
 
 	template <unsigned int WIDTH>
-	static void toBitset(std::vector<unsigned long> &values, unsigned long* const outStartBlock);
+	static void toBitset(const std::vector<unsigned long> &values, unsigned long* const outStartBlock);
 	static std::pair<bool, size_t> compare(const unsigned long* const startBlock, unsigned int nBits,
 			size_t fromIndex, size_t toIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
 	static std::vector<unsigned long> toLongs(const unsigned long* const fromStartBlock, size_t nBits);
@@ -42,7 +42,7 @@ using namespace std;
 
 template <unsigned int DIM>
 template <unsigned int WIDTH>
-void MultiDimBitset<DIM>::toBitset(std::vector<unsigned long> &values, unsigned long* outStartBlock) {
+void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, unsigned long* outStartBlock) {
 	//     example 2 Dim, 8 Bit: (    10   ,     5    )
 	//    binary representation: (0000 1010, 0000 0101)
 	//  				  index:    12    8    4    0

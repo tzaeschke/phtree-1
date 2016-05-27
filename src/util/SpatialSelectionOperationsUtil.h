@@ -18,7 +18,7 @@ class Entry;
 template <unsigned int DIM, unsigned int WIDTH>
 class SpatialSelectionOperationsUtil {
 public:
-	static std::pair<bool, int> lookup(const Entry<DIM, WIDTH>* e,
+	static std::pair<bool, int> lookup(const Entry<DIM, WIDTH>& e,
 			Node<DIM>* rootNode, std::vector<Node<DIM>*>* visitedNodes);
 };
 
@@ -30,7 +30,7 @@ using namespace std;
 
 
 template <unsigned int DIM, unsigned int WIDTH>
-pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>* e, Node<DIM>* rootNode,
+pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode,
 		vector<Node<DIM>*>* visitedNodes) {
 
 	Node<DIM>* currentNode = rootNode;
@@ -49,7 +49,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 		const size_t prefixLength = currentNode->getPrefixLength();
 		if (prefixLength > 0) {
 			// validate prefix
-			const pair<bool, size_t> prefixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+			const pair<bool, size_t> prefixComp = MultiDimBitset<DIM>::compare(e.values_, DIM * WIDTH,
 					index, index + prefixLength,
 					currentNode->getFixPrefixStartBlock(), prefixLength * DIM);
 
@@ -64,7 +64,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 
 		// validate HC address
 		index += prefixLength;
-		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e->values_, index, DIM * WIDTH);
+		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e.values_, index, DIM * WIDTH);
 		currentNode->lookup(hcAddress, content);
 
 		if (!content.exists) {
@@ -82,7 +82,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(const Entry<D
 			const size_t suffixBits = DIM * (WIDTH - index - 1);
 			if (suffixBits > 0) {
 				// validate suffix
-				const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e->values_, DIM * WIDTH,
+				const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e.values_, DIM * WIDTH,
 								index + 1, WIDTH,
 								content.suffixStartBlock, suffixBits);
 				if (!suffixComp.first) {

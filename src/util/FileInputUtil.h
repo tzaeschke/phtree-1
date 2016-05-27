@@ -10,14 +10,11 @@
 
 #include <vector>
 
-template <unsigned int DIM, unsigned int WIDTH>
-class Entry;
-
 class FileInputUtil {
 public:
 	// parses the file at the given location in the format 'ulong, ulong, ulong, ...\n...'
 	template <unsigned int DIM, unsigned int WIDTH>
-	static std::vector<Entry<DIM, WIDTH>>* readEntries(std::string fileLocation);
+	static std::vector<vector<unsigned long>>* readEntries(std::string fileLocation);
 };
 
 #include <iostream>
@@ -48,18 +45,16 @@ inline vector<unsigned long> getNextLineTokens(ifstream& stream) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-vector<Entry<DIM, WIDTH>>* FileInputUtil::readEntries(string fileLocation) {
+vector<vector<unsigned long>>* FileInputUtil::readEntries(string fileLocation) {
 
 	ifstream myfile (fileLocation);
-		std::vector<Entry<DIM, WIDTH>>* result = new vector<Entry<DIM, WIDTH>>();
+	vector<vector<unsigned long>>* result = new vector<vector<unsigned long>>();
 	if (myfile.is_open()) {
 		int id = 0;
 		while (!myfile.eof()) {
 			vector<unsigned long> values = getNextLineTokens(myfile);
 			if (!values.empty()) {
-				Entry<DIM, WIDTH> entry(values, id++);
-				assert (result->empty() || result->at(0).getDimensions() == entry.getDimensions());
-				result->push_back(entry);
+				result->push_back(values);
 			}
 		}
 	} else {

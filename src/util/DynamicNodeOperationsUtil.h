@@ -21,16 +21,16 @@ template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil {
 public:
 
-	static Node<DIM>* insert(const Entry<DIM, WIDTH>* e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>* tree);
+	static Node<DIM>* insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
 
 private:
 	static inline void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
-			NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree);
+			NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
 	static inline Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
-			const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree);
+			const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
 	static inline void splitSubnodePrefix(size_t currentIndex, size_t prefixLength,
-			Node<DIM>* currentNode, NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>* entry,
-			PHTree<DIM, WIDTH>* tree);
+			Node<DIM>* currentNode, NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
+			PHTree<DIM, WIDTH>& tree);
 };
 
 #include <assert.h>
@@ -48,14 +48,14 @@ using namespace std;
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 		size_t currentIndex, Node<DIM>* currentNode, NodeAddressContent<DIM>& content,
-		const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree) {
+		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
 
 	const size_t currentSuffixBits = DIM * (WIDTH - currentIndex - 1);
 	// create a temporary storage for the new prefix (all blocks are 0 filled)
 	unsigned long prefixTmp[1 + (DIM * WIDTH - 1) / (sizeof(unsigned long) * 8)] = {};
 	// 1. calculate the longest common prefix between the entry and the current suffix
 	const size_t prefixLength = MultiDimBitset<DIM>::calculateLongestCommonPrefix(
-			entry->values_, DIM * WIDTH, currentIndex + 1, content.suffixStartBlock, currentSuffixBits,
+			entry.values_, DIM * WIDTH, currentIndex + 1, content.suffixStartBlock, currentSuffixBits,
 			prefixTmp);
 
 	// 2. create a new node that stores the remaining suffix and the new entry
@@ -70,7 +70,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 
 	// 4. paste the new suffixes into the new subnode
 	// addresses in the subnode starts after common prefix
-	const long insertEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(entry->values_, currentIndex + 1 + prefixLength, entry->nBits_);
+	const long insertEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex + 1 + prefixLength, entry.nBits_);
 	const long existingEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(content.suffixStartBlock, prefixLength, currentSuffixBits);
 	assert(insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
@@ -78,27 +78,27 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	// TODO what if suffix length == 0?!
 	const size_t newSuffixLength = WIDTH - (currentIndex + 1 + prefixLength + 1);
 	// create the required suffix blocks for both entries and insert a reference into the subnode
-	unsigned long* insertEntrySuffixStartBlock = tree->reserveSuffixSpace(newSuffixLength * DIM);
-	unsigned long* existingEntrySuffixStartBlock = tree->reserveSuffixSpace(newSuffixLength * DIM);
-	subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry->id_);
+	unsigned long* insertEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
+	unsigned long* existingEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
+	subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry.id_);
 	subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffixStartBlock, content.id);
 
 	// trim the existing entry's suffix by the common prefix length
 	MultiDimBitset<DIM>::removeHighestBits(content.suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
 	// insert the last bits of the new entry
-	MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
+	MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
 	// remove the old suffix
-	tree->freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
+	tree.freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
 
 	// no need to adjust the size of the node because the correct node type was already provided
 	assert (currentNode->lookup(content.address).subnode == subnode);
-	assert (tree->lookup(entry).first);
+	assert (tree.lookup(entry).first);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
-		const Entry<DIM, WIDTH>* entry, PHTree<DIM, WIDTH>* tree) {
+		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
 	Node<DIM>* adjustedNode = currentNode;
 	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
 		// need to adjust the node to insert another entry
@@ -108,29 +108,29 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 
 	// TODO reuse this method in other two cases!
 	const size_t suffixLength = WIDTH - (currentIndex + 1);
-	unsigned long* suffixStartBlock = tree->reserveSuffixSpace(suffixLength * DIM);
-	adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry->id_);
-	MultiDimBitset<DIM>::removeHighestBits(entry->values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
+	unsigned long* suffixStartBlock = tree.reserveSuffixSpace(suffixLength * DIM);
+	adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry.id_);
+	MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
 
 	assert(adjustedNode);
 	assert(adjustedNode->lookup(hcAddress).exists);
 	assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);
-	assert(adjustedNode->lookup(hcAddress).id == entry->id_);
+	assert(adjustedNode->lookup(hcAddress).id == entry.id_);
 	return adjustedNode;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 		size_t currentIndex, size_t newPrefixLength, Node<DIM>* currentNode,
-		NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>* entry,
-		PHTree<DIM, WIDTH>* tree) {
+		NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
+		PHTree<DIM, WIDTH>& tree) {
 
 	Node<DIM>* oldSubnode = content.subnode;
 	Node<DIM>* newSubnode = NodeTypeUtil<DIM>::buildNode(DIM * newPrefixLength, 1);
 	currentNode->insertAtAddress(content.address, newSubnode);
 
 	const unsigned long newSubnodeEntryHCAddress =
-			MultiDimBitset<DIM>::interleaveBits(entry->values_, currentIndex + 1 + newPrefixLength, DIM * WIDTH);
+			MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex + 1 + newPrefixLength, DIM * WIDTH);
 	const unsigned long newSubnodePrefixDiffHCAddress =
 		MultiDimBitset<DIM>::interleaveBits(oldSubnode->getFixPrefixStartBlock(), newPrefixLength, oldSubnode->getPrefixLength() * DIM);
 	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
@@ -161,12 +161,12 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 	assert (!newSubnode->lookup(newSubnodeEntryHCAddress).hasSubnode);
 	assert (newSubnode->lookup(newSubnodePrefixDiffHCAddress).hasSubnode);
 	assert (newSubnode->lookup(newSubnodePrefixDiffHCAddress).subnode == oldSubnodeCopy);
-	assert (tree->lookup(entry).first);
+	assert (tree.lookup(entry).first);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>* entry,
-		Node<DIM>* rootNode, PHTree<DIM, WIDTH>* tree) {
+Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry,
+		Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree) {
 
 	size_t lastHcAddress = 0;
 	size_t index = 0;
@@ -182,7 +182,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 
 		const size_t currentIndex = index + currentNode->getPrefixLength();
 		const unsigned long hcAddress =
-				MultiDimBitset<DIM>::interleaveBits(entry->values_, currentIndex, WIDTH * DIM);
+				MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex, WIDTH * DIM);
 		// TODO create content once and populate after each iteration instead of creating a new one
 		currentNode->lookup(hcAddress, content);
 		assert(!content.exists || content.address == hcAddress);
@@ -196,7 +196,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 			bool prefixIncluded = true;
 			size_t differentBitAtPrefixIndex = -1;
 			if (subnodePrefixLength > 0) {
-				const pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry->values_, DIM * WIDTH,
+				const pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry.values_, DIM * WIDTH,
 						currentIndex + 1, currentIndex + 1 + subnodePrefixLength,
 						content.subnode->getFixPrefixStartBlock(), DIM * subnodePrefixLength);
 				prefixIncluded = comp.first;
@@ -252,7 +252,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 				// the root node changed
 				initialNode = adjustedNode;
 				currentNode = adjustedNode;
-				assert (tree->lookup(entry).first);
+				assert (tree.lookup(entry).first);
 			}
 
 			break;
@@ -262,12 +262,12 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 	#ifndef NDEBUG
 		// validation only: lookup again after insertion
 		const size_t hcAddress =
-						MultiDimBitset<DIM>::interleaveBits(entry->values_, index + currentNode->getPrefixLength(), WIDTH * DIM);
+						MultiDimBitset<DIM>::interleaveBits(entry.values_, index + currentNode->getPrefixLength(), WIDTH * DIM);
 		currentNode->lookup(hcAddress, content);
 		assert(content.exists && content.address == hcAddress
 						&& "after insertion the entry is always contained at the address");
-		pair<bool, int> retr = tree->lookup(entry);
-		assert (retr.first && retr.second == entry->id_
+		pair<bool, int> retr = tree.lookup(entry);
+		assert (retr.first && retr.second == entry.id_
 			&& "after insertion the entry is always contained in the tree");
 	#endif
 

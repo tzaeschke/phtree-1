@@ -39,16 +39,16 @@ class Entry;
 class PlotUtil {
 public:
 	template <unsigned int DIM, unsigned int WIDTH>
-	static std::set<Entry<DIM, WIDTH>>* generateUniqueRandomEntries(size_t nUniqueEntries);
+	static std::set<std::vector<unsigned long>>* generateUniqueRandomEntries(size_t nUniqueEntries);
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<Entry<DIM, WIDTH>>* entries);
+	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotAverageInsertTimePerDimension(std::string file);
 	static void plotAverageInsertTimePerDimensionRandom();
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotAverageInsertTimePerNumberOfEntries(std::vector<std::vector<Entry<DIM, WIDTH>>*> entries);
+	static void plotAverageInsertTimePerNumberOfEntries(std::vector<std::vector<std::vector<unsigned long>>*> entries);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotAverageInsertTimePerNumberOfEntries(std::string file);
 	static void plotAverageInsertTimePerNumberOfEntriesRandom();
@@ -61,7 +61,7 @@ private:
 	static void clearPlotFile(std::string dataFileName);
 	static std::ofstream* openPlotFile(std::string dataFileName, bool removePreviousData);
 	template <unsigned int DIM, unsigned int WIDTH>
-	static inline std::vector<Entry<DIM, WIDTH>>* generateUniqueRandomEntriesList(size_t nUniqueEntries);
+	static inline std::vector<std::vector<unsigned long>>* generateUniqueRandomEntriesList(size_t nUniqueEntries);
 };
 
 #include <fstream>
@@ -86,17 +86,15 @@ private:
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
-set<Entry<DIM, WIDTH>>* PlotUtil::generateUniqueRandomEntries(size_t nUniqueEntries) {
+set<vector<unsigned long>>* PlotUtil::generateUniqueRandomEntries(size_t nUniqueEntries) {
 	srand(time(NULL));
-	set<Entry<DIM, WIDTH>>* randomDimEntries = new set<Entry<DIM, WIDTH>>();
+	set<vector<unsigned long>>* randomDimEntries = new set<vector<unsigned long>>();
 	for (size_t nEntry = 0; nEntry < nUniqueEntries; nEntry++) {
-		vector<unsigned long>* entryValues = new vector<unsigned long>(DIM);
+		vector<unsigned long> entryValues(DIM);
 		for (size_t d = 0; d < DIM; d++) {
-			entryValues->at(d) = rand() % (1ul << WIDTH);
+			entryValues.at(d) = rand() % (1ul << WIDTH);
 		}
-		Entry<DIM, WIDTH> entry(*entryValues, nEntry);
-		bool inserted = randomDimEntries->insert(entry).second;
-		delete entryValues;
+		bool inserted = randomDimEntries->insert(entryValues).second;
 		if (!inserted) {
 			nEntry--;
 		}
@@ -106,9 +104,9 @@ set<Entry<DIM, WIDTH>>* PlotUtil::generateUniqueRandomEntries(size_t nUniqueEntr
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-std::vector<Entry<DIM, WIDTH>>* PlotUtil::generateUniqueRandomEntriesList(size_t nUniqueEntries) {
-	set<Entry<DIM, WIDTH>>* randomDimEntriesSet = generateUniqueRandomEntries<DIM, WIDTH>(nUniqueEntries);
-	vector<Entry<DIM, WIDTH>>* randomDimEntries = new vector<Entry<DIM, WIDTH>>(randomDimEntriesSet->begin(),
+std::vector<vector<unsigned long>>* PlotUtil::generateUniqueRandomEntriesList(size_t nUniqueEntries) {
+	set<vector<unsigned long>>* randomDimEntriesSet = generateUniqueRandomEntries<DIM, WIDTH>(nUniqueEntries);
+	vector<vector<unsigned long>>* randomDimEntries = new vector<vector<unsigned long>>(randomDimEntriesSet->begin(),
 			randomDimEntriesSet->end());
 	return randomDimEntries;
 }
@@ -120,7 +118,7 @@ void PlotUtil::plot(string gnuplotFileName) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<DIM, WIDTH>>* entries)  {
+void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector<unsigned long>>* entries)  {
 		cout << "inserting all entries into a PH-Tree while logging the time per insertion..." << endl;
 
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
@@ -139,15 +137,15 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<
 		SuffixVisitor<DIM>* suffixVisitor = new SuffixVisitor<DIM>();
 
 		unsigned int startInsertTime = clock();
-		for (size_t iEntry = 0; iEntry < entries->size(); iEntry++) {
-			Entry<DIM, WIDTH> entry = (*entries)[iEntry];
-			phtree->insert(&entry);
+		for (size_t iEntry = 0; iEntry < entries->size(); ++iEntry) {
+			vector<unsigned long> entry = (*entries)[iEntry];
+			phtree->insert(entry, iEntry);
 		}
 		unsigned int totalInsertTicks = clock() - startInsertTime;
 		unsigned int startLookupTime = clock();
-		for (size_t iEntry = 0; iEntry < entries->size(); iEntry++) {
-			Entry<DIM, WIDTH> entry = (*entries)[iEntry];
-			bool contained = phtree->lookup(&entry).first;
+		for (size_t iEntry = 0; iEntry < entries->size(); ++iEntry) {
+			vector<unsigned long> entry = (*entries)[iEntry];
+			bool contained = phtree->lookup(entry).first;
 			assert (contained);
 		}
 		unsigned int totalLookupTicks = clock() - startLookupTime;
@@ -195,7 +193,7 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<Entry<
 template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotAverageInsertTimePerDimension(std::string file) {
 	cout << "loading entries from file...";
-	vector<Entry<DIM, WIDTH>>* entries = FileInputUtil::readEntries<DIM, WIDTH>(file);
+	vector<vector<unsigned long>>* entries = FileInputUtil::readEntries<DIM, WIDTH>(file);
 	cout << " ok" << endl;
 
 	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries);
@@ -213,31 +211,31 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 		// resolve dynamic dimensions
 		switch (dimTests[test]) {
 		case 2: {
-			vector<Entry<2, BIT_LENGTH>>* randomDimEntries =
+			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<2, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<2, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 3: {
-			vector<Entry<3, BIT_LENGTH>>* randomDimEntries =
+			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<3, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 6: {
-			vector<Entry<6, BIT_LENGTH>>* randomDimEntries =
+			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<6, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<6, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 8: {
-			vector<Entry<8, BIT_LENGTH>>* randomDimEntries =
+			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<8, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<8, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 10: {
-			vector<Entry<10, BIT_LENGTH>>* randomDimEntries =
+			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<10, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<10, BIT_LENGTH>(test, randomDimEntries);
 			break;
@@ -254,7 +252,7 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, WIDTH>>*> entries) {
+void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<vector<unsigned long>>*> entries) {
 		vector<unsigned int> insertTicks(entries.size());
 		vector<unsigned int> lookupTicks(entries.size());
 		vector<unsigned int> nAHCNodes(entries.size());
@@ -274,15 +272,15 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<Entry<DIM, 
 			PHTree<DIM, WIDTH>* tree = new PHTree<DIM, WIDTH>();
 			const unsigned int startInsertTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test]->size(); iEntry++) {
-				Entry<DIM, WIDTH> entry = (*entries[test])[iEntry];
-				tree->insert(&entry);
+				vector<unsigned long> entry = (*entries[test])[iEntry];
+				tree->insert(entry, iEntry);
 			}
 			const unsigned int totalInsertTicks = clock() - startInsertTime;
 			CALLGRIND_START_INSTRUMENTATION;
 			const unsigned int startLookupTime = clock();
 			for (size_t iEntry = 0; iEntry < entries[test]->size(); iEntry++) {
-				Entry<DIM, WIDTH> entry = (*entries[test])[iEntry];
-				tree->lookup(&entry);
+				vector<unsigned long> entry = (*entries[test])[iEntry];
+				tree->lookup(entry);
 			}
 			const unsigned int totalLookupTicks = clock() - startLookupTime;
 			CALLGRIND_STOP_INSTRUMENTATION;
@@ -354,7 +352,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom() {
 }
 
 void PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom(vector<size_t> nEntries) {
-	vector<vector<Entry<ENTRY_DIM, BIT_LENGTH>>*> testEntries(nEntries.size());
+	vector<vector<vector<unsigned long>>*> testEntries(nEntries.size());
 	for (unsigned test = 0; test < nEntries.size(); ++test) {
 		testEntries.at(test) = generateUniqueRandomEntriesList<ENTRY_DIM, BIT_LENGTH>(nEntries.at(test));
 	}
@@ -383,7 +381,7 @@ ofstream* PlotUtil::openPlotFile(std::string dataFileName, bool removePreviousDa
 }
 
 void PlotUtil::plotTimeSeriesOfInserts() {
-	set<Entry<ENTRY_DIM, BIT_LENGTH>>* entries = generateUniqueRandomEntries<ENTRY_DIM, BIT_LENGTH>(N_RANDOM_ENTRIES_INSERT_SERIES);
+	set<vector<unsigned long>>* entries = generateUniqueRandomEntries<ENTRY_DIM, BIT_LENGTH>(N_RANDOM_ENTRIES_INSERT_SERIES);
 	PHTree<ENTRY_DIM, BIT_LENGTH> phtree;
 	ofstream* plotFile = openPlotFile(INSERT_SERIES_PLOT_NAME, true);
 
@@ -394,18 +392,18 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 		size_t iEntry = 0;
 		for (auto entry : (*entries)) {
 //			cout << "inserting: " << (&entry) << endl;
-			assert (!phtree.lookup(&entry).first && "should not contain the entry before insertion");
+			assert (!phtree.lookup(entry).first && "should not contain the entry before insertion");
 			uint64_t startInsert = RDTSC();
-			phtree.insert(&entry);
+			phtree.insert(entry, iEntry);
 			uint64_t totalInsertTicks = RDTSC() - startInsert;
 //			cout << phtree << endl;
 			phtree.accept(assertVisitor);
 			phtree.accept(visitor);
 			phtree.accept(sizeVisitor);
 			uint64_t startLookup = RDTSC();
-			pair<bool, int> contained = phtree.lookup(&entry);
+			pair<bool, int> contained = phtree.lookup(entry);
 			uint64_t totalLookupTicks = RDTSC() - startLookup;
-			assert (contained.first && contained.second == entry.id_ && "should contain the entry after insertion");
+			assert (contained.first && "should contain the entry after insertion");
 			(*plotFile) << iEntry << "\t" << totalInsertTicks;
 			(*plotFile) << "\t" << totalLookupTicks;
 			(*plotFile) << "\t" << visitor->getNumberOfVisitedAHCNodes();
@@ -423,9 +421,11 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 		cout << e.what();
 	}
 
+	size_t iEntry = 0;
 	for (auto entry : (*entries)) {
-		pair<bool, int> contained = phtree.lookup(&entry);
-		assert (contained.first && contained.second == entry.id_);
+		pair<bool, int> contained = phtree.lookup(entry);
+		assert (contained.first && contained.second == iEntry);
+		iEntry++;
 	}
 
 	plotFile->close();
