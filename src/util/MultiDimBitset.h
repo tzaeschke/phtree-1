@@ -97,6 +97,8 @@ void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, uns
 	//    binary representation: (0000 1010, 0000 0101)
 	//  				  index:    12    8    4    0
 	// after conversion (mixed): (0000 0000 0110 0110) = 102
+	// first dimension (mask)  : (0101 0101 0101 0101)
+	// second dimension (mask) : (1010 1010 1010 1010)
 
 	assert (sizeof (unsigned long) * 8 >= WIDTH);
 	assert (values.size() == DIM);
@@ -513,18 +515,18 @@ bool MultiDimBitset<DIM>::checkRangeUnset(const unsigned long* startBlock, unsig
 template <unsigned int DIM>
 pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const unsigned long* v1Start,
 		const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits) {
-	assert (nBits != skipLowestNBits);
-	assert (nBits > 0);
+	assert (nBits > skipLowestNBits && nBits > 0);
+	assert (nBits % DIM == 0 && skipLowestNBits % DIM == 0);
 
 	bool isSmaller[DIM] = {};
 	bool isEqual[DIM] = {};
 	bool allCompared = false;
 
 	const unsigned int nBitsIndex = nBits - 1u;
-	const unsigned int skipLowestNBitsIndex = (skipLowestNBits == 0)? 0 : skipLowestNBits - 1u;
 	const unsigned int highestBlock = nBitsIndex / bitsPerBlock;
-	const unsigned int lowestBlock = skipLowestNBitsIndex / bitsPerBlock;
-	const unsigned int cancelBitIndex = skipLowestNBitsIndex % bitsPerBlock;
+	const unsigned int lowestBlock = skipLowestNBits / bitsPerBlock;
+	assert (highestBlock >= lowestBlock);
+	const unsigned int cancelBitIndex = skipLowestNBits % bitsPerBlock;
 	const unsigned long cancelLowestBitsMask = filledBlock << cancelBitIndex;
 
 	for (unsigned int block = highestBlock; !allCompared; --block) {
@@ -532,31 +534,32 @@ pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const 
 		const unsigned int blockOffset = (dimBlockOffset * block) % DIM;
 		assert (blockOffset < DIM);
 
-		unsigned long currentBlockLowestDimMask = dimBlock << blockOffset;
-		const bool hasFurtherBlocks = block != lowestBlock;
-		if (!hasFurtherBlocks) currentBlockLowestDimMask &= cancelLowestBitsMask;
-
+		const bool isLastBlock = block == lowestBlock;
 		allCompared = true;
 		const unsigned long v1Block = v1Start[block];
 		const unsigned long v2Block = v2Start[block];
 		for (unsigned d = 0; d < DIM; ++d) {
 			if (isSmaller[d] || isEqual[d]) continue;
 
-			const unsigned long dimExtractionMask = (currentBlockLowestDimMask << d) | (hasFurtherBlocks << blockOffset);
+			const unsigned int dimBlockOffset = (d + blockOffset) % DIM;
+			unsigned long dimExtractionMask = dimBlock << dimBlockOffset;
+			if (isLastBlock) dimExtractionMask &= cancelLowestBitsMask;
+
 			const unsigned long v1BlockDimExtracted = v1Block & dimExtractionMask;
 			const unsigned long v2BlockDimExtracted = v2Block & dimExtractionMask;
 			isSmaller[d] = v1BlockDimExtracted < v2BlockDimExtracted;
 			isEqual[d] = !isSmaller[d] && (v1BlockDimExtracted == v2BlockDimExtracted);
-			allCompared = isSmaller[d] || isEqual[d];
+			allCompared &= (isSmaller[d] || isEqual[d]);
 		}
 
-		if (!hasFurtherBlocks) break;
+		if (isLastBlock) break;
 	}
 
 
 	unsigned int dimLowerComparison = 0;
 	unsigned int dimEqualComparison = 0;
 	for (unsigned d = 0; d < DIM; ++d) {
+		assert (!(isSmaller[d] && isEqual[d]));
 		if (isSmaller[d]) {
 			dimLowerComparison |= 1uL << d;
 		} else if (isEqual[d]) {

@@ -519,7 +519,7 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 	size_t iEntry = 0;
 	for (auto entry : (*entries)) {
 		pair<bool, int> contained = phtree.lookup(entry);
-		assert (contained.first && contained.second == iEntry);
+		assert (contained.first && contained.second == int(iEntry));
 		iEntry++;
 	}
 

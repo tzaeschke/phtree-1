@@ -17,9 +17,10 @@ class Node;
 template <unsigned int DIM>
 class RangeQueryStackContent {
 public:
+	bool nodeFullyContained;
+	bool suffixesFullyContained;
 	size_t lowerMask_;
 	size_t upperMask_;
-	size_t upperEqualToBoundary;
 	size_t prefixLength_;
 	const Node<DIM>* node_;
 	// TODO make iterators lokal
