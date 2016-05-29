@@ -96,12 +96,15 @@ using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 set<vector<unsigned long>>* PlotUtil::generateUniqueRandomEntries(size_t nUniqueEntries) {
+	assert (WIDTH <= 8 * sizeof (unsigned long));
 	srand(time(NULL));
 	set<vector<unsigned long>>* randomDimEntries = new set<vector<unsigned long>>();
 	for (size_t nEntry = 0; nEntry < nUniqueEntries; nEntry++) {
 		vector<unsigned long> entryValues(DIM);
 		for (size_t d = 0; d < DIM; d++) {
-			entryValues.at(d) = rand() % (1ul << WIDTH);
+			if (WIDTH < 8 * sizeof(unsigned long))
+				entryValues.at(d) = rand() % (1ul << WIDTH);
+			else entryValues.at(d) = rand();
 		}
 		bool inserted = randomDimEntries->insert(entryValues).second;
 		if (!inserted) {
@@ -298,6 +301,12 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
+		case 5: {
+			vector<vector<unsigned long>>* randomDimEntries =
+								generateUniqueRandomEntriesList<5, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
+						writeAverageInsertTimeOfDimension<5, BIT_LENGTH>(test, randomDimEntries);
+			break;
+		}
 		case 6: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<6, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
@@ -318,7 +327,7 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 		}
 		default:
 			throw std::runtime_error(
-					"given dimensionality currently not supported by boilerplate code");
+					"given dimensionality is currently not supported by boilerplate code");
 		}
 	}
 

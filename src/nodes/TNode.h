@@ -49,8 +49,10 @@ public:
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const = 0;
 	NodeAddressContent<DIM> lookup(unsigned long address) const override;
 	virtual void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
+	bool canStoreSuffixInternally(size_t nSuffixBits) const override;
 
 protected:
 	size_t prefixBits_;
@@ -99,19 +101,25 @@ const unsigned long* TNode<DIM, PREF_BLOCKS>::getFixPrefixStartBlock() const {
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) {
 
-	const size_t prefixLength = getPrefixLength();
 	NodeIterator<DIM>* it;
 	NodeIterator<DIM>* endIt = this->end();
 	for (it = this->begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent<DIM> content = *(*it);
 		assert (content.exists);
 		if (content.hasSubnode) {
+			const size_t prefixLength = content.subnode->getPrefixLength();
 			content.subnode->accept(visitor, depth + 1, index + prefixLength + 1);
 		}
 	}
 
 	delete it;
 	delete endIt;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool TNode<DIM, PREF_BLOCKS>::canStoreSuffixInternally(size_t nSuffixBits) const {
+	// needs to store 2 bits for meta data
+	return nSuffixBits <= (8 * sizeof(uintptr_t) - 2);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -141,7 +149,7 @@ ostream& TNode<DIM, PREF_BLOCKS>::output(std::ostream& os, size_t depth, size_t 
 		} else {
 			// print suffix
 			os << " suffix: ";
-			MultiDimBitset<DIM>::output(os, content.suffixStartBlock, DIM * (totalBitLength - currentIndex));
+			MultiDimBitset<DIM>::output(os, content.getSuffixStartBlock(), DIM * (totalBitLength - currentIndex));
 			os << " (id: " << content.id << ")" << endl;
 		}
 	}

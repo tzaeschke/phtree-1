@@ -65,19 +65,21 @@ void AssertionVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned in
 
 	unsigned long lastHcAddress = -1;
 	bool hasSubnode = false;
+	bool directlyStored = false;
 	NodeAddressContent<DIM> content;
-	node->lookupIndex(0, &lastHcAddress, &hasSubnode);
+	node->lookupIndex(0, &lastHcAddress, &hasSubnode, &directlyStored);
 	for (unsigned int i = 1; i < node->m; ++i) {
 		unsigned long hcAddress = 0;
-		node->lookupIndex(i, &hcAddress, &hasSubnode);
+		node->lookupIndex(i, &hcAddress, &hasSubnode, &directlyStored);
 		assert (hcAddress > lastHcAddress);
 		bool exists = false;
 		bool hasSubnodeTest = false;
+		bool directlyStoredTest = false;
 		unsigned int indexTest = -1;
-		node->lookupAddress(hcAddress, &exists, &indexTest, &hasSubnodeTest);
+		node->lookupAddress(hcAddress, &exists, &indexTest, &hasSubnodeTest, &directlyStoredTest);
 		assert (indexTest == i);
 		assert (exists);
-		assert (hasSubnode == hasSubnodeTest);
+		assert (hasSubnode == hasSubnodeTest && directlyStored == directlyStoredTest);
 		node->lookup(hcAddress, content);
 		assert (content.exists && content.address == hcAddress && content.hasSubnode == hasSubnode);
 		lastHcAddress = hcAddress;

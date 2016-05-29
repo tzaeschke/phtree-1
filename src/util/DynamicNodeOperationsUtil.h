@@ -51,11 +51,12 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
 
 	const size_t currentSuffixBits = DIM * (WIDTH - currentIndex - 1);
+	const unsigned long* suffixStartBlock = content.getSuffixStartBlock();
 	// create a temporary storage for the new prefix (all blocks are 0 filled)
 	unsigned long prefixTmp[1 + (DIM * WIDTH - 1) / (sizeof(unsigned long) * 8)] = {};
 	// 1. calculate the longest common prefix between the entry and the current suffix
 	const size_t prefixLength = MultiDimBitset<DIM>::calculateLongestCommonPrefix(
-			entry.values_, DIM * WIDTH, currentIndex + 1, content.suffixStartBlock, currentSuffixBits,
+			entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock, currentSuffixBits,
 			prefixTmp);
 
 	// 2. create a new node that stores the remaining suffix and the new entry
@@ -71,24 +72,42 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	// 4. paste the new suffixes into the new subnode
 	// addresses in the subnode starts after common prefix
 	const long insertEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex + 1 + prefixLength, entry.nBits_);
-	const long existingEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(content.suffixStartBlock, prefixLength, currentSuffixBits);
+	const long existingEntryHCAddress = MultiDimBitset<DIM>::interleaveBits(suffixStartBlock, prefixLength, currentSuffixBits);
 	assert(insertEntryHCAddress != existingEntryHCAddress); // otherwise there would have been a longer prefix
 
 	// 5. add remaining bits after prefix and addresses as suffixes
 	// TODO what if suffix length == 0?!
 	const size_t newSuffixLength = WIDTH - (currentIndex + 1 + prefixLength + 1);
+	const bool storeSuffixInNode = subnode->canStoreSuffixInternally(newSuffixLength * DIM);
 	// create the required suffix blocks for both entries and insert a reference into the subnode
-	unsigned long* insertEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
-	unsigned long* existingEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
-	subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry.id_);
-	subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffixStartBlock, content.id);
+	unsigned long* insertEntrySuffixStartBlock = NULL;
+	unsigned long* existingEntrySuffixStartBlock = NULL;
+	unsigned long insertEntrySuffix = 0uL;
+	unsigned long existingEntrySuffix = 0uL;
+
+	if (storeSuffixInNode) {
+		assert (newSuffixLength <= 8 * sizeof(unsigned long));
+		insertEntrySuffixStartBlock = &insertEntrySuffix;
+		existingEntrySuffixStartBlock = &existingEntrySuffix;
+	} else {
+		insertEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
+		existingEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
+	}
 
 	// trim the existing entry's suffix by the common prefix length
-	MultiDimBitset<DIM>::removeHighestBits(content.suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
+	MultiDimBitset<DIM>::removeHighestBits(suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
 	// insert the last bits of the new entry
 	MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
-	// remove the old suffix
-	tree.freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
+
+	if (storeSuffixInNode) {
+		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffix, entry.id_);
+		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffix, content.id);
+	} else {
+		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry.id_);
+		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffixStartBlock, content.id);
+		// remove the old suffix
+		// TODO free space	tree->freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
+	}
 
 	// no need to adjust the size of the node because the correct node type was already provided
 	assert (currentNode->lookup(content.address).subnode == subnode);
@@ -99,6 +118,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+	// TODO reuse this method in other two cases!
 	Node<DIM>* adjustedNode = currentNode;
 	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
 		// need to adjust the node to insert another entry
@@ -106,15 +126,20 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	}
 	assert(adjustedNode->getNumberOfContents() < adjustedNode->getMaximumNumberOfContents());
 
-	// TODO reuse this method in other two cases!
-	const size_t suffixLength = WIDTH - (currentIndex + 1);
-	unsigned long* suffixStartBlock = tree.reserveSuffixSpace(suffixLength * DIM);
-	adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry.id_);
-	MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
+	const size_t suffixBits= DIM * (WIDTH - (currentIndex + 1));
+	if (adjustedNode->canStoreSuffixInternally(suffixBits)) {
+		unsigned long suffix = 0uL;
+		MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, &suffix);
+		adjustedNode->insertAtAddress(hcAddress, suffix, entry.id_);
+	} else {
+		unsigned long* suffixStartBlock = tree.reserveSuffixSpace(suffixBits);
+		adjustedNode->insertAtAddress(hcAddress, suffixStartBlock, entry.id_);
+		MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock);
+		assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);
+	}
 
 	assert(adjustedNode);
 	assert(adjustedNode->lookup(hcAddress).exists);
-	assert(adjustedNode->lookup(hcAddress).suffixStartBlock == suffixStartBlock);
 	assert(adjustedNode->lookup(hcAddress).id == entry.id_);
 	return adjustedNode;
 }

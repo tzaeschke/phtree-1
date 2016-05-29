@@ -40,8 +40,10 @@ private:
 	template <unsigned int PREF_BLOCKS>
 	void visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsigned int index);
 
-	unsigned long suffixBits;
-	unsigned long suffixBlocks;
+	unsigned long externallyStoredSuffixBits;
+	unsigned long externalSuffixBlocks;
+	unsigned long internallyStoredSuffixBits;
+	unsigned long internallyStoredSuffixes;
 	unsigned long visitedSuffixes;
 	unsigned long treeWidth;
 };
@@ -80,7 +82,8 @@ template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsigned int index) {
 
-	const unsigned long currentSuffixBits = DIM * (treeWidth - index - 1);
+	const unsigned long currentSuffixBits = DIM * (treeWidth - 1 - index - 1);
+	assert (currentSuffixBits <= DIM * (treeWidth - 1));
 
 	NodeIterator<DIM>* it;
 	NodeIterator<DIM>* endIt = node->end();
@@ -88,8 +91,14 @@ void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsig
 		NodeAddressContent<DIM> content = *(*it);
 		if (!content.hasSubnode) {
 			visitedSuffixes++;
-			suffixBits += currentSuffixBits;
-			suffixBlocks += 1 + currentSuffixBits / MultiDimBitset<DIM>::bitsPerBlock;
+			if (content.directlyStoredSuffix) {
+				++internallyStoredSuffixes;
+				assert (currentSuffixBits <= sizeof (uintptr_t) * 8 - 2);
+				internallyStoredSuffixBits += currentSuffixBits;
+			} else {
+				externallyStoredSuffixBits += currentSuffixBits;
+				externalSuffixBlocks += 1uL + currentSuffixBits / MultiDimBitset<DIM>::bitsPerBlock;
+			}
 		}
 	}
 
@@ -99,10 +108,12 @@ void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsig
 
 template <unsigned int DIM>
 void SuffixVisitor<DIM>::reset() {
-	suffixBits = 0;
-	suffixBlocks = 0;
 	visitedSuffixes = 0;
+	internallyStoredSuffixes = 0;
 	treeWidth = 0;
+	externallyStoredSuffixBits = 0;
+	externalSuffixBlocks = 0;
+	internallyStoredSuffixBits = 0;
 }
 
 template <unsigned int D>
@@ -113,12 +124,16 @@ std::ostream& operator <<(std::ostream &out, const SuffixVisitor<D>& v) {
 template <unsigned int DIM>
 std::ostream& SuffixVisitor<DIM>::output(std::ostream &out) const {
 
-	const size_t avgSuffixBits = suffixBits / visitedSuffixes;
-	const size_t avgSuffixBlocks = suffixBlocks / visitedSuffixes;
-	return out << "average per suffix: "
-			<< avgSuffixBits << " bits, "
-			<< avgSuffixBlocks << " block(s)"
-			<< " (max " << ((treeWidth - 1) * DIM) << " suffix bits)"<< endl;
+	const size_t externallyStoredSuffixes = visitedSuffixes - internallyStoredSuffixes;
+	const double internallyStoredRatioPercent = double(internallyStoredSuffixes) / double(visitedSuffixes) * 100.0;
+	const double avgInternalSuffixBits = double(internallyStoredSuffixBits) / double(internallyStoredSuffixes);
+	const double avgExternalSuffixBits = double(externallyStoredSuffixBits) / double(externallyStoredSuffixes);
+	const double avgExternalSuffixBlocks = double(externalSuffixBlocks) / double(externallyStoredSuffixes);
+
+	return out << "suffixes internally stored: " << internallyStoredSuffixes << " / "
+			<< internallyStoredRatioPercent << "% (avg "
+			<< avgInternalSuffixBits << " bits), avg external bits: " << avgExternalSuffixBits << " bits ("
+			<< avgExternalSuffixBlocks << " blocks)" << endl;
 }
 
 

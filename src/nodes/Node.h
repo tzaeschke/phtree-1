@@ -46,10 +46,10 @@ public:
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const = 0;
 	virtual NodeAddressContent<DIM> lookup(unsigned long address) const =0;
 	virtual void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) = 0;
-	// inserts the given subnode at the given address and returns the suffix start block
-	// pointer that was at this address or null if there was none
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
+	virtual bool canStoreSuffixInternally(size_t nSuffixBits) const =0;
 };
 
 #endif /* SRC_NODE_H_ */
