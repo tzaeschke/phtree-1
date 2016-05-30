@@ -22,24 +22,25 @@ public:
 	bool operator<(const NodeIterator& rhs);
 	bool operator!=(const NodeIterator& rhs);
 
+	void setToEnd();
+	virtual void setToBegin();
 	virtual void setAddress(size_t address);
 	virtual NodeIterator<DIM>& operator++();
 	virtual NodeIterator<DIM> operator++(int);
-	virtual NodeAddressContent<DIM> operator*();
+	virtual NodeAddressContent<DIM> operator*() const;
 
 protected:
 	unsigned long address_;
-	bool reachedEnd_;
 };
 
 #include <stdexcept>
 
 template <unsigned int DIM>
-NodeIterator<DIM>::NodeIterator() : address_(0), reachedEnd_(false) {
+NodeIterator<DIM>::NodeIterator() : address_(0) {
 }
 
 template <unsigned int DIM>
-NodeIterator<DIM>::NodeIterator(unsigned long address) : address_(address), reachedEnd_(false) {
+NodeIterator<DIM>::NodeIterator(unsigned long address) : address_(address) {
 }
 
 template <unsigned int DIM>
@@ -76,8 +77,18 @@ NodeIterator<DIM> NodeIterator<DIM>::operator++(int) {
 }
 
 template <unsigned int DIM>
-NodeAddressContent<DIM> NodeIterator<DIM>::operator*() {
+NodeAddressContent<DIM> NodeIterator<DIM>::operator*() const {
 	throw std::runtime_error("subclass should implement this");
+}
+
+template <unsigned int DIM>
+void NodeIterator<DIM>::setToBegin() {
+	throw std::runtime_error("subclass should implement this");
+}
+
+template <unsigned int DIM>
+void NodeIterator<DIM>::setToEnd() {
+	this->address_ = 1uL << DIM;
 }
 
 template <unsigned int DIM>

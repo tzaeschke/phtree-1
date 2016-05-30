@@ -22,10 +22,11 @@ public:
 	LHCIterator(unsigned long address, const LHC<DIM, PREF_BLOCKS, N>& node);
 	~LHCIterator();
 
+	void setToBegin() override;
 	void setAddress(size_t address) override;
 	NodeIterator<DIM>& operator++() override;
 	NodeIterator<DIM> operator++(int) override;
-	NodeAddressContent<DIM> operator*() override;
+	NodeAddressContent<DIM> operator*() const override;
 
 private:
 	const LHC<DIM, PREF_BLOCKS, N>* node_;
@@ -36,8 +37,7 @@ private:
 #include "iterators/LHCIterator.h"
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(), node_(&node) {
-	setAddress(0);
+LHCIterator<DIM, PREF_BLOCKS, N>::LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node) : NodeIterator<DIM>(), node_(&node), currentIndex(0) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -69,10 +69,18 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHCIterator<DIM, PREF_BLOCKS, N>::setToBegin() {
+	this->currentIndex = 0;
+	bool hasSub;
+	bool directlyStored;
+	// TODO address lookup needed or done before comparison anyway?
+	node_->lookupIndex(0u, &(this->address_), &hasSub, &directlyStored);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS, N>::operator++() {
 	++currentIndex;
 	if (currentIndex >= node_->m) {
-		this->reachedEnd_ = true;
 		currentIndex = node_->m - 1;
 		this->address_ = 1 << DIM;
 	} else {
@@ -89,7 +97,7 @@ NodeIterator<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator++(int i) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() {
+NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() const {
 
 	NodeAddressContent<DIM> content;
 	content.exists = true;

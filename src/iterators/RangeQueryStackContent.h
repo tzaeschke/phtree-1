@@ -17,8 +17,7 @@ class Node;
 template <unsigned int DIM>
 class RangeQueryStackContent {
 public:
-	bool nodeFullyContained;
-	bool suffixesFullyContained;
+	bool fullyContained;
 	size_t lowerMask_;
 	size_t upperMask_;
 	size_t prefixLength_;

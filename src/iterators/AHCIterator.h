@@ -18,10 +18,11 @@ public:
 	AHCIterator(unsigned long address, const AHC<DIM, PREF_BLOCKS>& node);
 	~AHCIterator();
 
+	void setToBegin() override;
 	void setAddress(size_t address) override;
 	NodeIterator<DIM>& operator++() override;
 	NodeIterator<DIM> operator++(int) override;
-	NodeAddressContent<DIM> operator*() override;
+	NodeAddressContent<DIM> operator*() const override;
 
 private:
 	const AHC<DIM, PREF_BLOCKS>* node_;
@@ -33,7 +34,6 @@ private:
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 AHCIterator<DIM, PREF_BLOCKS>::AHCIterator(const AHC<DIM, PREF_BLOCKS>& node) : NodeIterator<DIM>(), node_(&node) {
-	setAddress(0uL);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -66,6 +66,11 @@ void AHCIterator<DIM, PREF_BLOCKS>::setAddress(size_t address) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHCIterator<DIM, PREF_BLOCKS>::setToBegin() {
+	setAddress(0);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeIterator<DIM>& AHCIterator<DIM, PREF_BLOCKS>::operator++() {
 	// skip all unfilled fields until the highest address is reached
 	setAddress(this->address_ + 1);
@@ -78,7 +83,7 @@ NodeIterator<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator++(int) {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeAddressContent<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator*() {
+NodeAddressContent<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator*() const {
 
 	NodeAddressContent<DIM> content;
 	node_->lookup(this->address_, content);

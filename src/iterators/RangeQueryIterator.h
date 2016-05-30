@@ -211,10 +211,10 @@ bool RangeQueryIterator<DIM, WIDTH>::hasNext() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) const {
-//	if (currentContent.nodeFullyContained) return true;
 
 	assert (currentContent.upperMask_ < (1uL << DIM));
 	assert (currentContent.lowerMask_ <= currentContent.upperMask_);
+	if (currentContent.fullyContained) return true;
 
 	const bool lowerMatch = (hcAddress | currentContent.lowerMask_) == hcAddress;
 	const bool upperMatch = (hcAddress & currentContent.upperMask_) == hcAddress;
@@ -227,7 +227,7 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 			&& isInMaskRange(currentAddressContent.address));
 	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
 
-//	if (currentContent.suffixesFullyContained) return true;
+	if (currentContent.fullyContained) return true;
 
 	// TODO no need to check if the current address is not the last address checked in the node
 	// i.e. skip if current addresss < min(upper mask, highest filled node address);
@@ -313,8 +313,7 @@ void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigne
 		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
 	}
 
-//TODO	const bool nodeAndSuffixesFullyInRange = currentContent.suffixesFullyContained;
-	const bool nodeAndSuffixesFullyInRange = false;
+	const bool nodeAndSuffixesFullyInRange = currentContent.fullyContained;
 	stack_.push(currentContent);
 	createCurrentContent(nextNode, prefixLength, nodeAndSuffixesFullyInRange);
 
@@ -363,14 +362,12 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 
 		fullSwipe = (currentContent.lowerMask_ == 0uL)
 						&& (currentContent.upperMask_ == highestAddress);
-		currentContent.nodeFullyContained = fullSwipe && upperComp.second == 0 && lowerComp.second == 0;
-		currentContent.suffixesFullyContained = fullSwipe && upperComp.second == 0;
+		currentContent.fullyContained = fullSwipe && upperComp.second == 0 && lowerComp.second == 0;
 	} else {
 		fullSwipe = true;
 		currentContent.lowerMask_ = 0u;
 		currentContent.upperMask_ = highestAddress;
-		currentContent.nodeFullyContained = true;
-		currentContent.suffixesFullyContained = true;
+		currentContent.fullyContained = true;
 	}
 
 	// calculate the iterators for the current node from the determined masks

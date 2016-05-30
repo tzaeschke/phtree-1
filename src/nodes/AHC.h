@@ -265,7 +265,9 @@ Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::begin() const {
-	return new AHCIterator<DIM, PREF_BLOCKS>(*this);
+	AHCIterator<DIM, PREF_BLOCKS>* it = new AHCIterator<DIM, PREF_BLOCKS>(*this);
+	it->setToBegin();
+	return it;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -275,7 +277,9 @@ NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::it(unsigned long hcAddress) const {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeIterator<DIM>* AHC<DIM, PREF_BLOCKS>::end() const {
-	return new AHCIterator<DIM, PREF_BLOCKS>(1uL << DIM, *this);
+	NodeIterator<DIM>* it = new AHCIterator<DIM, PREF_BLOCKS>(*this);
+	it->setToEnd();
+	return it;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

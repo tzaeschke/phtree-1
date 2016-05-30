@@ -77,7 +77,6 @@ private:
 #include "util/NodeTypeUtil.h"
 
 using namespace std;
-
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 LHC<DIM, PREF_BLOCKS, N>::LHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength),
 	addresses_(), ids_(), references_(), m(0) {
@@ -455,7 +454,9 @@ Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() const {
-	return new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
+	LHCIterator<DIM, PREF_BLOCKS, N>* it = new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
+	it->setToBegin();
+	return it;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -465,8 +466,8 @@ NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::it(unsigned long hcAddress) const {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::end() const {
-	NodeIterator<DIM>* it = new LHCIterator<DIM, PREF_BLOCKS, N>(1uL << DIM, *this);
-	++(*it); // TODO needed?
+	NodeIterator<DIM>* it = new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
+	it->setToEnd();
 	return it;
 }
 
