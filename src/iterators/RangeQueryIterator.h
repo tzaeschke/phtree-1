@@ -70,6 +70,13 @@ RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<pair<unsigned long, co
 		currentValue(), lowerLeftCorner_(lowerLeft),
 		upperRightCorner_(upperRight) {
 
+#ifndef NDEBUG
+	// validation only: lower left < upper right
+	pair<unsigned long, unsigned long> comp = MultiDimBitset<DIM>::
+				compareSmallerEqual(lowerLeftCorner_.values_, upperRightCorner_.values_, DIM * WIDTH, 0);
+	assert ((comp.first == highestAddress) && "should be: lower left < upper right");
+#endif
+
 	assert (!visitedNodes->empty() && "at least the root node must have been visited");
 	if (visitedNodes->empty()) {
 		hasNext_ = false;
@@ -120,7 +127,7 @@ Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 		const size_t suffixBits = DIM * (WIDTH - (currentIndex_ + 1));
 		assert (suffixBits > 0);
 		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, suffixBits));
-		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.suffixStartBlock, suffixBits, entry.values_, 0);
+		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.getSuffixStartBlock(), suffixBits, entry.values_, 0);
 	}
 
 
@@ -204,7 +211,7 @@ bool RangeQueryIterator<DIM, WIDTH>::hasNext() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) const {
-	if (currentContent.nodeFullyContained) return true;
+//	if (currentContent.nodeFullyContained) return true;
 
 	assert (currentContent.upperMask_ < (1uL << DIM));
 	assert (currentContent.lowerMask_ <= currentContent.upperMask_);
@@ -220,7 +227,7 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 			&& isInMaskRange(currentAddressContent.address));
 	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
 
-	if (currentContent.suffixesFullyContained) return true;
+//	if (currentContent.suffixesFullyContained) return true;
 
 	// TODO no need to check if the current address is not the last address checked in the node
 	// i.e. skip if current addresss < min(upper mask, highest filled node address);
@@ -234,7 +241,7 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 	MultiDimBitset<DIM>::pushBackValue(currentAddressContent.address, currentValue, DIM * (WIDTH - currentIndex_ - 1));
 	const unsigned int suffixLength = WIDTH - currentIndex_ - 1;
 	if (suffixLength > 0)
-		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.suffixStartBlock, DIM * suffixLength, currentValue, 0);
+		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.getSuffixStartBlock(), DIM * suffixLength, currentValue, 0);
 
 	pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
 				compareSmallerEqual(lowerLeftCorner_.values_, currentValue, DIM * WIDTH, 0);
@@ -306,7 +313,8 @@ void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigne
 		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
 	}
 
-	const bool nodeAndSuffixesFullyInRange = currentContent.suffixesFullyContained;
+//TODO	const bool nodeAndSuffixesFullyInRange = currentContent.suffixesFullyContained;
+	const bool nodeAndSuffixesFullyInRange = false;
 	stack_.push(currentContent);
 	createCurrentContent(nextNode, prefixLength, nodeAndSuffixesFullyInRange);
 
@@ -319,6 +327,8 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 	assert (nextNode->getPrefixLength() == prefixLength);
 	currentContent.node_ = nextNode;
 	currentContent.prefixLength_ = prefixLength;
+
+	bool fullSwipe = false;
 
 	if (!nodeAndSuffixesFullyInRange) {
 		// calculate the range masks for the next node
@@ -351,10 +361,12 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 		currentContent.upperMask_ = highestAddress & ((~upperComp.first) | upperComp.second);
 		assert (currentContent.lowerMask_ <= currentContent.upperMask_ && currentContent.upperMask_ < (1uL << DIM));
 
-		currentContent.nodeFullyContained = (currentContent.lowerMask_ == 0uL)
-				&& (currentContent.upperMask_ == highestAddress);
-		currentContent.suffixesFullyContained = currentContent.nodeFullyContained && upperComp.second == 0;
+		fullSwipe = (currentContent.lowerMask_ == 0uL)
+						&& (currentContent.upperMask_ == highestAddress);
+		currentContent.nodeFullyContained = fullSwipe && upperComp.second == 0 && lowerComp.second == 0;
+		currentContent.suffixesFullyContained = fullSwipe && upperComp.second == 0;
 	} else {
+		fullSwipe = true;
 		currentContent.lowerMask_ = 0u;
 		currentContent.upperMask_ = highestAddress;
 		currentContent.nodeFullyContained = true;
@@ -362,7 +374,7 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 	}
 
 	// calculate the iterators for the current node from the determined masks
-	if (currentContent.nodeFullyContained) {
+	if (fullSwipe) {
 		currentContent.startIt_ = nextNode->begin();
 		currentContent.endIt_ = nextNode->end();
 	} else {

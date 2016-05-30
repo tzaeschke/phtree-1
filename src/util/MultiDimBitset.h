@@ -520,6 +520,7 @@ pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const 
 
 	bool isSmaller[DIM] = {};
 	bool isEqual[DIM] = {};
+	fill(isEqual, isEqual + DIM, true);
 	bool allCompared = false;
 
 	const unsigned int nBitsIndex = nBits - 1u;
@@ -539,7 +540,8 @@ pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const 
 		const unsigned long v1Block = v1Start[block];
 		const unsigned long v2Block = v2Start[block];
 		for (unsigned d = 0; d < DIM; ++d) {
-			if (isSmaller[d] || isEqual[d]) continue;
+			// (in lower blocks) the result can only be overwritten if the values were equal so far
+			if (!isEqual[d]) continue;
 
 			const unsigned int dimBlockOffset = (d + blockOffset) % DIM;
 			unsigned long dimExtractionMask = dimBlock << dimBlockOffset;
@@ -549,7 +551,7 @@ pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const 
 			const unsigned long v2BlockDimExtracted = v2Block & dimExtractionMask;
 			isSmaller[d] = v1BlockDimExtracted < v2BlockDimExtracted;
 			isEqual[d] = !isSmaller[d] && (v1BlockDimExtracted == v2BlockDimExtracted);
-			allCompared &= (isSmaller[d] || isEqual[d]);
+			allCompared &= !isEqual[d];
 		}
 
 		if (isLastBlock) break;
