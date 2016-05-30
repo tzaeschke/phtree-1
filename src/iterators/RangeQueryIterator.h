@@ -22,8 +22,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryIterator {
 public:
 	RangeQueryIterator(std::vector<std::pair<unsigned long, const Node<DIM>*>>* nodeStack,
-			const Entry<DIM, WIDTH> lowerLeft,
-			const Entry<DIM, WIDTH> upperRight);
+			const Entry<DIM, WIDTH>& lowerLeft,
+			const Entry<DIM, WIDTH>& upperRight);
 	virtual ~RangeQueryIterator();
 
 	Entry<DIM, WIDTH> next();
@@ -65,7 +65,7 @@ using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes,
-		const Entry<DIM, WIDTH> lowerLeft, const Entry<DIM, WIDTH> upperRight) : hasNext_(true),
+		const Entry<DIM, WIDTH>& lowerLeft, const Entry<DIM, WIDTH>& upperRight) : hasNext_(true),
 		currentIndex_(0), stack_(),
 		currentValue(), lowerLeftCorner_(lowerLeft),
 		upperRightCorner_(upperRight) {

@@ -37,10 +37,7 @@ public:
 				upper.at(d) = upperValue;
 			}
 
-			Entry<DIM, WIDTH> lowerEntry(lower, 0);
-			Entry<DIM, WIDTH> upperEntry(upper, 0);
-
-			return tree.rangeQuery(lowerEntry, upperEntry);
+			return tree.rangeQuery(lower, upper);
 		}
 
 	static unsigned int countEntriesInFullRange(const PHTree<DIM, WIDTH>& tree) {

@@ -76,8 +76,7 @@ using namespace std;
 
 template <unsigned int DIM>
 unsigned long MultiDimBitset<DIM>::initDimBlock() {
-	const unsigned int offset = dimBlockOffset;
-	assert (offset < DIM);
+	assert (dimBlockOffset < DIM);
 
 	const size_t dimChunksPerBlock = 1 + bitsPerBlock / DIM;
 	unsigned long dimBlock = 0;

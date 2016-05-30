@@ -39,7 +39,8 @@ public:
 	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>& e) const;
 	std::pair<bool,int> lookup(const std::vector<unsigned long>& values) const;
 	std::pair<bool,int> lookup(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
-	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const Entry<DIM, WIDTH> lowerLeft, const Entry<DIM, WIDTH> upperRight) const;
+	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const Entry<DIM, WIDTH>& lowerLeft, const Entry<DIM, WIDTH>& upperRight) const;
+	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 
 	void accept(Visitor<DIM>* visitor);
 	unsigned long* reserveSuffixSpace(size_t nSuffixBits);
@@ -145,8 +146,8 @@ pair<bool, int> PHTree<DIM, WIDTH>::lookup(
 
 
 template <unsigned int DIM, unsigned int WIDTH>
-RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, WIDTH> lowerLeft,
-		const Entry<DIM, WIDTH> upperRight) const {
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, WIDTH>& lowerLeft,
+		const Entry<DIM, WIDTH>& upperRight) const {
 	// TODO check if lower left and upper right corners are correctly set
 	vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes = new vector<pair<unsigned long, const Node<DIM>*>>();
 	SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(lowerLeft, root_, visitedNodes);
@@ -154,6 +155,16 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, 
 
 	return it;
 }
+
+template <unsigned int DIM, unsigned int WIDTH>
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(
+		const std::vector<unsigned long>& lowerLeftValues,
+		const std::vector<unsigned long>& upperRightValues) const {
+	const Entry<DIM, WIDTH> lowerLeft(lowerLeftValues, 0);
+	const Entry<DIM, WIDTH> upperRight(upperRightValues, 0);
+	return rangeQuery(lowerLeft, upperRight);
+}
+
 
 template <unsigned int DIM, unsigned int WIDTH>
 void PHTree<DIM, WIDTH>::accept(Visitor<DIM>* visitor) {
