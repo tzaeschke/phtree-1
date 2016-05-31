@@ -75,6 +75,7 @@ int mainSimpleExample() {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
+	delete it;
 
 	cout << "The following entries are in the range (65,10) - (150,20):" << endl;
 	it = phtree->rangeQuery(
@@ -84,19 +85,71 @@ int mainSimpleExample() {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
+	delete it;
 
 	cout << "The following entries are in the range (74,20) - (74,21):" << endl;
 	it = phtree->rangeQuery(
 			Entry<2, bitLength>({74,20}, 0),
-			Entry<2, bitLength>({74,21}, 0));
+			Entry<2, bitLength>({75,21}, 0));
 	while (it->hasNext()) {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
+	delete it;
 
 	delete visitor;
 	delete phtree;
 
+	return 0;
+}
+
+int mainHyperCubeExample() {
+	const unsigned int bitLength = 4;
+	vector<unsigned long> e1Lower = {5, 5};
+	vector<unsigned long> e1Upper = {15, 10};
+	vector<unsigned long> e2Lower = {5, 10};
+	vector<unsigned long> e2Upper = {10, 15};
+	vector<unsigned long> e3Lower = {1, 9};
+	vector<unsigned long> e3Upper = {6, 14};
+	vector<unsigned long> e4Lower = {0, 0};
+	vector<unsigned long> e4Upper = {5, 5};
+
+	PHTree<4, bitLength>* phtree = new PHTree<4, bitLength>();
+	phtree->insertHyperRect(e1Lower, e1Upper, 1);
+	assert (phtree->lookupHyperRect(e1Lower, e1Upper).second == 1);
+	phtree->insertHyperRect(e2Lower, e2Upper, 2);
+	assert (phtree->lookupHyperRect(e2Lower, e2Upper).second == 2);
+	phtree->insertHyperRect(e3Lower, e3Upper, 3);
+	assert (phtree->lookupHyperRect(e3Lower, e3Upper).second == 3);
+	phtree->insertHyperRect(e4Lower, e4Upper, 4);
+	assert (phtree->lookupHyperRect(e4Lower, e4Upper).second == 4);
+	cout << *phtree;
+
+	cout << "The following rectangles are in the range (1,1) - (15,15):" << endl;
+	RangeQueryIterator<4, bitLength>* it = phtree->rangeQueryHyperRect({1, 1}, {15, 15});
+	while (it->hasNext()) {
+		Entry<4, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+	delete it;
+
+	cout << "The following rectangles are in the range (5,9) - (6,10):" << endl;
+	it = phtree->rangeQueryHyperRect({5, 9}, {6, 10});
+	while (it->hasNext()) {
+		Entry<4, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+	delete it;
+
+	cout << "The following rectangles are in the range (11,2) - (12,14):" << endl;
+	it = phtree->rangeQueryHyperRect({11, 2}, {12, 14});
+	while (it->hasNext()) {
+		Entry<4, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+
+	delete it;
+	delete phtree;
 	return 0;
 }
 
@@ -116,7 +169,9 @@ int main(int argc, char* argv[]) {
 	#endif
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
-		return mainSimpleExample();
+		mainSimpleExample();
+		mainHyperCubeExample();
+		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
 		PlotUtil::plotTimeSeriesOfInserts();
 		PlotUtil::plotAverageInsertTimePerDimensionRandom();

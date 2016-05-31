@@ -21,7 +21,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil {
 public:
 
-	static Node<DIM>* insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
+	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
 
 private:
 	static inline void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
@@ -190,14 +190,13 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry,
+void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry,
 		Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree) {
 
 	size_t lastHcAddress = 0;
 	size_t index = 0;
 	Node<DIM>* lastNode = NULL;
 	Node<DIM>* currentNode = rootNode;
-	Node<DIM>* initialNode = rootNode;
 	NodeAddressContent<DIM> content;
 
 	while (index < WIDTH) {
@@ -275,8 +274,9 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 				currentNode = adjustedNode;
 			} else if (adjustedNode != currentNode) {
 				// the root node changed
-				initialNode = adjustedNode;
 				currentNode = adjustedNode;
+				delete tree.root_;
+				tree.root_ = adjustedNode;
 				assert (tree.lookup(entry).first);
 			}
 
@@ -295,9 +295,6 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>
 		assert (retr.first && retr.second == entry.id_
 			&& "after insertion the entry is always contained in the tree");
 	#endif
-
-	// the root node might have changed
-	return initialNode;
 }
 
 #endif /* SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_ */

@@ -32,9 +32,7 @@ public:
 		case 8: return determineNodeType<8>(prefixBits, nDirectInserts);
 		case 9: return determineNodeType<9>(prefixBits, nDirectInserts);
 		case 10: return determineNodeType<10>(prefixBits, nDirectInserts);
-		case 11: return determineNodeType<11>(prefixBits, nDirectInserts);
-		case 12: return determineNodeType<12>(prefixBits, nDirectInserts);
-		default: throw runtime_error("Only supports up to 12 prefix blocks right now.");
+		default: throw runtime_error("Only supports up to 10 prefix blocks right now.");
 		}
 	}
 
@@ -47,10 +45,13 @@ public:
 
 	static Node<DIM>* copyIntoLargerNode(size_t newNContents, const Node<DIM>* nodeToCopy) {
 		// TODO make more efficient by not using iterators and a bulk insert
-		Node<DIM>* copy = buildNode(nodeToCopy->getPrefixLength() * DIM, newNContents);
-		MultiDimBitset<DIM>::duplicateHighestBits(nodeToCopy->getFixPrefixStartBlock(),
-				nodeToCopy->getPrefixLength() * DIM, nodeToCopy->getPrefixLength(),
-				copy->getPrefixStartBlock());
+		const size_t prefixLength = nodeToCopy->getPrefixLength();
+		Node<DIM>* copy = buildNode(prefixLength * DIM, newNContents);
+		if (prefixLength > 0) {
+			MultiDimBitset<DIM>::duplicateHighestBits(nodeToCopy->getFixPrefixStartBlock(),
+					prefixLength * DIM, prefixLength, copy->getPrefixStartBlock());
+		}
+
 		copyContents(*nodeToCopy, *copy);
 		return copy;
 	}
