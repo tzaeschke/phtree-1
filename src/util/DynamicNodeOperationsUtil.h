@@ -79,34 +79,30 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	// TODO what if suffix length == 0?!
 	const size_t newSuffixLength = WIDTH - (currentIndex + 1 + prefixLength + 1);
 	const bool storeSuffixInNode = subnode->canStoreSuffixInternally(newSuffixLength * DIM);
+
 	// create the required suffix blocks for both entries and insert a reference into the subnode
-	unsigned long* insertEntrySuffixStartBlock = NULL;
-	unsigned long* existingEntrySuffixStartBlock = NULL;
-	unsigned long insertEntrySuffix = 0uL;
-	unsigned long existingEntrySuffix = 0uL;
-
 	if (storeSuffixInNode) {
-		assert (newSuffixLength <= 8 * sizeof(unsigned long));
-		insertEntrySuffixStartBlock = &insertEntrySuffix;
-		existingEntrySuffixStartBlock = &existingEntrySuffix;
-	} else {
-		insertEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
-		existingEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
-	}
-
-	// trim the existing entry's suffix by the common prefix length
-	MultiDimBitset<DIM>::removeHighestBits(suffixStartBlock, currentSuffixBits, prefixLength + 1, existingEntrySuffixStartBlock);
-	// insert the last bits of the new entry
-	MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
-
-	if (storeSuffixInNode) {
+		// insert both suffixes internally in the nodes
+		unsigned long insertEntrySuffix = 0uL;
+		unsigned long existingEntrySuffix = 0uL;
+		// trim the existing entry's suffix by the common prefix length
+		MultiDimBitset<DIM>::removeHighestBits(suffixStartBlock, currentSuffixBits, prefixLength + 1, &existingEntrySuffix);
+		// insert the last bits of the new entry
+		MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, &insertEntrySuffix);
 		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffix, entry.id_);
 		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffix, content.id);
 	} else {
+		// insert the new suffix by allocating new memory and the existing suffix by reusing the old memory
+		unsigned long* insertEntrySuffixStartBlock = tree.reserveSuffixSpace(newSuffixLength * DIM);
+		// insert the last bits of the new entry
+		MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1 + prefixLength + 1, insertEntrySuffixStartBlock);
+		// trim the existing entry's suffix by the common prefix length
+		const size_t removeSuffixBits = currentSuffixBits - (DIM * newSuffixLength);
+		unsigned long* oldSuffixStartBlock = const_cast<unsigned long*>(suffixStartBlock);
+		MultiDimBitset<DIM>::removeHighestBits(oldSuffixStartBlock, currentSuffixBits, removeSuffixBits);
+
 		subnode->insertAtAddress(insertEntryHCAddress, insertEntrySuffixStartBlock, entry.id_);
-		subnode->insertAtAddress(existingEntryHCAddress, existingEntrySuffixStartBlock, content.id);
-		// remove the old suffix
-		// TODO free space	tree->freeSuffixSpace(content.suffixStartBlock, currentSuffixBits);
+		subnode->insertAtAddress(existingEntryHCAddress, suffixStartBlock, content.id);
 	}
 
 	// no need to adjust the size of the node because the correct node type was already provided
