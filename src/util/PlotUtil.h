@@ -15,6 +15,7 @@
 
 #define AVERAGE_INSERT_DIM_PLOT_NAME "phtree_average_insert_dimensions"
 #define RANGE_QUERY_RATIO_PLOT_NAME "phtree_average_range_query_ratio"
+#define RANGE_QUERY_SELECTIVITY_PLOT_NAME "phtree_range_query_selectivity"
 #define AVERAGE_INSERT_ENTRIES_PLOT_NAME "phtree_average_insert_entries"
 #define INSERT_SERIES_PLOT_NAME "phtree_insert_series"
 
@@ -30,6 +31,7 @@
 #define INSERT_ENTRY_DIMS {3, 6, 8, 10};
 #define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
 #define SQUARE_WIDTH_PERCENT {0.5};
+#define SELECTIVITY {0.1, 0.01, 0.001};
 
 #define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
@@ -61,6 +63,10 @@ public:
 	static void plotRangeQueryTimePerPercentFilled(std::vector<vector<unsigned long>>& entries);
 	static void plotRangeQueryTimePerPercentFilledRandom();
 
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotRangeQueryTimePerSelectivity(std::vector<vector<unsigned long>>& entries);
+	static void plotRangeQueryTimePerSelectivityRandom();
+
 	static void plotTimeSeriesOfInserts();
 
 private:
@@ -72,9 +78,6 @@ private:
 };
 
 #include <fstream>
-#include <stdlib.h>
-#include <time.h>
-#include <ctime>
 #include <algorithm>
 #include <set>
 #include <stdexcept>
@@ -91,20 +94,21 @@ private:
 #include "util/FileInputUtil.h"
 #include "util/rdtsc.h"
 #include "util/RangeQueryUtil.h"
+#include "util/RandUtil.h"
 
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 set<vector<unsigned long>>* PlotUtil::generateUniqueRandomEntries(size_t nUniqueEntries) {
 	assert (WIDTH <= 8 * sizeof (unsigned long));
-	srand(time(NULL));
 	set<vector<unsigned long>>* randomDimEntries = new set<vector<unsigned long>>();
 	for (size_t nEntry = 0; nEntry < nUniqueEntries; nEntry++) {
 		vector<unsigned long> entryValues(DIM);
 		for (size_t d = 0; d < DIM; d++) {
+			unsigned long r = RandUtil::generateRandValue();
 			if (WIDTH < 8 * sizeof(unsigned long))
-				entryValues.at(d) = rand() % (1ul << WIDTH);
-			else entryValues.at(d) = rand();
+				entryValues.at(d) = r % (1ul << WIDTH);
+			else entryValues.at(d) = r;
 		}
 		bool inserted = randomDimEntries->insert(entryValues).second;
 		if (!inserted) {
@@ -215,6 +219,65 @@ void PlotUtil::plotAverageInsertTimePerDimension(std::string file) {
 	cout << " ok" << endl;
 
 	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotRangeQueryTimePerSelectivity(std::vector<vector<unsigned long>>& entries) {
+
+	// create a PH-Tree with the given entries
+	cout << "inserting all entries into a PH-Tree...";
+	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
+	for (size_t iEntry = 0; iEntry < entries.size(); iEntry++) {
+		phtree->insert(entries[iEntry], iEntry);
+	}
+	cout << " ok" << endl;
+
+	entries.clear();
+
+	double selectivity[] = SELECTIVITY;
+		size_t nTests = sizeof (selectivity) / sizeof (double);
+
+		ofstream* plotFile = openPlotFile(RANGE_QUERY_SELECTIVITY_PLOT_NAME, true);
+		cout << "range width\tinit [ms]\tquery time [ms]\t #elements in range" << endl;
+		CALLGRIND_START_INSTRUMENTATION;
+		for (unsigned test = 0; test < nTests; ++test) {
+
+			// create a centered square with the given side length
+			const unsigned int startInitRangeQueryTicks = clock();
+			RangeQueryIterator<DIM, WIDTH>* it = RangeQueryUtil<DIM, WIDTH>::getSelectiveRangeIteratorRandom(*phtree, selectivity[test]);
+			const unsigned int initRangeQueryTicks = clock() - startInitRangeQueryTicks;
+			unsigned int nElementsInRange = 0;
+			const unsigned int startRangeQueryTicks = clock();
+			while (it->hasNext()) {
+				it->next();
+				++nElementsInRange;
+			}
+			const unsigned int rangeQueryTicks = clock() - startRangeQueryTicks;
+			delete it;
+
+			const double initMs = double(initRangeQueryTicks) / CLOCKS_PER_SEC * 1000;
+			const double rangeQueryMs = double(rangeQueryTicks) / CLOCKS_PER_SEC * 1000;
+
+			cout << selectivity[test] << "\t\t" << initMs << "\t\t"
+					<< rangeQueryMs << "\t\t" << nElementsInRange << endl;
+			(*plotFile) << test << "\t" << selectivity[test] << "\t"
+					<< initMs << "\t" << rangeQueryMs << "\t"
+					<< nElementsInRange << endl;
+		}
+		CALLGRIND_STOP_INSTRUMENTATION;
+
+		plotFile->close();
+		delete plotFile;
+		delete phtree;
+
+		plot(RANGE_QUERY_SELECTIVITY_PLOT_NAME);
+}
+
+void PlotUtil::plotRangeQueryTimePerSelectivityRandom() {
+	cout << "creating " << N_RANDOM_ENTRIES_RANGE_QUERY << " entries for the range query...";
+	vector<vector<unsigned long>>* entries = generateUniqueRandomEntriesList<ENTRY_DIM, BIT_LENGTH>(N_RANDOM_ENTRIES_RANGE_QUERY);
+	cout << " ok" << endl;
+	plotRangeQueryTimePerSelectivity<ENTRY_DIM, BIT_LENGTH>(*entries);
 }
 
 void PlotUtil::plotRangeQueryTimePerPercentFilledRandom() {

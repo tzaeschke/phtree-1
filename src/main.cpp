@@ -173,10 +173,11 @@ int main(int argc, char* argv[]) {
 		mainHyperCubeExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotTimeSeriesOfInserts();
-		PlotUtil::plotAverageInsertTimePerDimensionRandom();
-		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
-		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
+//		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotAverageInsertTimePerDimensionRandom();
+//		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+//		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
+		PlotUtil::plotRangeQueryTimePerSelectivityRandom();
 		return 0;
 	} else if (rand.compare(argv[1]) == 0) {
 		vector<size_t> nEntries;

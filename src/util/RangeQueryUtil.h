@@ -8,9 +8,12 @@
 #ifndef SRC_UTIL_RANGEQUERYUTIL_H_
 #define SRC_UTIL_RANGEQUERYUTIL_H_
 
+#include <math.h>
+
 #include "PHTree.h"
 #include "Entry.h"
 #include "iterators/RangeQueryIterator.h"
+#include "util/RandUtil.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryUtil {
@@ -19,6 +22,29 @@ public:
 	static RangeQueryIterator<DIM, WIDTH>* getFullRangeIterator(
 			const PHTree<DIM, WIDTH>& tree) {
 		return getSkewedRangeIterator(tree, 0.0, 1.0);
+	}
+
+	static RangeQueryIterator<DIM, WIDTH>* getSelectiveRangeIteratorRandom(
+			const PHTree<DIM, WIDTH>& tree,
+			double selectivity) {
+
+		assert (selectivity > 0.0 && selectivity <= 1.0);
+
+		const double perDimSelectivity = pow(selectivity, 1.0 / double(DIM));
+		assert (perDimSelectivity > selectivity && perDimSelectivity <= 1.0);
+
+		const unsigned long domainSize = (1uL << WIDTH) - 1uL;
+		const unsigned long hyperRectSize = domainSize * perDimSelectivity;
+		const unsigned long domainWidth = domainSize - hyperRectSize;
+
+		std::vector<unsigned long> lower = RandUtil::generateRandValues(DIM, 0, domainWidth);
+		std::vector<unsigned long> upper(DIM);
+		for (unsigned d = 0; d < DIM; ++d) {
+			upper[d] = lower[d] + hyperRectSize;
+			assert (lower[d] < upper[d] && upper[d] < domainSize);
+		}
+
+		return tree.rangeQuery(lower, upper);
 	}
 
 	static RangeQueryIterator<DIM, WIDTH>* getSkewedRangeIterator(
