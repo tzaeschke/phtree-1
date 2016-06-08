@@ -13,20 +13,22 @@
 #include <set>
 #include <iostream>
 
-#define AVERAGE_INSERT_DIM_PLOT_NAME "phtree_average_insert_dimensions"
-#define RANGE_QUERY_RATIO_PLOT_NAME "phtree_average_range_query_ratio"
-#define RANGE_QUERY_SELECTIVITY_PLOT_NAME "phtree_range_query_selectivity"
-#define AVERAGE_INSERT_ENTRIES_PLOT_NAME "phtree_average_insert_entries"
-#define INSERT_SERIES_PLOT_NAME "phtree_insert_series"
+#define AVERAGE_INSERT_DIM_PLOT_NAME 		"phtree_average_insert_dimensions"
+#define RANGE_QUERY_RATIO_PLOT_NAME 		"phtree_average_range_query_ratio"
+#define RANGE_QUERY_SELECTIVITY_PLOT_NAME 	"phtree_range_query_selectivity"
+#define AVERAGE_INSERT_ENTRIES_PLOT_NAME 	"phtree_average_insert_entries"
+#define INSERT_SERIES_PLOT_NAME 			"phtree_insert_series"
+#define AXONS_DENDRITES_PLOT_NAME 			"phtree_axons_dendrites"
 
 #define PLOT_DATA_PATH "./plot/data/"
 #define PLOT_DATA_EXTENSION ".dat"
 #define GNUPLOT_FILE_PATH "./plot/"
 #define GNUPLOT_FILE_EXTENSION ".p"
 
-#define BIT_LENGTH 	32
-#define ENTRY_DIM 	3
+#define BIT_LENGTH 	42
+#define ENTRY_DIM 	6
 #define ENTRY_DIM_INSERT_SERIES 3
+#define FLOAT_ACCURACY_DECIMALS 14
 
 #define INSERT_ENTRY_DIMS {3, 6, 8, 10};
 #define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
@@ -35,7 +37,7 @@
 
 #define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
-#define N_RANDOM_ENTRIES_INSERT_SERIES 100
+#define N_RANDOM_ENTRIES_INSERT_SERIES 1000
 #define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -55,7 +57,7 @@ public:
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotAverageInsertTimePerNumberOfEntries(std::vector<std::vector<std::vector<unsigned long>>*> entries);
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotAverageInsertTimePerNumberOfEntries(std::string file);
+	static void plotAverageInsertTimePerNumberOfEntries(std::string file, bool isFloat);
 	static void plotAverageInsertTimePerNumberOfEntriesRandom();
 	static void plotAverageInsertTimePerNumberOfEntriesRandom(std::vector<size_t> nEntries);
 
@@ -68,6 +70,9 @@ public:
 	static void plotRangeQueryTimePerSelectivityRandom();
 
 	static void plotTimeSeriesOfInserts();
+
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotAxonsAndDendrites(std::vector<std::string> axonsFiles, std::vector<std::string> dendritesFiles);
 
 private:
 	static void plot(std::string gnuplotFileName);
@@ -131,6 +136,108 @@ void PlotUtil::plot(string gnuplotFileName) {
 	string path = GNUPLOT_FILE_PATH + gnuplotFileName + GNUPLOT_FILE_EXTENSION;
 	string gnuplotCommand = "gnuplot -p '" + path + "'";
 	system(gnuplotCommand.c_str());
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> dendritesFiles) {
+	assert (axonsFiles.size() == dendritesFiles.size());
+
+	ofstream* plotFile = openPlotFile(AXONS_DENDRITES_PLOT_NAME, true);
+
+	for (unsigned run = 0; run < axonsFiles.size(); ++run) {
+		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
+
+		// insert all dendrites into a PH-Tree
+		cout << "loading dendrites... " << flush;
+		vector<vector<unsigned long>>* dendritesRectValues = FileInputUtil::readFloatEntries<DIM>(dendritesFiles[run], FLOAT_ACCURACY_DECIMALS);
+		cout << "ok" << endl;
+		cout << "inserting dendrites into a PH-Tree... " << flush;
+		const size_t nDendrites = dendritesRectValues->size();
+		const unsigned int startInsertTime = clock();
+		for (unsigned iEntry = 0; iEntry < nDendrites; ++iEntry) {
+			phtree->insert((*dendritesRectValues)[iEntry], iEntry);
+		}
+		const unsigned int totalInsertTime = clock() - startInsertTime;
+
+		for (unsigned iEntry = 0; iEntry < nDendrites; ++iEntry) {
+			assert (phtree->lookup((*dendritesRectValues)[iEntry]).second == iEntry);
+		}
+		cout << "ok" << endl;
+
+		dendritesRectValues->clear();
+		delete dendritesRectValues;
+
+		CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
+		SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
+		PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
+		SuffixVisitor<DIM>* suffixVisitor = new SuffixVisitor<DIM>();
+		phtree->accept(typesVisitor);
+		phtree->accept(sizeVisitor);
+		phtree->accept(prefixVisitor);
+		phtree->accept(suffixVisitor);
+		cout << *typesVisitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
+		const size_t sizeMByte = sizeVisitor->getTotalMByteSize();
+		delete typesVisitor;
+		delete sizeVisitor;
+		delete prefixVisitor;
+		delete suffixVisitor;
+
+		// check for overlaps between axons and axons
+		cout << "loading axons... " << flush;
+		vector<vector<unsigned long>>* axonsRectValues = FileInputUtil::readFloatEntries<DIM>(axonsFiles[run], FLOAT_ACCURACY_DECIMALS);
+		cout << "ok" << endl;
+		cout << "performing range queries on dendrites in the PH-Tree... " << flush;
+		size_t nIntersectingDendrites = 0;
+		const size_t nAxons = axonsRectValues->size();
+		unsigned int totalRangeQueryIntiTime = 0;
+		unsigned int totalRangeQueuryNextTime = 0;
+
+		std::string idPath = "./myDendriteIds.dat";
+		ofstream* idsFile = new ofstream();
+		idsFile->open(idPath.c_str(), ofstream::out | ofstream::trunc);
+
+		for (unsigned iAxon = 0; iAxon < nAxons; ++iAxon) {
+//			cout << "Axon: " << iAxon << " | previous intersections: " << nIntersectingDendrites << endl;
+			const unsigned int startInitTime = clock();
+			RangeQueryIterator<DIM, WIDTH>* it = phtree->intersectionQuery((*axonsRectValues)[iAxon]);
+			totalRangeQueryIntiTime += (clock() - startInitTime);
+			const unsigned int startRangeQueryTime = clock();
+//			unsigned i = 0;
+			while (it->hasNext()) {
+//				cout << "Intersect nr. " << (++i) << endl;
+//				(*idsFile) << iAxon << ": " <<  it->next().id_ << endl;
+				it->next();
+				++nIntersectingDendrites;
+			}
+			delete it;
+			totalRangeQueuryNextTime += (clock() - startRangeQueryTime);
+		}
+		cout << "ok" << endl;
+		delete idsFile;
+
+		axonsRectValues->clear();
+		delete axonsRectValues;
+
+		const double rangeQueryInitsSec = double(totalRangeQueryIntiTime) / double(CLOCKS_PER_SEC);
+		const double rangeQueryNextsSec = double(totalRangeQueuryNextTime) / double(CLOCKS_PER_SEC);
+		const double totalRangeQuerySec = rangeQueryInitsSec + rangeQueryNextsSec;
+		const double insertSec = double(totalInsertTime) / double(CLOCKS_PER_SEC);
+
+		(*plotFile) << (run + 1) << "\t" << nAxons << "\t" << nDendrites << "\t"
+				<< nIntersectingDendrites << "\t" << insertSec << "\t"
+				<< rangeQueryInitsSec << "\t" << rangeQueryNextsSec << "\t" << sizeMByte << endl;
+		cout << "results run nr. " << (run + 1) << ":" << endl
+				<< "#axons=" << nAxons << "\t#dendrites=" << nDendrites
+				<< "\t#intersections=" << nIntersectingDendrites << endl
+				<< "insert time: " << insertSec << "s\t"
+				<< "range query time: " << totalRangeQuerySec << "s (init time: " << rangeQueryInitsSec << "s)\t"
+				<< "size: " << sizeMByte << "MB" << endl;
+
+		delete phtree;
+	}
+
+	delete plotFile;
+	plot(AXONS_DENDRITES_PLOT_NAME);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -214,8 +321,8 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 
 template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotAverageInsertTimePerDimension(std::string file) {
-	cout << "loading entries from file...";
-	vector<vector<unsigned long>>* entries = FileInputUtil::readEntries<DIM, WIDTH>(file);
+	cout << "loading entries from file..." << flush;
+	vector<vector<unsigned long>>* entries = FileInputUtil::readEntries<DIM>(file);
 	cout << " ok" << endl;
 
 	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries);
@@ -225,7 +332,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotRangeQueryTimePerSelectivity(std::vector<vector<unsigned long>>& entries) {
 
 	// create a PH-Tree with the given entries
-	cout << "inserting all entries into a PH-Tree...";
+	cout << "inserting all entries into a PH-Tree..." << flush;
 	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
 	for (size_t iEntry = 0; iEntry < entries.size(); iEntry++) {
 		phtree->insert(entries[iEntry], iEntry);
@@ -274,7 +381,7 @@ void PlotUtil::plotRangeQueryTimePerSelectivity(std::vector<vector<unsigned long
 }
 
 void PlotUtil::plotRangeQueryTimePerSelectivityRandom() {
-	cout << "creating " << N_RANDOM_ENTRIES_RANGE_QUERY << " entries for the range query...";
+	cout << "creating " << N_RANDOM_ENTRIES_RANGE_QUERY << " entries for the range query..." << flush;
 	vector<vector<unsigned long>>* entries = generateUniqueRandomEntriesList<ENTRY_DIM, BIT_LENGTH>(N_RANDOM_ENTRIES_RANGE_QUERY);
 	cout << " ok" << endl;
 	plotRangeQueryTimePerSelectivity<ENTRY_DIM, BIT_LENGTH>(*entries);
@@ -282,7 +389,7 @@ void PlotUtil::plotRangeQueryTimePerSelectivityRandom() {
 
 void PlotUtil::plotRangeQueryTimePerPercentFilledRandom() {
 
-	cout << "creating " << N_RANDOM_ENTRIES_RANGE_QUERY << " entries for the range query...";
+	cout << "creating " << N_RANDOM_ENTRIES_RANGE_QUERY << " entries for the range query..." << flush;
 	vector<vector<unsigned long>>* entries = generateUniqueRandomEntriesList<ENTRY_DIM, BIT_LENGTH>(N_RANDOM_ENTRIES_RANGE_QUERY);
 	cout << " ok" << endl;
 	plotRangeQueryTimePerPercentFilled<ENTRY_DIM, BIT_LENGTH>(*entries);
@@ -292,7 +399,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotRangeQueryTimePerPercentFilled(std::vector<vector<unsigned long>>& entries) {
 
 	// create a PH-Tree with the given entries
-	cout << "inserting all entries into a PH-Tree...";
+	cout << "inserting all entries into a PH-Tree..." << flush;
 	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
 	for (size_t iEntry = 0; iEntry < entries.size(); iEntry++) {
 		phtree->insert(entries[iEntry], iEntry);
@@ -390,7 +497,7 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 		}
 		default:
 			throw std::runtime_error(
-					"given dimensionality is currently not supported by boilerplate code");
+					"the given dimensionality is currently not supported by boilerplate code");
 		}
 	}
 
@@ -412,7 +519,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<vector<unsi
 		vector<unsigned int> totalTreeBitSize(entries.size());
 		vector<unsigned int> sizes(entries.size());
 
-		cout << "start insertions...";
+		cout << "start insertions..." << flush;
 		CountNodeTypesVisitor<DIM>* visitor = new CountNodeTypesVisitor<DIM>();
 		SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
 		PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
@@ -492,18 +599,23 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<vector<unsi
 		delete plotFile;
 
 		// step 2: call Gnuplot
-		cout << "calling gnuplot...";
+		cout << "calling gnuplot..." << flush;
 		plot(AVERAGE_INSERT_ENTRIES_PLOT_NAME);
 		cout << " ok" << endl;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotAverageInsertTimePerNumberOfEntries(std::string file) {
-	vector<Entry<DIM, WIDTH>*> entries = FileInputUtil::readEntries<DIM, WIDTH>(file);
-	vector<vector<Entry<DIM, WIDTH>*>> singleColumnEntries(1);
-	singleColumnEntries.at(0) = entries;
+void PlotUtil::plotAverageInsertTimePerNumberOfEntries(std::string file, bool isFloat) {
+	vector<vector<unsigned long>>* entries = NULL;
+	if (isFloat) {
+		entries = FileInputUtil::readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		entries = FileInputUtil::readEntries<DIM>(file);
+	}
 
-	plotAverageInsertTimePerNumberOfEntries<DIM>(singleColumnEntries);
+	vector<vector<vector<unsigned long>>*> e(1);
+	e[0] = entries;
+	plotAverageInsertTimePerNumberOfEntries<DIM, WIDTH>(e);
 }
 
 void PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom() {
@@ -602,7 +714,7 @@ void PlotUtil::plotTimeSeriesOfInserts() {
 	delete sizeVisitor;
 	delete entries;
 
-	plot(INSERT_SERIES_PLOT_NAME);
+//	plot(INSERT_SERIES_PLOT_NAME);
 }
 
 #endif /* PLOTUTIL_H_ */

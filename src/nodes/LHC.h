@@ -25,7 +25,7 @@ class LHC: public TNode<DIM, PREF_BLOCKS> {
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
-	LHC(size_t prefixLength);
+	explicit LHC(size_t prefixLength);
 	virtual ~LHC();
 	NodeIterator<DIM>* begin() const override;
 	NodeIterator<DIM>* it(unsigned long hcAddress) const override;
@@ -429,7 +429,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 		// replace the contents at the address
 		ids_[index] = 0; // TODO not really needed
 		references_[index] = reference;
-		insertHasSubFlag(index, true);
+		insertHasSubFlag(index, true); // TODO if hasSub flag is already set this is also not needed
 		insertDirectlyStoredFlag(index, false); // TODO also not really needed
 	} else {
 		// add a new entry

@@ -54,7 +54,7 @@ public:
 
 			assert (fromLowerOffsetPercent >= 0.0 && fromLowerOffsetPercent <= 1.0);
 			assert (toUpperOffsetPercent >= 0.0 && toUpperOffsetPercent <= 1.0);
-			unsigned long maxValue = (1uL << WIDTH) - 1uL;
+			unsigned long maxValue = (WIDTH == 64)? -1uL : (1uL << WIDTH) - 1uL;
 			unsigned long lowerValue = floor(double(maxValue) * fromLowerOffsetPercent);
 			unsigned long upperValue = ceil(double(maxValue) * toUpperOffsetPercent);
 			assert (lowerValue <= upperValue);
@@ -80,7 +80,7 @@ public:
 		return contained;
 	}
 
-	static bool rangeContainsId(const Entry<DIM, WIDTH> lowerLeft, const Entry<DIM, WIDTH> upperRight,
+	static bool rangeContainsId(const Entry<DIM, WIDTH>& lowerLeft, const Entry<DIM, WIDTH>& upperRight,
 			const PHTree<DIM, WIDTH>& tree, int id) {
 		RangeQueryIterator<DIM, WIDTH>* it = tree.rangeQuery(lowerLeft, upperRight);
 		bool contained = rangeContainsEntry(it, tree, id);
@@ -100,7 +100,7 @@ public:
 			return foundEqualEntry;
 		}
 
-	static unsigned int countEntriesInRange(const Entry<DIM, WIDTH> lowerLeft, const Entry<DIM, WIDTH> upperRight,
+	static unsigned int countEntriesInRange(const Entry<DIM, WIDTH>& lowerLeft, const Entry<DIM, WIDTH>& upperRight,
 				const PHTree<DIM, WIDTH>& tree) {
 		RangeQueryIterator<DIM, WIDTH>* it = tree.rangeQuery(lowerLeft, upperRight);
 		unsigned int count = countEntriesInRange(it, tree);

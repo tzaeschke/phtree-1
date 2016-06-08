@@ -18,7 +18,7 @@ struct NodeAddressContent;
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHCIterator : public NodeIterator<DIM> {
 public:
-	LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node);
+	explicit LHCIterator(const LHC<DIM, PREF_BLOCKS, N>& node);
 	LHCIterator(unsigned long address, const LHC<DIM, PREF_BLOCKS, N>& node);
 	~LHCIterator();
 
@@ -59,7 +59,7 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 	if (exists) {
 		// found address so set it
 		this-> address_ = address;
-	} else if (currentIndex >= node_->m - 1) {
+	} else if (currentIndex > node_->m - 1) {
 		// did not find the address and it is not in the range
 		this->address_ = 1 << DIM;
 	} else {
@@ -92,7 +92,7 @@ NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS, N>::operator++() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-NodeIterator<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator++(int i) {
+NodeIterator<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator++(int) {
 	throw "++ i not implemented";
 }
 
@@ -103,7 +103,7 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() const {
 	content.exists = true;
 	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode, &content.directlyStoredSuffix);
 	if (content.hasSubnode) {
-		content.subnode = (Node<DIM>*) node_->references_[currentIndex];
+		content.subnode = reinterpret_cast<Node<DIM>*>(node_->references_[currentIndex]);
 	} else {
 		content.id = node_->ids_[currentIndex];
 

@@ -21,6 +21,7 @@ class Node;
 template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryIterator {
 public:
+	// TODO add version that does not recreate the spatial data but only returns IDs
 	RangeQueryIterator(std::vector<std::pair<unsigned long, const Node<DIM>*>>* nodeStack,
 			const Entry<DIM, WIDTH>& lowerLeft,
 			const Entry<DIM, WIDTH>& upperRight);
@@ -114,9 +115,9 @@ Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 	assert (currentAddressContent.exists && isInMaskRange(currentAddressContent.address)
 		&& !currentAddressContent.hasSubnode && isSuffixInRange());
 	assert (currentIndex_ < WIDTH);
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM)
-			&& "there always need to be space for the last interleaved address");
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM, 0)
+			&& "there always needs to be space for the last interleaved address");
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 
 	// found a valid suffix in the range
 	Entry<DIM, WIDTH> entry(currentValue, currentAddressContent.id);
@@ -126,7 +127,7 @@ Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 		// need to copy the remaining suffix into the block
 		const size_t suffixBits = DIM * (WIDTH - (currentIndex_ + 1));
 		assert (suffixBits > 0);
-		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, suffixBits));
+		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, suffixBits, 0));
 		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.getSuffixStartBlock(), suffixBits, entry.values_, 0);
 	}
 
@@ -136,7 +137,7 @@ Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 	assert (entry.id_ == currentContent.node_->lookup(currentAddressContent.address).id);
 
 	// validation only: is the retrieved entry part of the tree?
-	const Node<DIM>* rootNode;
+	const Node<DIM>* rootNode = NULL;
 	if (stack_.empty()) rootNode = currentContent.node_;
 	else {
 		// the root node is at the bottom of the stack
@@ -214,6 +215,8 @@ bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) cons
 
 	assert (currentContent.upperMask_ < (1uL << DIM));
 	assert (currentContent.lowerMask_ <= currentContent.upperMask_);
+	assert (currentContent.lowerMask_ <= hcAddress && hcAddress <= currentContent.upperMask_);
+
 	if (currentContent.fullyContained) return true;
 
 	const bool lowerMatch = (hcAddress | currentContent.lowerMask_) == hcAddress;
@@ -225,7 +228,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 	assert (currentAddressContent.exists && !currentAddressContent.hasSubnode
 			&& isInMaskRange(currentAddressContent.address));
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 
 	if (currentContent.fullyContained) return true;
 
@@ -238,8 +241,8 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 	// for those dimensions i that are set in upperEqualToBoundary
 
 	// Verify if the final entry drops out of the range!
-	MultiDimBitset<DIM>::pushBackValue(currentAddressContent.address, currentValue, DIM * (WIDTH - currentIndex_ - 1));
 	const unsigned int suffixLength = WIDTH - currentIndex_ - 1;
+	MultiDimBitset<DIM>::pushBackValue(currentAddressContent.address, currentValue, DIM * (WIDTH - currentIndex_ - 1));
 	if (suffixLength > 0)
 		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.getSuffixStartBlock(), DIM * suffixLength, currentValue, 0);
 
@@ -248,7 +251,7 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 	pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
 				compareSmallerEqual(currentValue, upperRightCorner_.values_, DIM * WIDTH, 0);
 	MultiDimBitset<DIM>::removeHighestBits(currentValue, (1 + suffixLength) * DIM, (1 + suffixLength) * DIM);
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 	if (((lowerComp.first | lowerComp.second) == highestAddress)
 			&& ((upperComp.first | upperComp.second) == highestAddress)) {
 		// the suffix is in the upper range
@@ -263,7 +266,8 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 
 template <unsigned int DIM, unsigned int WIDTH>
 void RangeQueryIterator<DIM, WIDTH>::stepUp() {
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
+	assert ((*currentContent.startIt_) == (*currentContent.endIt_));
 	// TODO if several stack contents are skipped only a single remove operation is needed!
 	if (stack_.empty()) {
 		hasNext_ = false;
@@ -278,12 +282,12 @@ void RangeQueryIterator<DIM, WIDTH>::stepUp() {
 			currentIndex_ -= (prefixLength + 1);
 			const unsigned int freeLsbBits = DIM * (WIDTH - currentIndex_);
 			MultiDimBitset<DIM>::removeHighestBits(currentValue, freeLsbBits, (prefixLength + 1) * DIM);
-			assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+			assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 		} else {
 			// only need to clear the current interleaved address
 			MultiDimBitset<DIM>::clearValue(currentValue, DIM * (WIDTH - currentIndex_));
 			currentIndex_ -= 1;
-			assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+			assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 		}
 
 		// clear memory
@@ -299,7 +303,8 @@ void RangeQueryIterator<DIM, WIDTH>::stepUp() {
 template <unsigned int DIM, unsigned int WIDTH>
 void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigned long hcAddress) {
 	assert (nextNode && hcAddress < (1uL << DIM));
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
+	assert ((*currentContent.startIt_) < (*currentContent.endIt_));
 
 	// add the current interleaved address
 	currentIndex_ += 1;
@@ -310,14 +315,14 @@ void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigne
 		currentIndex_ += prefixLength;
 		MultiDimBitset<DIM>::pushBackBitset(nextNode->getFixPrefixStartBlock(), prefixLength * DIM,
 				currentValue, (WIDTH - currentIndex_) * DIM);
-		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 	}
 
 	const bool nodeAndSuffixesFullyInRange = currentContent.fullyContained;
 	stack_.push(currentContent);
 	createCurrentContent(nextNode, prefixLength, nodeAndSuffixesFullyInRange);
 
-	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, DIM * (WIDTH - currentIndex_)));
+	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -333,7 +338,7 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 		// calculate the range masks for the next node
 		const unsigned int ignoreNLowestBits = DIM * (WIDTH - currentIndex_ - 1);
 		assert (ignoreNLowestBits >= 0 && ignoreNLowestBits <= WIDTH * DIM);
-		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, ignoreNLowestBits + DIM));
+		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits + DIM, 0));
 		// msb       [interleaved format]          lsb
 		// <-filled-><DIM><-------- ignored --------->
 		// [ higher |00000|     lower node bits      ]
@@ -346,11 +351,11 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 		// [ higher |11111|      lower node bits     ]
 		// add the highest possible address as an upper boundary of the node and remove it afterwards
 		MultiDimBitset<DIM>::pushBackValue(highestAddress, currentValue, ignoreNLowestBits);
-		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, ignoreNLowestBits));
+		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits, 0));
 		pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
 				compareSmallerEqual(upperRightCorner_.values_, currentValue, DIM * WIDTH, ignoreNLowestBits);
 		MultiDimBitset<DIM>::clearValue(currentValue, ignoreNLowestBits);
-		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, WIDTH * DIM, 0, ignoreNLowestBits + DIM));
+		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits + DIM, 0));
 
 		// lower mask: for i=0 to DIM - 1 do
 		// 		lowerMask[i] = 0 <=> current value (in dimension i) is less or equal to the lower left corner (in dimension i)
@@ -379,8 +384,11 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 		currentContent.startIt_ = nextNode->it(currentContent.lowerMask_);
 		// end before the upper mask (= highest possible interleaved address)
 		currentContent.endIt_ = nextNode->it(currentContent.upperMask_ + 1);
-		assert ((*currentContent.startIt_) <= (*currentContent.endIt_));
 	}
+
+	assert ((*currentContent.startIt_) <= (*currentContent.endIt_));
+	assert (currentContent.lowerMask_ <= currentContent.startIt_->getAddress());
+	assert (currentContent.upperMask_ < currentContent.endIt_->getAddress());
 }
 
 

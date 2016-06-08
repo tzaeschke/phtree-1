@@ -27,8 +27,8 @@ class AHC: public TNode<DIM, PREF_BLOCKS> {
 	friend class AssertionVisitor<DIM>;
 	friend class SizeVisitor<DIM>;
 public:
-	AHC(size_t prefixLength);
-	AHC(TNode<DIM, PREF_BLOCKS>* node);
+	explicit AHC(size_t prefixLength);
+	explicit AHC(TNode<DIM, PREF_BLOCKS>* node);
 	virtual ~AHC();
 	NodeIterator<DIM>* begin() const override;
 	NodeIterator<DIM>* it(unsigned long hcAddress) const override;
@@ -57,7 +57,7 @@ private:
 	// 10 - the entry holds a reference to a subnode
 	// 11 - the entry holds a reference to a suffix
 	std::uintptr_t references_[1 << DIM];
-	static const unsigned long refMask = (-1) << 2; // mask to remove the 2 flag bits
+	static const unsigned long refMask = (-1uL) << 2uL; // mask to remove the 2 flag bits
 
 	void inline getRef(unsigned long hcAddress, bool* exists, bool* hasSub,
 			bool* directlyStoredSuffix, std::uintptr_t* ref) const;

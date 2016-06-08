@@ -13,17 +13,22 @@
 class FileInputUtil {
 public:
 	// parses the file at the given location in the format 'ulong, ulong, ulong, ...\n...'
-	template <unsigned int DIM, unsigned int WIDTH>
+	template <unsigned int DIM>
 	static std::vector<vector<unsigned long>>* readEntries(std::string fileLocation);
+	// parses the file at the given location in the format 'float, float, float, ...\n...'
+	template <unsigned int DIM>
+	static std::vector<vector<unsigned long>>* readFloatEntries(string fileLocation, size_t decimals);
 };
 
 #include <iostream>
 #include <fstream>
 #include <regex>
 #include <vector>
+#include <limits.h>
 #include <string>
 #include <assert.h>
 #include <stdexcept>
+#include <math.h>
 #include "Entry.h"
 #include "util/FileInputUtil.h"
 
@@ -37,14 +42,37 @@ inline vector<unsigned long> getNextLineTokens(ifstream& stream) {
 	vector<unsigned long> tokens;
 
 	while (getline(lineStream, cell, ',')) {
-		unsigned long parsedToken = stoi(cell);
+		const unsigned long parsedToken = stoi(cell);
 		tokens.push_back(parsedToken);
 	}
 
 	return tokens;
 }
 
-template <unsigned int DIM, unsigned int WIDTH>
+inline vector<unsigned long> getNextLineTokens(ifstream& stream, unsigned long decimals) {
+	string line;
+	getline(stream, line);
+	stringstream lineStream(line);
+	string cell;
+	vector<unsigned long> tokens;
+	const long double decimalShift = pow10(decimals);
+
+	while (getline(lineStream, cell, ' ')) {
+		// TODO added a shift
+		const long double parsedToken = stold(cell) + 1000.0L;
+		const long double longToken = parsedToken * decimalShift;
+		if (parsedToken < 0.0)
+			throw runtime_error("Can only handle positive values: the offset is too small");
+		if (parsedToken > nextafter(ULONG_MAX, 0))
+			throw runtime_error("Overflow: The floating point value cannot be represented as a 64-bit integer.");
+		const unsigned long convertedToken = (unsigned long) longToken;
+		tokens.push_back(convertedToken);
+	}
+
+	return tokens;
+}
+
+template <unsigned int DIM>
 vector<vector<unsigned long>>* FileInputUtil::readEntries(string fileLocation) {
 
 	ifstream myfile (fileLocation);
@@ -53,10 +81,33 @@ vector<vector<unsigned long>>* FileInputUtil::readEntries(string fileLocation) {
 		while (!myfile.eof()) {
 			vector<unsigned long> values = getNextLineTokens(myfile);
 			if (!values.empty()) {
+				assert (values.size() == DIM);
 				result->push_back(values);
 			}
 		}
 	} else {
+		delete result;
+		throw runtime_error("cannot open the file " + fileLocation);
+	}
+
+	return result;
+}
+
+template <unsigned int DIM>
+vector<vector<unsigned long>>* FileInputUtil::readFloatEntries(string fileLocation, size_t decimals) {
+
+	ifstream myfile (fileLocation);
+	vector<vector<unsigned long>>* result = new vector<vector<unsigned long>>();
+	if (myfile.is_open()) {
+		while (!myfile.eof()) {
+			vector<unsigned long> values = getNextLineTokens(myfile, decimals);
+			if (!values.empty()) {
+				assert (values.size() == DIM);
+				result->push_back(values);
+			}
+		}
+	} else {
+		delete result;
 		throw runtime_error("cannot open the file " + fileLocation);
 	}
 

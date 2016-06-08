@@ -34,6 +34,7 @@ class PHTree {
 	friend class DynamicNodeOperationsUtil;
 public:
 	PHTree();
+	explicit PHTree(const PHTree<DIM, WIDTH>& other);
 	virtual ~PHTree();
 	void insert(const Entry<DIM, WIDTH>& e);
 	void insert(const std::vector<unsigned long>& values, int id);
@@ -43,7 +44,10 @@ public:
 	std::pair<bool,int> lookupHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const Entry<DIM, WIDTH>& lowerLeft, const Entry<DIM, WIDTH>& upperRight) const;
 	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
-	RangeQueryIterator<DIM, WIDTH>* rangeQueryHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
+	RangeQueryIterator<DIM, WIDTH>* intersectionQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
+	RangeQueryIterator<DIM, WIDTH>* intersectionQuery(const std::vector<unsigned long>& values) const;
+	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
+	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& values) const;
 
 	void accept(Visitor<DIM>* visitor);
 	unsigned long* reserveSuffixSpace(size_t nSuffixBits);
@@ -71,6 +75,11 @@ PHTree<DIM, WIDTH>::PHTree() {
 	firstSuffixBlock = new SuffixBlock<50>();
 	currentSuffixBlock = firstSuffixBlock;
 }
+
+template <unsigned int DIM, unsigned int WIDTH>
+PHTree<DIM, WIDTH>::PHTree(const PHTree<DIM, WIDTH>& other) : root_(other.root_),
+firstSuffixBlock(other.firstSuffixBlock),
+currentSuffixBlock(other.currentSuffixBlock) { }
 
 template <unsigned int DIM, unsigned int WIDTH>
 PHTree<DIM, WIDTH>::~PHTree() {
@@ -151,7 +160,7 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(const Entry<DIM, 
 	vector<pair<unsigned long, const Node<DIM>*>>* visitedNodes = new vector<pair<unsigned long, const Node<DIM>*>>();
 	SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(lowerLeft, root_, visitedNodes);
 	RangeQueryIterator<DIM, WIDTH>* it = new RangeQueryIterator<DIM, WIDTH>(visitedNodes, lowerLeft, upperRight);
-
+	delete visitedNodes;
 	return it;
 }
 
@@ -165,7 +174,33 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQuery(
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQueryHyperRect(
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::inclusionQuery(
+		const std::vector<unsigned long>& lowerLeftValues,
+		const std::vector<unsigned long>& upperRightValues) const {
+	assert (DIM % 2 == 0);
+	assert ((2 * lowerLeftValues.size() == DIM) && (2 * upperRightValues.size() == DIM));
+
+	vector<unsigned long> lowerLeftHyperRect(DIM);
+	vector<unsigned long> upperRightHyperRect(DIM);
+	for (unsigned k = 0; k < DIM; ++k) {
+		lowerLeftHyperRect[k] = lowerLeftValues[k % (DIM / 2)];
+		upperRightHyperRect[k] = upperRightValues[k % (DIM / 2)];
+	}
+
+	return rangeQuery(lowerLeftHyperRect, upperRightHyperRect);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::inclusionQuery(
+		const std::vector<unsigned long>& values) const {
+	assert (values.size() == DIM && (DIM % 2 == 0));
+	const vector<unsigned long> lowerLeftValues(values.begin(), values.begin() + DIM / 2);
+	const vector<unsigned long> upperRightValues(values.begin() + DIM / 2, values.end());
+	return inclusionQuery(lowerLeftValues, upperRightValues);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::intersectionQuery(
 		const vector<unsigned long>& lowerLeftValues,
 		const vector<unsigned long>& upperRightValues) const {
 	assert (DIM % 2 == 0);
@@ -185,7 +220,7 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQueryHyperRect(
 	}
 
 	// with unsigned values -1 is equal to the highest possible value
-	const unsigned long max = (1uL << WIDTH) - 1;
+	const unsigned long max = (WIDTH == 8 * sizeof (unsigned long))? -1 : (1uL << WIDTH) - 1;
 	// set upper half of the values
 	for (unsigned k = DIM / 2; k < DIM; ++k) {
 		lowerLeftHyperRect[k] = lowerLeftValues[k - DIM / 2];
@@ -193,6 +228,15 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::rangeQueryHyperRect(
 	}
 
 	return rangeQuery(lowerLeftHyperRect, upperRightHyperRect);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::intersectionQuery(
+		const vector<unsigned long>& values) const {
+	assert (values.size() == DIM && (DIM % 2 == 0));
+	const vector<unsigned long> lowerLeftValues(values.begin(), values.begin() + DIM / 2);
+	const vector<unsigned long> upperRightValues(values.begin() + DIM / 2, values.end());
+	return intersectionQuery(lowerLeftValues, upperRightValues);
 }
 
 

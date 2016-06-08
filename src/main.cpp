@@ -20,6 +20,7 @@ int mainSimpleExample() {
 	Entry<2, bitLength> e4({ 65, 19 }, 4);
 	Entry<2, bitLength> e5({ 75, 21 }, 5);
 
+	cout << "example (points): 2D, bit length: " << bitLength << endl;
 	CountNodeTypesVisitor<2>* visitor = new CountNodeTypesVisitor<2>();
 	uint64_t sta = RDTSC();
 	PHTree<2, bitLength>* phtree = new PHTree<2, bitLength>();
@@ -68,9 +69,7 @@ int mainSimpleExample() {
 	cout << *visitor << endl;
 
 	cout << "The following entries are in the range (0,0) - (100,100):" << endl;
-	RangeQueryIterator<2, bitLength>* it = phtree->rangeQuery(
-			Entry<2, bitLength>({0,0}, 0),
-			Entry<2, bitLength>({100,100}, 0));
+	RangeQueryIterator<2, bitLength>* it = phtree->rangeQuery({0,0}, {100,100});
 	while (it->hasNext()) {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
@@ -78,19 +77,23 @@ int mainSimpleExample() {
 	delete it;
 
 	cout << "The following entries are in the range (65,10) - (150,20):" << endl;
-	it = phtree->rangeQuery(
-			Entry<2, bitLength>({65,10}, 0),
-			Entry<2, bitLength>({150,20}, 0));
+	it = phtree->rangeQuery({65,10}, {150,20});
 	while (it->hasNext()) {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
 	delete it;
 
-	cout << "The following entries are in the range (74,20) - (74,21):" << endl;
-	it = phtree->rangeQuery(
-			Entry<2, bitLength>({74,20}, 0),
-			Entry<2, bitLength>({75,21}, 0));
+	cout << "The following entries are in the range (70,5) - (200,25):" << endl;
+	it = phtree->rangeQuery({70,5}, {200,25});
+	while (it->hasNext()) {
+		Entry<2, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+	delete it;
+
+	cout << "The following entries are in the range (74,20) - (75,21):" << endl;
+	it = phtree->rangeQuery({74,20}, {75,21});
 	while (it->hasNext()) {
 		Entry<2, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
@@ -114,6 +117,7 @@ int mainHyperCubeExample() {
 	vector<unsigned long> e4Lower = {0, 0};
 	vector<unsigned long> e4Upper = {5, 5};
 
+	cout << "example (rectangles): 2D, bit length: " << bitLength << endl;
 	PHTree<4, bitLength>* phtree = new PHTree<4, bitLength>();
 	phtree->insertHyperRect(e1Lower, e1Upper, 1);
 	assert (phtree->lookupHyperRect(e1Lower, e1Upper).second == 1);
@@ -125,24 +129,48 @@ int mainHyperCubeExample() {
 	assert (phtree->lookupHyperRect(e4Lower, e4Upper).second == 4);
 	cout << *phtree;
 
-	cout << "The following rectangles are in the range (1,1) - (15,15):" << endl;
-	RangeQueryIterator<4, bitLength>* it = phtree->rangeQueryHyperRect({1, 1}, {15, 15});
+	cout << "The following rectangles touch the range (1,1) - (15,15):" << endl;
+	RangeQueryIterator<4, bitLength>* it = phtree->intersectionQuery({1, 1}, {15, 15});
 	while (it->hasNext()) {
 		Entry<4, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
 	delete it;
 
-	cout << "The following rectangles are in the range (5,9) - (6,10):" << endl;
-	it = phtree->rangeQueryHyperRect({5, 9}, {6, 10});
+	cout << "The following rectangles touch the range (5,9) - (6,10):" << endl;
+	it = phtree->intersectionQuery({5, 9}, {6, 10});
 	while (it->hasNext()) {
 		Entry<4, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
 	}
 	delete it;
 
-	cout << "The following rectangles are in the range (11,2) - (12,14):" << endl;
-	it = phtree->rangeQueryHyperRect({11, 2}, {12, 14});
+	cout << "The following rectangles touch the range (11,2) - (12,14):" << endl;
+	it = phtree->intersectionQuery({11, 2}, {12, 14});
+	while (it->hasNext()) {
+		Entry<4, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+	delete it;
+
+	cout << "The following rectangles are completely inside the range (1,1) - (15,15):" << endl;
+	it = phtree->inclusionQuery({1, 1}, {15, 15});
+	while (it->hasNext()) {
+		Entry<4, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+	delete it;
+
+	cout << "The following rectangles are completely inside the range (5,10) - (10,15):" << endl;
+	it = phtree->inclusionQuery({5, 10}, {10, 15});
+	while (it->hasNext()) {
+		Entry<4, bitLength> entryInRange = it->next();
+		cout << entryInRange << endl;
+	}
+	delete it;
+
+	cout << "The following rectangles are completely inside the range (11,2) - (12,14):" << endl;
+	it = phtree->inclusionQuery({11, 2}, {12, 14});
 	while (it->hasNext()) {
 		Entry<4, bitLength> entryInRange = it->next();
 		cout << entryInRange << endl;
@@ -159,6 +187,7 @@ int main(int argc, char* argv[]) {
 	string plot = "plot";
 	string rand = "rand";
 	string benchmark = "benchmark";
+	string axon = "axon";
 
 	#ifndef NDEBUG
 		cout << "assertions enabled!" << endl;
@@ -170,14 +199,16 @@ int main(int argc, char* argv[]) {
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
 		mainSimpleExample();
+		cout << endl;
 		mainHyperCubeExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-//		PlotUtil::plotTimeSeriesOfInserts();
-//		PlotUtil::plotAverageInsertTimePerDimensionRandom();
-//		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
-//		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
+		PlotUtil::plotTimeSeriesOfInserts();
+		PlotUtil::plotAverageInsertTimePerDimensionRandom();
+		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
 		PlotUtil::plotRangeQueryTimePerSelectivityRandom();
+//		PlotUtil::plotAverageInsertTimePerNumberOfEntries<6, 64>("./axons.dat", true);
 		return 0;
 	} else if (rand.compare(argv[1]) == 0) {
 		vector<size_t> nEntries;
@@ -186,8 +217,16 @@ int main(int argc, char* argv[]) {
 	} else if (benchmark.compare(argv[1]) == 0) {
 		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
 		PlotUtil::plotAverageInsertTimePerDimension<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat");
+	} else if (axon.compare(argv[1]) == 0) {
+		vector<string> axonFiles;
+		axonFiles.push_back("./axons.dat");
+//		axonFiles.push_back("./dendrites.dat");
+		vector<string> dendriteFiles;
+		dendriteFiles.push_back("./dendrites.dat");
+//		dendriteFiles.push_back("./axons.dat");
+		PlotUtil::plotAxonsAndDendrites<6, 64>(axonFiles, dendriteFiles);
 	} else {
-		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand', 'benchmark'";
+		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand', 'benchmark', 'axon";
 		return 1;
 	}
 };

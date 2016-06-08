@@ -31,8 +31,8 @@ class TNode : public Node<DIM> {
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	TNode(size_t prefixLength);
-	TNode(TNode<DIM, PREF_BLOCKS>* other);
+	explicit TNode(size_t prefixLength);
+	explicit TNode(TNode<DIM, PREF_BLOCKS>* other);
 	virtual ~TNode() {}
 	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) override;
 	virtual NodeIterator<DIM>* begin() const = 0;
@@ -43,6 +43,7 @@ public:
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
 	virtual size_t getMaximumNumberOfContents() const = 0;
+	size_t getMaxPrefixLength() const override;
 	size_t getPrefixLength() const override;
 	unsigned long* getPrefixStartBlock() override;
 	const unsigned long* getFixPrefixStartBlock() const override;
@@ -81,6 +82,11 @@ TNode<DIM, PREF_BLOCKS>::TNode(TNode<DIM, PREF_BLOCKS>* other) : prefixBits_(oth
 	for (unsigned i = 0; i < PREF_BLOCKS; ++i) {
 		prefix_[i] = other->prefix_[i];
 	}
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+size_t TNode<DIM, PREF_BLOCKS>::getMaxPrefixLength() const {
+	return PREF_BLOCKS * 8 * sizeof (unsigned long);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

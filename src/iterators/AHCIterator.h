@@ -14,7 +14,7 @@
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class AHCIterator: public NodeIterator<DIM> {
 public:
-	AHCIterator(const AHC<DIM, PREF_BLOCKS>& node);
+	explicit AHCIterator(const AHC<DIM, PREF_BLOCKS>& node);
 	AHCIterator(unsigned long address, const AHC<DIM, PREF_BLOCKS>& node);
 	~AHCIterator();
 

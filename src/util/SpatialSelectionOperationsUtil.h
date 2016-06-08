@@ -41,11 +41,6 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 	NodeAddressContent<DIM> content;
 
 	while (true) {
-
-		#ifdef PRINT
-			cout << "depth " << depth << " -> ";
-		#endif
-
 		if (visitedNodes)
 			visitedNodes->push_back(pair<unsigned long, const Node<DIM>*>(lastHcAddress, currentNode));
 

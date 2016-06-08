@@ -15,7 +15,7 @@ template <unsigned int DIM>
 class NodeIterator : public std::iterator<std::input_iterator_tag, NodeAddressContent<DIM>> {
 public:
 	NodeIterator();
-	NodeIterator(unsigned long address);
+	explicit NodeIterator(unsigned long address);
 	virtual ~NodeIterator();
 	bool operator==(const NodeIterator& rhs);
 	bool operator<=(const NodeIterator& rhs);
@@ -28,6 +28,7 @@ public:
 	virtual NodeIterator<DIM>& operator++();
 	virtual NodeIterator<DIM> operator++(int);
 	virtual NodeAddressContent<DIM> operator*() const;
+	unsigned long getAddress() const;
 
 protected:
 	unsigned long address_;
@@ -45,6 +46,11 @@ NodeIterator<DIM>::NodeIterator(unsigned long address) : address_(address) {
 
 template <unsigned int DIM>
 NodeIterator<DIM>::~NodeIterator() { }
+
+template <unsigned int DIM>
+unsigned long NodeIterator<DIM>::getAddress() const {
+	return address_;
+}
 
 template <unsigned int DIM>
 bool NodeIterator<DIM>::operator==(const NodeIterator<DIM>& rhs) {

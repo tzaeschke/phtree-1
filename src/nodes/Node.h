@@ -40,6 +40,7 @@ public:
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
 	virtual size_t getMaximumNumberOfContents() const = 0;
+	virtual size_t getMaxPrefixLength() const =0;
 	virtual size_t getPrefixLength() const =0;
 	virtual unsigned long* getPrefixStartBlock() =0;
 	virtual const unsigned long* getFixPrefixStartBlock() const =0;
@@ -50,6 +51,25 @@ public:
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
 	virtual bool canStoreSuffixInternally(size_t nSuffixBits) const =0;
+
+	// attention: linear check! should be used for validation only
+	bool containsId(int id) const;
 };
+
+template <unsigned int DIM>
+bool Node<DIM>::containsId(int id) const {
+	NodeIterator<DIM>* startIt = this->begin();
+	NodeIterator<DIM>* endIt = this->end();
+	for (; (*startIt) != (*endIt); ++(*startIt)) {
+		NodeAddressContent<DIM> content = *(*startIt);
+		if (content.exists && !content.hasSubnode && content.id == id) {
+			return true;
+		}
+	}
+
+	delete startIt;
+	delete endIt;
+	return false;
+}
 
 #endif /* SRC_NODE_H_ */

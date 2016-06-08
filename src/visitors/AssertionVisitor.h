@@ -94,6 +94,8 @@ void AssertionVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int d
 
 template <unsigned int DIM>
 void AssertionVisitor<DIM>::validateContents(const Node<DIM>* node, NodeIterator<DIM>* begin, NodeIterator<DIM>* end) {
+	delete begin;
+	delete end;
 }
 
 template <unsigned int DIM>
