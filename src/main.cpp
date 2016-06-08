@@ -203,11 +203,11 @@ int main(int argc, char* argv[]) {
 		mainHyperCubeExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotTimeSeriesOfInserts();
+//		PlotUtil::plotTimeSeriesOfInserts();
 		PlotUtil::plotAverageInsertTimePerDimensionRandom();
-		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
-		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
-		PlotUtil::plotRangeQueryTimePerSelectivityRandom();
+//		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
+//		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
+//		PlotUtil::plotRangeQueryTimePerSelectivityRandom();
 //		PlotUtil::plotAverageInsertTimePerNumberOfEntries<6, 64>("./axons.dat", true);
 		return 0;
 	} else if (rand.compare(argv[1]) == 0) {

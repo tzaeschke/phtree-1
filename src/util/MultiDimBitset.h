@@ -72,13 +72,13 @@ unsigned long MultiDimBitset<DIM>::dimBlock = initDimBlock();
 #include <string.h>
 #include <float.h>
 #include <math.h>
+#include "libmorton/include/morton.h"
 
 using namespace std;
 
 template <unsigned int DIM>
 unsigned long MultiDimBitset<DIM>::initDimBlock() {
-	const unsigned long offset = dimBlockOffset;
-	assert (offset < DIM);
+	assert (dimBlockOffset < DIM);
 
 	const size_t dimChunksPerBlock = 1 + bitsPerBlock / DIM;
 	unsigned long dimBlock = 0;
@@ -89,7 +89,6 @@ unsigned long MultiDimBitset<DIM>::initDimBlock() {
 
 	return dimBlock;
 }
-
 
 template <unsigned int DIM>
 template <unsigned int WIDTH>
@@ -104,22 +103,114 @@ void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, uns
 	assert (sizeof (unsigned long) * 8 >= WIDTH);
 	assert (values.size() == DIM);
 	assert (outStartBlock[0] == 0);
-	// TODO change loop order?
-	for (size_t d = 0; d < DIM; ++d) {
-		assert (WIDTH == 64 || values[d] <= (1uL << WIDTH) - 1uL);
-		for (size_t i = 0; i < WIDTH; ++i) {
-			// extract j-th least segnificant bit from int
-			// TODO use CPU instruction for interleaving
-			const unsigned long bit = (values[d] >> i) & 1;
-			const auto block = (DIM * i + d) / bitsPerBlock;
-			const auto index = (DIM * i + d) % bitsPerBlock;
-			*(outStartBlock + block) |= bit << index;
+
+	if (DIM == 2) {
+		// want: (a1 b1) (a2 b2) ...
+		const unsigned long v1 = values[0];
+		const unsigned long v2 = values[1];
+		if (WIDTH <= 32) {
+			(*outStartBlock) = morton2D_64_encode(v1, v2);
+		} else {
+			*outStartBlock = morton2D_64_encode(v1, v2);
+			*(outStartBlock + 1) = morton2D_64_encode(v1 >> 32, v2 >> 32);
+		}
+	} else if (DIM == 3) {
+		//       [       first    block       ][ second block ...
+		// want: (a1 b1 c1) (a2 b2 c2) ... (ai, bi, ci)
+		// need to change order in each block because 64 % 3 == 1
+		const unsigned long v1 = values[0];
+		const unsigned long v2 = values[1];
+		const unsigned long v3 = values[2];
+		const unsigned long inter1 = morton3D_64_encode(v1, v2, v3);
+		const unsigned long inter2 = morton3D_64_encode(v2 >> 21, v3 >> 21, v1 >> 22);
+		const unsigned long inter3 = morton3D_64_encode(v3 >> 42, v2 >> 43, v1 >> 43);
+		*outStartBlock = inter1;
+		if (WIDTH > 21) {
+			*(outStartBlock + 1) = inter2;
+		}
+		if (WIDTH > 42) {
+			*(outStartBlock + 2) = inter3;
+		}
+	} else if (DIM == 4) {
+		// want: (a1 b1 c1 d1) (a2 b2 c2 d2) ...
+		// need to do: morton (morton(a, c), morton(b, d))
+		const unsigned long v1 = values[0];
+		const unsigned long v2 = values[1];
+		const unsigned long v3 = values[2];
+		const unsigned long v4 = values[3];
+		const unsigned long tmp1Inter1 = morton2D_64_encode(v1, v3);
+		const unsigned long tmp1Inter2 = morton2D_64_encode(v1 >> 32, v3 >> 32);
+		const unsigned long tmp2Inter1 = morton2D_64_encode(v2, v4);
+		const unsigned long tmp2Inter2 = morton2D_64_encode(v2 >> 32, v4 >> 32);
+		const unsigned long inter1 = morton2D_64_encode(tmp1Inter1, tmp2Inter1);
+		const unsigned long inter2 = morton2D_64_encode(tmp1Inter1 >> 32, tmp2Inter1 >> 32);
+		const unsigned long inter3 = morton2D_64_encode(tmp1Inter2, tmp2Inter2);
+		const unsigned long inter4 = morton2D_64_encode(tmp1Inter2 >> 32, tmp2Inter2 >> 32);
+		*(outStartBlock) = inter1;
+		if (WIDTH > 16) {
+			*(outStartBlock + 1) = inter2;
+		}
+		if (WIDTH > 32) {
+			*(outStartBlock + 2) = inter3;
+		}
+		if (WIDTH > 48) {
+			*(outStartBlock + 3) = inter4;
+		}
+	} else if (DIM == 6) {
+		// want: (a1 b1 c1 d1 e1 f1) (a2 b2 c2 d2 e2 f2) ...
+		// need to do: morton (morton(a, c, e), morton(b, d, f))
+		const unsigned long v1 = values[0];
+		const unsigned long v2 = values[1];
+		const unsigned long v3 = values[2];
+		const unsigned long v4 = values[3];
+		const unsigned long v5 = values[4];
+		const unsigned long v6 = values[5];
+		const unsigned long tmp1Inter1 = morton3D_64_encode(v1, v3, v5);
+		const unsigned long tmp1Inter2 = morton3D_64_encode(v3 >> 21, v5 >> 21, v1 >> 22);
+		const unsigned long tmp1Inter3 = morton3D_64_encode(v5 >> 42, v1 >> 43, v3 >> 43);
+		const unsigned long tmp2Inter1 = morton3D_64_encode(v2, v4, v6);
+		const unsigned long tmp2Inter2 = morton3D_64_encode(v4 >> 21, v6 >> 21, v2 >> 22);
+		const unsigned long tmp2Inter3 = morton3D_64_encode(v6 >> 42, v2 >> 43, v4 >> 43);
+		const unsigned long inter1 = morton2D_64_encode(tmp1Inter1, tmp2Inter1);
+		const unsigned long inter2 = morton2D_64_encode(tmp1Inter1 >> 32, tmp2Inter1 >> 32);
+		const unsigned long inter3 = morton2D_64_encode(tmp1Inter2, tmp2Inter2);
+		const unsigned long inter4 = morton2D_64_encode(tmp1Inter2 >> 32, tmp2Inter2 >> 32);
+		const unsigned long inter5 = morton2D_64_encode(tmp1Inter3, tmp2Inter3);
+		const unsigned long inter6 = morton2D_64_encode(tmp1Inter3 >> 32, tmp2Inter3 >> 32);
+		*(outStartBlock) = inter1;
+		if (WIDTH > 10) {
+			*(outStartBlock + 1) = inter2;
+		}
+		if (WIDTH > 21) {
+			*(outStartBlock + 2) = inter3;
+		}
+		if (WIDTH > 32) {
+			*(outStartBlock + 3) = inter4;
+		}
+		if (WIDTH > 42) {
+			*(outStartBlock + 4) = inter5;
+		}
+		if (WIDTH > 53) {
+			*(outStartBlock + 5) = inter6;
+		}
+	} else {
+		// TODO if BMI2 is available the operation PEXT should be used!
+		for (size_t d = 0; d < DIM; ++d) {
+			assert (WIDTH == 64 || values[d] <= (1uL << WIDTH) - 1uL);
+			const unsigned long value = values[d];
+			for (size_t i = 0; i < WIDTH; ++i) {
+				// extract j-th least significant bit from int
+				// TODO use CPU instruction for interleaving
+				const unsigned long bit = (value >> i) & 1;
+				const auto block = (DIM * i + d) / bitsPerBlock;
+				const auto index = (DIM * i + d) % bitsPerBlock;
+				*(outStartBlock + block) |= bit << index;
+			}
 		}
 	}
 
 	assert(toLongs(outStartBlock, DIM * WIDTH) == values);
 }
-
 
 template <unsigned int DIM>
 vector<unsigned long> MultiDimBitset<DIM>::toLongs(const unsigned long* fromStartBlock, size_t nBits) {

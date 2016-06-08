@@ -30,7 +30,7 @@
 #define ENTRY_DIM_INSERT_SERIES 3
 #define FLOAT_ACCURACY_DECIMALS 14
 
-#define INSERT_ENTRY_DIMS {3, 6, 8, 10};
+#define INSERT_ENTRY_DIMS {2, 3, 4, 6, 8, 10};
 #define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
 #define SQUARE_WIDTH_PERCENT {0.5};
 #define SELECTIVITY {0.1, 0.01, 0.001};
@@ -192,10 +192,11 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 		unsigned int totalRangeQueryIntiTime = 0;
 		unsigned int totalRangeQueuryNextTime = 0;
 
-		std::string idPath = "./myDendriteIds.dat";
-		ofstream* idsFile = new ofstream();
-		idsFile->open(idPath.c_str(), ofstream::out | ofstream::trunc);
+//		std::string idPath = "./myDendriteIds.dat";
+//		ofstream* idsFile = new ofstream();
+//		idsFile->open(idPath.c_str(), ofstream::out | ofstream::trunc);
 
+		CALLGRIND_START_INSTRUMENTATION;
 		for (unsigned iAxon = 0; iAxon < nAxons; ++iAxon) {
 //			cout << "Axon: " << iAxon << " | previous intersections: " << nIntersectingDendrites << endl;
 			const unsigned int startInitTime = clock();
@@ -212,8 +213,9 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 			delete it;
 			totalRangeQueuryNextTime += (clock() - startRangeQueryTime);
 		}
+		CALLGRIND_STOP_INSTRUMENTATION;
 		cout << "ok" << endl;
-		delete idsFile;
+//		delete idsFile;
 
 		axonsRectValues->clear();
 		delete axonsRectValues;
@@ -469,6 +471,12 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<3, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries);
+			break;
+		}
+		case 4: {
+			vector<vector<unsigned long>>* randomDimEntries =
+								generateUniqueRandomEntriesList<4, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
+						writeAverageInsertTimeOfDimension<4, BIT_LENGTH>(test, randomDimEntries);
 			break;
 		}
 		case 5: {
