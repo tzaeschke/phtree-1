@@ -18,6 +18,8 @@ template <unsigned int DIM>
 class RangeQueryStackContent {
 public:
 	bool fullyContained;
+	size_t lowerEqualDims;
+	size_t upperEqualDims;
 	size_t lowerMask_;
 	size_t upperMask_;
 	size_t prefixLength_;

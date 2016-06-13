@@ -44,7 +44,7 @@ public:
 			unsigned long* const pushToStartBlock, unsigned int toNBits);
 
 	static std::pair<unsigned int, unsigned int> compareSmallerEqual(const unsigned long* v1Start,
-			const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits);
+			const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits, unsigned int equalDims);
 
 	static bool checkRangeUnset(const unsigned long* startBlock, unsigned int nBits,
 			unsigned int lsbStartBitIndex);
@@ -636,14 +636,17 @@ bool MultiDimBitset<DIM>::checkRangeUnset(const unsigned long* startBlock, unsig
 
 template <unsigned int DIM>
 pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const unsigned long* v1Start,
-		const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits) {
+		const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits, unsigned int equalDims) {
 	assert (nBits > skipLowestNBits && nBits > 0);
 	assert (nBits % DIM == 0 && skipLowestNBits % DIM == 0);
+//	assert (equalDims > 0 && "otherwise there is no reason to call this method");
 
 	bool isSmaller[DIM] = {};
 	bool isEqual[DIM] = {};
-	fill(isEqual, isEqual + DIM, true);
 	bool allCompared = false;
+	for (unsigned d = 0; d < DIM; ++d) {
+		isEqual[d] = (equalDims >> d) & 1;
+	}
 
 	const unsigned int nBitsIndex = nBits - 1u;
 	const unsigned int highestBlock = nBitsIndex / bitsPerBlock;
