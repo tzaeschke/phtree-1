@@ -47,11 +47,11 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 		const size_t prefixLength = currentNode->getPrefixLength();
 		if (prefixLength > 0) {
 			// validate prefix
-			const pair<bool, size_t> prefixComp = MultiDimBitset<DIM>::compare(e.values_, DIM * WIDTH,
-					index, index + prefixLength,
+			const bool eqPrefix= MultiDimBitset<DIM>::compareEqual(e.values_,
+					DIM * WIDTH, index, index + prefixLength,
 					currentNode->getFixPrefixStartBlock(), prefixLength * DIM);
 
-			if (!prefixComp.first) {
+			if (!eqPrefix) {
 				#ifdef PRINT
 					cout << "prefix mismatch" << endl;
 				#endif
@@ -79,24 +79,22 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 			lastHcAddress = content.address;
 		} else {
 			const size_t suffixBits = DIM * (WIDTH - index - 1);
+			bool eqSuffix = true;
 			if (suffixBits > 0) {
 				// validate suffix which is either directly stored or a reference
-				const pair<bool, size_t> suffixComp = MultiDimBitset<DIM>::compare(e.values_, DIM * WIDTH,
-								index + 1, WIDTH,
-								content.getSuffixStartBlock(), suffixBits);
-				if (!suffixComp.first) {
+				eqSuffix = MultiDimBitset<DIM>::compareEqual(e.values_,
+						DIM * WIDTH, index + 1, WIDTH,
+						content.getSuffixStartBlock(), suffixBits);
 					#ifdef PRINT
+					if (!eqSuffix) {
 						cout << "suffix mismatch" << endl;
+					} else {
+						cout << "found" << endl;
+					}
 					#endif
-					return pair<bool, int>(false, 0);
-				}
 			}
 
-			#ifdef PRINT
-				cout << "found" << endl;
-			#endif
-
-			return pair<bool, int>(true, content.id);
+			return pair<bool, int>(eqSuffix, content.id);
 		}
 	}
 }

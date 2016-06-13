@@ -22,6 +22,12 @@ public:
 	static std::pair<bool, size_t> compare(const unsigned long* const startBlock, unsigned int nBits,
 			size_t fromIndex, size_t toIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
 
+	static bool compareEqual(const unsigned long* const startBlock, unsigned int nBits,
+			size_t fromIndex, size_t toIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
+
+	static bool compareEqualAligned(const unsigned long* const startBlock, unsigned int nBits,
+			size_t fromMsbIndex, size_t toMsbIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
+
 	static std::vector<unsigned long> toLongs(const unsigned long* const fromStartBlock, size_t nBits);
 
 	static unsigned long interleaveBits(const unsigned long* const fromStartBlock, size_t index, size_t nBits);
@@ -256,12 +262,11 @@ std::ostream& MultiDimBitset<DIM>::output(std::ostream &os, const unsigned long*
 	return os;
 }
 
-template <unsigned int DIM>
-
 // fromMsbIndex is the first bit in the comparison
 // toMsbIndex is the first bit after the comparison
 // returns the length of the longest common prefix
-std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startBlock, unsigned int nBits,
+template <unsigned int DIM>
+pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startBlock, unsigned int nBits,
 		size_t fromMsbIndex, size_t toMsbIndex, const unsigned long* otherStartBlock, unsigned int otherNBits) {
 	assert (DIM > 0 && nBits % DIM == 0);
 	assert (fromMsbIndex < toMsbIndex && toMsbIndex <= nBits / DIM);
@@ -343,6 +348,121 @@ std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startB
 	assert (longestCommonPrefix >= 0 && longestCommonPrefix <= long(toMsbIndex - fromMsbIndex));
 	assert (!allDimSame || otherNBits / DIM == longestCommonPrefix);
 	return pair<bool, size_t>(allDimSame, longestCommonPrefix);
+}
+
+
+template <unsigned int DIM>
+bool MultiDimBitset<DIM>::compareEqual(const unsigned long* const startBlock, unsigned int nBits,
+		size_t fromMsbIndex, size_t toMsbIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits) {
+
+	assert (DIM > 0 && nBits % DIM == 0);
+	assert (fromMsbIndex < toMsbIndex && toMsbIndex <= nBits / DIM);
+	const size_t upper = nBits - DIM * fromMsbIndex;
+	const size_t lower = nBits - DIM * toMsbIndex;
+	const size_t b_max = bitsPerBlock;
+	assert(lower < upper && upper < nBits);
+	assert(upper - lower == otherNBits);
+
+	const size_t y = lower % b_max;
+	// TODO iff y==0 an aligned comparison can be done!
+	const unsigned int block_high = upper / b_max;
+	const unsigned int block_low = lower / b_max;
+
+	bool isEqual;
+	if (block_high == block_low) {
+		const size_t x = upper % b_max;
+		assert (x > y);
+		// removes bits after upper index from highest block: [  x  | 0 ... 0]
+		const unsigned long thisLastBlockMask = (1uL << x) - 1uL;
+		const unsigned long thisBlock = startBlock[block_low];
+		const unsigned long extractedThisBlock = (thisBlock & thisLastBlockMask) >> y;
+		const unsigned long otherBlock = otherStartBlock[0];
+		assert (otherBlock == (otherBlock & ((1uL << (x - y)) - 1uL)));
+		isEqual = extractedThisBlock == otherBlock;
+	} else if (y == 0) {
+		isEqual = compareEqualAligned(startBlock, nBits, fromMsbIndex, toMsbIndex, otherStartBlock, otherNBits);
+	} else {
+		const unsigned long upperPartExtractMask = filledBlock << y;
+		const unsigned long lowerPartExtractMask = filledBlock ^ upperPartExtractMask;
+
+		// pre: handle the first this block and compare it to the first other block (shifted)
+		const unsigned long otherFirst = otherStartBlock[0] << y;
+		const unsigned long thisFirst  = startBlock[block_low];
+		isEqual = otherFirst == (thisFirst & upperPartExtractMask);
+
+		// loop
+		for (unsigned block = block_low + 1; isEqual && block < block_high; ++block) {
+			// this :       [  y   | max-y ]
+			// other: [max-y|     ] [      | y ]
+			const unsigned long thisBlock = startBlock[block];
+			isEqual = (otherStartBlock[block - block_low - 1] >> (b_max - y)) == (thisBlock & lowerPartExtractMask);
+			if (isEqual) {
+				isEqual = (otherStartBlock[block - block_low] << y) == (thisBlock & upperPartExtractMask);
+			}
+		}
+
+		// post: handle the last this block and compare it to the other last block(s)
+		if (isEqual) {
+			const size_t x = upper % b_max;
+			const unsigned long lastThisBlock = startBlock[block_high];
+			// removes bits after upper index from highest block: [  x  | 0 ... 0]
+			const unsigned long thisLastBlockMask = (1uL << x) - 1uL;
+			if (x > y) {
+				// the x range overlaps with the necessary slot: compare 2 blocks
+				// this :   [  y   ,   x      | ignore ]
+				// other: ... (1.)] [ (2.)    | ...         ]
+				const unsigned long otherBlock = otherStartBlock[block_high - block_low - 1];
+				isEqual = (lastThisBlock & lowerPartExtractMask) == (otherBlock >> (b_max - y));
+				if (isEqual) {
+					// (2.) compare last part with the other last block
+					const unsigned long lastOtherBlock = otherStartBlock[block_high - block_low];
+					assert (lastOtherBlock == (lastOtherBlock & ((1uL << (x - y)) - 1uL)));
+					const unsigned long lastUpperExtracted = (lastThisBlock >> y) & thisLastBlockMask;
+					assert (thisLastBlockMask < upperPartExtractMask && thisLastBlockMask > lowerPartExtractMask);
+					isEqual = lastUpperExtracted == lastOtherBlock;
+				}
+			} else {
+				// only need to compare one block (there is 1 more this block than there are other blocks)
+				// this :      [ x ,   y   | ignore ]
+				// other: [done|   |  ignore ]
+				const unsigned long otherBlock = otherStartBlock[block_high - block_low - 1];
+				const unsigned long comparison = (otherBlock >> (b_max - y)) ^ lastThisBlock;
+				isEqual = (comparison & thisLastBlockMask) == 0uL;
+			}
+		}
+	}
+
+	assert (isEqual == ((pair<bool, size_t>)compare(startBlock, nBits,
+			fromMsbIndex, toMsbIndex, otherStartBlock, otherNBits)).first);
+
+	return isEqual;
+}
+
+template <unsigned int DIM>
+bool MultiDimBitset<DIM>::compareEqualAligned(const unsigned long* const startBlock, unsigned int nBits,
+		size_t fromMsbIndex, size_t toMsbIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits) {
+
+	const size_t upper = nBits - DIM * fromMsbIndex;
+	const size_t lower = nBits - DIM * toMsbIndex;
+	assert (lower % bitsPerBlock == 0);
+
+	const size_t firstBlock = lower / bitsPerBlock;
+	const size_t lastBlock = (upper - 1u) / bitsPerBlock;
+
+	bool isEqual = true;
+	for (unsigned block = firstBlock; block < lastBlock && isEqual; ++block) {
+		isEqual = startBlock[block] == otherStartBlock[block - firstBlock];
+	}
+
+	if (isEqual) {
+		const unsigned int lastBlockBits = upper % bitsPerBlock;
+		const unsigned long lastComp = startBlock[lastBlock] ^ otherStartBlock[lastBlock - firstBlock];
+		isEqual = (lastComp & lastBlockBits) == 0uL;
+	}
+
+	assert (isEqual == ((pair<bool, size_t>)compare(startBlock, nBits,
+				fromMsbIndex, toMsbIndex, otherStartBlock, otherNBits)).first);
+	return isEqual;
 }
 
 template <unsigned int DIM>
