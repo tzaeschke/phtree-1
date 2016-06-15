@@ -56,6 +56,8 @@ private:
 	inline bool isSuffixInRange();
 	inline void createCurrentContent(const Node<DIM>* nextNode, size_t prefixLength);
 	inline void goToNextValidSuffix();
+	static size_t compareBitwiseSmaller(size_t a, size_t b);
+	static size_t compareBitwiseEqual(size_t a, size_t b);
 };
 
 #include <assert.h>
@@ -86,10 +88,10 @@ RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<pair<unsigned long, co
 		currentContent.lowerContained = false;
 		currentContent.upperContained = false;
 		// start: range window is fully included in domain
-		currentContent.lowerCompEqual = 0;
+		currentContent.lowerCompEqual = highestAddress;
 		currentContent.lowerCompSmaller = 0;
-		currentContent.upperCompEqual = 0;
-		currentContent.upperCompSmaller = highestAddress;
+		currentContent.upperCompEqual = highestAddress;
+		currentContent.upperCompSmaller = 0;
 		// the first node has to be the root node which does not have a prefix!
 		const Node<DIM>* root = (*visitedNodes)[0].second;
 		createCurrentContent(root, 0);
@@ -242,24 +244,28 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 	if (currentContent.fullyContained) { return true; }
 
 	// Verify if the final entry drops out of the range!
+	// assemble the entry from the buffer, the current HC address and the current suffix
 	const unsigned int suffixLength = WIDTH - currentIndex_ - 1;
 	MultiDimBitset<DIM>::pushBackValue(currentAddressContent.address, currentValue, DIM * (WIDTH - currentIndex_ - 1));
 	if (suffixLength > 0)
 		MultiDimBitset<DIM>::pushBackBitset(currentAddressContent.getSuffixStartBlock(), DIM * suffixLength, currentValue, 0);
 
 	bool suffixContained = true;
+	// validate: range lower left <= entry (suffix)
 	if (!currentContent.lowerContained) {
 		pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
 					compareSmallerEqual(lowerLeftCorner_.values_, currentValue, DIM * WIDTH, 0, highestAddress);
 		suffixContained = (lowerComp.first | lowerComp.second) == highestAddress;
 	}
 
+	// validate: entry (suffix) <= range upper right
 	if (suffixContained && !currentContent.upperContained) {
 		pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
 					compareSmallerEqual(currentValue, upperRightCorner_.values_, DIM * WIDTH, 0, highestAddress);
 		suffixContained = (upperComp.first | upperComp.second) == highestAddress;
 	}
 
+	// clear the buffer (remove the HC address and possibly also the suffix)
 	if (suffixLength > 0) {
 		MultiDimBitset<DIM>::removeHighestBits(currentValue, (1 + suffixLength) * DIM, (1 + suffixLength) * DIM);
 	} else {
@@ -346,44 +352,76 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 
 	bool fullSwipe = true;
 
+	// calculate the range masks for the next node
 	if (!currentContent.fullyContained) {
-		// calculate the range masks for the next node
+		// there is more than one unchecked bit per dimension
 		const unsigned int ignoreNLowestBits = DIM * (WIDTH - currentIndex_ - 1);
 		assert (ignoreNLowestBits >= 0 && ignoreNLowestBits <= WIDTH * DIM);
 		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits + DIM, 0));
 
 		if (!currentContent.lowerContained) {
-			// msb       [interleaved format]          lsb
-			// <-filled-><DIM><-------- ignored --------->
-			// [ higher |00000|     lower node bits      ]
-			// the current lower range is automatically se 0s
-			pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
-					compareSmallerEqual(lowerLeftCorner_.values_, currentValue, DIM * WIDTH, ignoreNLowestBits, highestAddress);
-			currentContent.lowerCompSmaller = lowerComp.first;
-			currentContent.lowerCompEqual = lowerComp.second;
+			size_t localLowerCompSmaller;
+			size_t localLowerCompEqual;
+			if (prefixLength == 0) {
+				// there is only a single unchecked bit per dimension
+				const size_t nodeLocalLowerLeft = 0;
+				const size_t rangeLocalLowerLeft = MultiDimBitset<DIM>::interleaveBits(lowerLeftCorner_.values_, currentIndex_, DIM * WIDTH);
+				localLowerCompSmaller = compareBitwiseSmaller(rangeLocalLowerLeft, nodeLocalLowerLeft);
+				localLowerCompEqual = compareBitwiseEqual(rangeLocalLowerLeft, nodeLocalLowerLeft);
+			} else {
+				// msb       [interleaved format]          lsb
+				// <-filled-><DIM><-------- ignored --------->
+				// [ higher |00000|     lower node bits      ]
+				// the current lower range is automatically set to 0s
+				pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
+						compareSmallerEqual(lowerLeftCorner_.values_, currentValue, DIM * WIDTH, ignoreNLowestBits, highestAddress);
+				localLowerCompSmaller = lowerComp.first;
+				localLowerCompEqual = lowerComp.second;
+			}
+
+			// combine the local values with the previous global values:
+			// smaller(t) = smaller(t-1) | (equal(t-1) & smaller-local)
+			// equal(t) = equal(t-1) & equal-local
+			currentContent.lowerCompSmaller = currentContent.lowerCompSmaller | (currentContent.lowerCompEqual & localLowerCompSmaller);
+			currentContent.lowerCompEqual = currentContent.lowerCompEqual & localLowerCompEqual;
+
 			// lower mask: for i=0 to DIM - 1 do
 			// 		lowerMask[i] = 0 <=> current value (in dimension i) is less or equal to the lower left corner (in dimension i)
-			currentContent.lowerMask_ =  highestAddress & (~(lowerComp.first | lowerComp.second));
+			currentContent.lowerMask_ =  highestAddress & (~(currentContent.lowerCompSmaller | currentContent.lowerCompEqual));
 			currentContent.lowerContained = (currentContent.lowerCompEqual == 0)
 					&& (currentContent.lowerCompSmaller == highestAddress);
 		}
 
 		if (!currentContent.upperContained) {
-			// msb       [interleaved format]          lsb
-			// <-filled-><DIM><-------- ignored --------->
-			// [ higher |11111|      lower node bits     ]
-			// add the highest possible address as an upper boundary of the node and remove it afterwards
-			MultiDimBitset<DIM>::pushBackValue(highestAddress, currentValue, ignoreNLowestBits);
-			assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits, 0));
-			pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
-					compareSmallerEqual(upperRightCorner_.values_, currentValue, DIM * WIDTH, ignoreNLowestBits, highestAddress);
-			MultiDimBitset<DIM>::clearValue(currentValue, ignoreNLowestBits);
-			assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits + DIM, 0));
-			currentContent.upperCompSmaller = upperComp.first;
-			currentContent.upperCompEqual = upperComp.second;
+			size_t localUpperCompSmaller = 0;
+			size_t localUpperCompEqual = 0;
+			if (prefixLength == 0) {
+				// there is only a single unchecked bit per dimension
+				const size_t nodeLocalUpperRight = highestAddress;
+				const size_t rangeLocalUpperRight = MultiDimBitset<DIM>::interleaveBits(upperRightCorner_.values_, currentIndex_, DIM * WIDTH);
+				localUpperCompSmaller = compareBitwiseSmaller(rangeLocalUpperRight, nodeLocalUpperRight);
+				localUpperCompEqual = compareBitwiseEqual(rangeLocalUpperRight, nodeLocalUpperRight);
+			} else {
+				// msb       [interleaved format]          lsb
+				// <-filled-><DIM><-------- ignored --------->
+				// [ higher |11111|      lower node bits     ]
+				// add the highest possible address as an upper boundary of the node and remove it afterwards
+				MultiDimBitset<DIM>::pushBackValue(highestAddress, currentValue, ignoreNLowestBits);
+				assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits, 0));
+				pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
+						compareSmallerEqual(upperRightCorner_.values_, currentValue, DIM * WIDTH, ignoreNLowestBits, highestAddress);
+				MultiDimBitset<DIM>::clearValue(currentValue, ignoreNLowestBits);
+				assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, ignoreNLowestBits + DIM, 0));
+				localUpperCompSmaller = upperComp.first;
+				localUpperCompEqual = upperComp.second;
+			}
+			// combine the local values with the previous global values (see above):
+			currentContent.upperCompSmaller = currentContent.upperCompSmaller | (currentContent.upperCompEqual & localUpperCompSmaller);
+			currentContent.upperCompEqual = currentContent.upperCompEqual & localUpperCompEqual;
+
 			// upper mask: for i=0 to DIM - 1 do
 			// 		lowerMask[i] = 1 <=> current value (in dimension i) is higher or equal to upper right corner (in dimension i)
-			currentContent.upperMask_ = highestAddress & ((~upperComp.first) | upperComp.second);
+			currentContent.upperMask_ = highestAddress & ((~currentContent.upperCompSmaller) | currentContent.upperCompEqual);
 			currentContent.upperContained = (currentContent.upperCompEqual == 0)
 					&& (currentContent.upperCompSmaller == 0);
 		}
@@ -417,5 +455,19 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 	assert (!(currentContent.lowerContained && currentContent.upperContained) || currentContent.fullyContained);
 }
 
+template <unsigned int DIM, unsigned int WIDTH>
+size_t RangeQueryIterator<DIM, WIDTH>::compareBitwiseSmaller(size_t a, size_t b) {
+	assert (a <= highestAddress && b <= highestAddress);
+	const size_t result = (~a) & b;
+	assert (result <= highestAddress);
+	return result;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+size_t RangeQueryIterator<DIM, WIDTH>::compareBitwiseEqual(size_t a, size_t b) {
+	// (~a) xor b = (~a & ~b) | (a & b)
+	assert (a <= highestAddress && b <= highestAddress);
+	return ((~a) ^ b) & highestAddress;
+}
 
 #endif /* SRC_ITERATORS_RANGEQUERYITERATOR_H_ */
