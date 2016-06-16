@@ -15,18 +15,23 @@ template <unsigned int DIM>
 class Node;
 
 template <unsigned int DIM>
-class RangeQueryStackContent {
+struct RangeQueryStackContent {
 public:
 	bool fullyContained;
 	bool lowerContained;
 	bool upperContained;
-	size_t lowerCompEqual;
-	size_t lowerCompSmaller;
-	size_t upperCompEqual;
-	size_t upperCompSmaller;
-	size_t lowerMask_;
-	size_t upperMask_;
-	size_t prefixLength_;
+
+	unsigned int lowerMask_;
+	unsigned int upperMask_;
+
+	unsigned int prefixLength_;
+
+	unsigned int lowerCompEqual;
+	unsigned int lowerCompSmaller;
+
+	unsigned int upperCompEqual;
+	unsigned int upperCompSmaller;
+
 	const Node<DIM>* node_;
 	// TODO make iterators lokal
 	NodeIterator<DIM>* startIt_;
