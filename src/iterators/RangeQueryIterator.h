@@ -192,7 +192,7 @@ void RangeQueryIterator<DIM, WIDTH>::goToNextValidSuffix() {
 			// ascend to a previous level if the end of the node was reached
 			stepUp();
 			++(*currentContent.startIt_);
-			assert ((*currentContent.startIt_) <= (*currentContent.endIt_));
+			assert (!hasNext_ || (*currentContent.startIt_) <= (*currentContent.endIt_));
 		}
 
 		if (!hasNext_) break;
@@ -228,7 +228,7 @@ bool RangeQueryIterator<DIM, WIDTH>::isInMaskRange(unsigned long hcAddress) cons
 	assert (currentContent.lowerMask_ <= hcAddress && hcAddress <= currentContent.upperMask_);
 
 	const bool addressMatch = currentContent.fullyContained
-			&& (((hcAddress | currentContent.lowerMask_) & currentContent.upperMask_) == hcAddress);
+			|| (((hcAddress | currentContent.lowerMask_) & currentContent.upperMask_) == hcAddress);
 	return addressMatch;
 }
 
@@ -407,7 +407,7 @@ void RangeQueryIterator<DIM, WIDTH>::createCurrentContent(const Node<DIM>* nextN
 	unsigned long upperCompEqualLocal = highestAddress;
 	unsigned long upperCompSmallerLocal = 0;
 	if (!currentContent.fullyContained && !currentContent.upperContained && prefixLength == 0) {
-		const unsigned long prevUpperHC = (currentIndex_ == 0)? highestAddress : MultiDimBitset<DIM>::interleaveBits(upperRightCorner_.values_, currentIndex_ - 1, DIM * WIDTH);
+		const unsigned long prevUpperHC = (currentIndex_ == 0)? 0 : MultiDimBitset<DIM>::interleaveBits(upperRightCorner_.values_, currentIndex_ - 1, DIM * WIDTH);
 		const unsigned long upperHC = MultiDimBitset<DIM>::interleaveBits(upperRightCorner_.values_, currentIndex_, DIM * WIDTH);
 		// local upper | equal if: (previous upper == previous address) and (current upper == 1)
 		upperCompEqualLocal = (~(prevUpperHC ^ hcAddress)) & upperHC;
