@@ -51,7 +51,7 @@ private:
 
 
 	void stepUp();
-	void stepDown(const Node<DIM>* nextNode, unsigned long hcAddress);
+	bool stepDown(const Node<DIM>* nextNode, unsigned long hcAddress);
 	inline bool isInMaskRange(unsigned long hcAddress) const;
 	inline bool isSuffixInRange();
 	inline void createCurrentContent(const Node<DIM>* nextNode, size_t prefixLength);
@@ -95,7 +95,9 @@ RangeQueryIterator<DIM, WIDTH>::RangeQueryIterator(vector<pair<unsigned long, co
 		createCurrentContent(root, 0);
 		for (unsigned int i = 1; i < visitedNodes->size(); ++i) {
 			const pair<unsigned long, const Node<DIM>*> nextNode = (*visitedNodes)[i];
-			stepDown(nextNode.second, nextNode.first);
+			// TODO actually no need to validate prefixes since the lookup already did that?!
+			bool prefixIncluded = stepDown(nextNode.second, nextNode.first);
+			assert (prefixIncluded);
 		}
 
 		// thereby checks if there is any valid entry in the range
@@ -201,7 +203,11 @@ void RangeQueryIterator<DIM, WIDTH>::goToNextValidSuffix() {
 			++(*currentContent.startIt_);
 		} else if (currentAddressContent.hasSubnode) {
 			// descend to the next level in case of a subnode
-			stepDown(currentAddressContent.subnode, currentAddressContent.address);
+			bool prefixIncluded = stepDown(currentAddressContent.subnode, currentAddressContent.address);
+			if (!prefixIncluded) {
+				// the prefix of the current node was not included so do not descend
+				++(*currentContent.startIt_);
+			}
 		} else if (isSuffixInRange()) {
 			// found a suffix with a valid address
 			break;
@@ -314,7 +320,7 @@ void RangeQueryIterator<DIM, WIDTH>::stepUp() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigned long hcAddress) {
+bool RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigned long hcAddress) {
 	assert (nextNode && hcAddress < (1uL << DIM));
 	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 	assert ((*currentContent.startIt_) < (*currentContent.endIt_));
@@ -329,13 +335,36 @@ void RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigne
 		MultiDimBitset<DIM>::pushBackBitset(nextNode->getFixPrefixStartBlock(), prefixLength * DIM,
 				currentValue, (WIDTH - currentIndex_) * DIM);
 		assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
+
+		// TODO duplicate work in createCurrentContent to validate prefix
+		const unsigned int ignoreNLowestBits = DIM * (WIDTH - currentIndex_);
+		// varify if the prefix is still within the range
+		bool prefixValid = true;
+		if (!currentContent.lowerContained) {
+			pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
+						compareSmallerEqual(lowerLeftCorner_.values_, currentValue, DIM * WIDTH, ignoreNLowestBits, highestAddress);
+			prefixValid = (lowerComp.first | lowerComp.second) == highestAddress;
+		}
+
+		if (prefixValid && !currentContent.upperContained) {
+			pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
+						compareSmallerEqual(currentValue, upperRightCorner_.values_, DIM * WIDTH, ignoreNLowestBits, highestAddress);
+			prefixValid = (upperComp.first | upperComp.second) == highestAddress;
+		}
+
+		if (!prefixValid) {
+			currentIndex_ -= (prefixLength + 1);
+			const unsigned int freeLsbBits = DIM * (WIDTH - currentIndex_);
+			MultiDimBitset<DIM>::removeHighestBits(currentValue, freeLsbBits, (prefixLength + 1) * DIM);
+			return false;
+		}
 	}
 
 	// puts a duplicate on the stack
 	stack_.push(currentContent);
 	createCurrentContent(nextNode, prefixLength);
-
 	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
+	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
