@@ -106,6 +106,63 @@ int mainSimpleExample() {
 	return 0;
 }
 
+int mainFull1DExample() {
+	const unsigned int bitLength = 4;
+	PHTree<1, bitLength>* phtree = new PHTree<1, bitLength>();
+
+	const unsigned long upperBoundary = (1uL << bitLength);
+	for (unsigned long i = 0; i < upperBoundary; ++i) {
+		phtree->insert({i}, i);
+		assert (phtree->lookup({i}).first);
+	}
+
+	cout << *phtree;
+
+	for (unsigned long width = 1; width < upperBoundary; ++width) {
+		for (unsigned long lower = 0; lower < upperBoundary - width; ++lower) {
+			RangeQueryIterator<1, bitLength>* it = phtree->rangeQuery({lower}, {lower + width});
+			unsigned int nIntersects = 0;
+			while (it->hasNext()) {
+				it->next();
+				nIntersects++;
+			}
+
+			assert (nIntersects == (1 + width));
+			delete it;
+		}
+	}
+
+	delete phtree;
+	return 0;
+}
+
+int mainSharing1DExample() {
+	const unsigned int bitLength = 6;
+	PHTree<1, bitLength>* phtree = new PHTree<1, bitLength>();
+
+	vector<unsigned int> values = {2, 6, 18, 22, 34, 38, 50, 54};
+	for (unsigned i = 0; i < values.size(); ++i) {
+		const unsigned int value = values[i];
+		phtree->insert({value}, value);
+		phtree->insert({value + 1}, value + 1);
+	}
+
+	cout << (*phtree) << endl;
+
+	RangeQueryIterator<1, bitLength>* it = phtree->rangeQuery({0}, {63});
+	unsigned int points = 0;
+	while (it->hasNext()) {
+		it->next();
+		points++;
+	}
+
+	assert (points == values.size() * 2);
+
+	delete it;
+	delete phtree;
+	return 1;
+}
+
 int mainHyperCubeExample() {
 	const unsigned int bitLength = 4;
 	vector<unsigned long> e1Lower = {5, 5};
@@ -198,6 +255,9 @@ int main(int argc, char* argv[]) {
 	#endif
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
+//		mainFull1DExample();
+		cout << endl;
+		mainSharing1DExample();
 		mainSimpleExample();
 		cout << endl;
 		mainHyperCubeExample();
