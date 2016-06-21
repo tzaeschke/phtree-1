@@ -133,6 +133,34 @@ int mainFull1DExample() {
 	}
 
 	delete phtree;
+	return 0;
+}
+
+int mainSharing1DExample() {
+	const unsigned int bitLength = 6;
+	PHTree<1, bitLength>* phtree = new PHTree<1, bitLength>();
+
+	vector<unsigned int> values = {2, 6, 18, 22, 34, 38, 50, 54};
+	for (unsigned i = 0; i < values.size(); ++i) {
+		const unsigned int value = values[i];
+		phtree->insert({value}, value);
+		phtree->insert({value + 1}, value + 1);
+	}
+
+	cout << (*phtree) << endl;
+
+	RangeQueryIterator<1, bitLength>* it = phtree->rangeQuery({0}, {63});
+	unsigned int points = 0;
+	while (it->hasNext()) {
+		it->next();
+		points++;
+	}
+
+	assert (points == values.size() * 2);
+
+	delete it;
+	delete phtree;
+	return 1;
 }
 
 int mainHyperCubeExample() {
@@ -227,8 +255,9 @@ int main(int argc, char* argv[]) {
 	#endif
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
-		mainFull1DExample();
+//		mainFull1DExample();
 		cout << endl;
+		mainSharing1DExample();
 		mainSimpleExample();
 		cout << endl;
 		mainHyperCubeExample();

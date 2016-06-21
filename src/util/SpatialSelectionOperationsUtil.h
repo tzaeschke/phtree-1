@@ -41,8 +41,6 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 	NodeAddressContent<DIM> content;
 
 	while (true) {
-		if (visitedNodes)
-			visitedNodes->push_back(pair<unsigned long, const Node<DIM>*>(lastHcAddress, currentNode));
 
 		const size_t prefixLength = currentNode->getPrefixLength();
 		if (prefixLength > 0) {
@@ -59,6 +57,8 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 			}
 		}
 
+		if (visitedNodes)
+			visitedNodes->push_back(pair<unsigned long, const Node<DIM>*>(lastHcAddress, currentNode));
 
 		// validate HC address
 		index += prefixLength;
