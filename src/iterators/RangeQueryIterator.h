@@ -264,6 +264,10 @@ bool RangeQueryIterator<DIM, WIDTH>::isSuffixInRange() {
 
 	if (currentContent.fullyContained) { return true; }
 
+	// <prev. compared>
+	//                 <---- local comparison --->
+	// [    higher    |curr|       suffix        ]
+
 	// Verify if the final entry drops out of the range!
 	// assemble the entry from the buffer, the current HC address and the current suffix
 	const unsigned int suffixLength = WIDTH - currentIndex_ - 1;
@@ -365,9 +369,10 @@ bool RangeQueryIterator<DIM, WIDTH>::stepDown(const Node<DIM>* nextNode, unsigne
 	assert (MultiDimBitset<DIM>::checkRangeUnset(currentValue, DIM * (WIDTH - currentIndex_), 0));
 	assert ((*currentContent.startIt_) < (*currentContent.endIt_));
 
-	// msb       [interleaved format]          lsb
+	// msb               [interleaved format]                      lsb
 	// <-filled-><DIM><DIM *|prefix|><DIM><-------- ignored --------->
-	// <compared>< local comparison ><------- later compared -------->
+	// <prev. compared>             <------- later compared --------->
+	//          < local comparison >
 	// [ higher |last|current prefix|curr|     lower node bits       ]
 	// last: node currently descending from
 	// curr: node currently descending into
@@ -497,8 +502,12 @@ void RangeQueryIterator<DIM, WIDTH>::connectLocalToPrevUpper(unsigned long prevE
 template <unsigned int DIM, unsigned int WIDTH>
 void RangeQueryIterator<DIM, WIDTH>::compareLocalRangeLower(unsigned int skipLowerNBits, unsigned int compareNBits,
 			unsigned long* outCompEqual, unsigned long* outCompSmaller) const {
-	pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::
-							compareSmallerEqual(lowerLeftCorner_.values_, currentValue, skipLowerNBits + compareNBits, skipLowerNBits, highestAddress);
+	// all dimensions need to be compared where the lower left range is not already < current
+	unsigned long compareDimMask = currentContent.lowerCompEqual | (highestAddress & (~currentContent.lowerCompSmaller));
+	pair<unsigned long, unsigned long> lowerComp = MultiDimBitset<DIM>::compareSmallerEqual(
+			lowerLeftCorner_.values_, currentValue,
+			skipLowerNBits + compareNBits, skipLowerNBits,
+			compareDimMask);
 	(*outCompEqual) = lowerComp.second;
 	(*outCompSmaller) = lowerComp.first;
 }
@@ -506,8 +515,12 @@ void RangeQueryIterator<DIM, WIDTH>::compareLocalRangeLower(unsigned int skipLow
 template <unsigned int DIM, unsigned int WIDTH>
 void RangeQueryIterator<DIM, WIDTH>::compareLocalRangeUpper(unsigned int skipLowerNBits, unsigned int compareNBits,
 			unsigned long* outCompEqual, unsigned long* outCompSmaller) const {
-	pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::
-							compareSmallerEqual(upperRightCorner_.values_, currentValue, skipLowerNBits + compareNBits, skipLowerNBits, highestAddress);
+	// all dimensions need to be compared where the upper right range is not already > current
+	unsigned long compareDimMask = currentContent.upperCompEqual | currentContent.upperCompSmaller;
+	pair<unsigned long, unsigned long> upperComp = MultiDimBitset<DIM>::compareSmallerEqual(
+			upperRightCorner_.values_, currentValue,
+			skipLowerNBits + compareNBits, skipLowerNBits,
+			compareDimMask);
 	(*outCompEqual) = upperComp.second;
 	(*outCompSmaller) = upperComp.first;
 }
