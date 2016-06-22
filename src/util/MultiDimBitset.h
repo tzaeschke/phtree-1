@@ -639,7 +639,7 @@ pair<unsigned int, unsigned int> MultiDimBitset<DIM>::compareSmallerEqual(const 
 		const unsigned long* v2Start, unsigned int nBits, unsigned int skipLowestNBits, unsigned int equalDims) {
 	assert (nBits > skipLowestNBits && nBits > 0);
 	assert (nBits % DIM == 0 && skipLowestNBits % DIM == 0);
-//	assert (equalDims > 0 && "otherwise there is no reason to call this method");
+	assert (equalDims > 0 && "otherwise there is no reason to call this method");
 
 	bool isSmaller[DIM] = {};
 	bool isEqual[DIM] = {};

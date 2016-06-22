@@ -26,11 +26,11 @@ public:
 
 	unsigned int prefixLength_;
 
-	unsigned int lowerCompEqual;
-	unsigned int lowerCompSmaller;
+	unsigned long lowerCompEqual;
+	unsigned long lowerCompSmaller;
 
-	unsigned int upperCompEqual;
-	unsigned int upperCompSmaller;
+	unsigned long upperCompEqual;
+	unsigned long upperCompSmaller;
 
 	const Node<DIM>* node_;
 	// TODO make iterators lokal

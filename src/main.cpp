@@ -155,10 +155,18 @@ int mainSharing1DExample() {
 		it->next();
 		points++;
 	}
-
-	assert (points == values.size() * 2);
-
+	assert (points == 16);
 	delete it;
+
+	it = phtree->rangeQuery({18}, {39});
+	points = 0;
+	while (it->hasNext()) {
+		it->next();
+		points++;
+	}
+	assert (points == 8);
+	delete it;
+
 	delete phtree;
 	return 1;
 }
@@ -255,7 +263,7 @@ int main(int argc, char* argv[]) {
 	#endif
 
 	if (argc != 2 || debug.compare(argv[1]) == 0) {
-//		mainFull1DExample();
+		mainFull1DExample();
 		cout << endl;
 		mainSharing1DExample();
 		mainSimpleExample();
