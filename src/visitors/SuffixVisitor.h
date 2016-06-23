@@ -46,6 +46,7 @@ private:
 	unsigned long internallyStoredSuffixes;
 	unsigned long visitedSuffixes;
 	unsigned long treeWidth;
+	vector<unsigned int> suffixBlockHistogram;
 };
 
 #include "nodes/TNode.h"
@@ -82,6 +83,7 @@ template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsigned int index) {
 
+
 	const unsigned long currentSuffixBits = DIM * (treeWidth - 1 - index - 1);
 	assert (currentSuffixBits <= DIM * (treeWidth - 1));
 
@@ -90,14 +92,19 @@ void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsig
 	for (it = node->begin(); (*it) != *endIt; ++(*it)) {
 		NodeAddressContent<DIM> content = *(*it);
 		if (!content.hasSubnode) {
-			visitedSuffixes++;
+			const unsigned int suffixBlocks = 1u + currentSuffixBits / MultiDimBitset<DIM>::bitsPerBlock;
+			while (suffixBlocks >= suffixBlockHistogram.size()) {
+				suffixBlockHistogram.push_back(0);
+			}
+			++suffixBlockHistogram[suffixBlocks];
+			++visitedSuffixes;
 			if (content.directlyStoredSuffix) {
 				++internallyStoredSuffixes;
 				assert (currentSuffixBits <= sizeof (uintptr_t) * 8 - 2);
 				internallyStoredSuffixBits += currentSuffixBits;
 			} else {
 				externallyStoredSuffixBits += currentSuffixBits;
-				externalSuffixBlocks += 1uL + currentSuffixBits / MultiDimBitset<DIM>::bitsPerBlock;
+				externalSuffixBlocks += suffixBlocks;
 			}
 		}
 	}
@@ -114,6 +121,7 @@ void SuffixVisitor<DIM>::reset() {
 	externallyStoredSuffixBits = 0;
 	externalSuffixBlocks = 0;
 	internallyStoredSuffixBits = 0;
+	suffixBlockHistogram.clear();
 }
 
 template <unsigned int D>
@@ -130,10 +138,16 @@ std::ostream& SuffixVisitor<DIM>::output(std::ostream &out) const {
 	const double avgExternalSuffixBits = double(externallyStoredSuffixBits) / double(externallyStoredSuffixes);
 	const double avgExternalSuffixBlocks = double(externalSuffixBlocks) / double(externallyStoredSuffixes);
 
-	return out << "suffixes internally stored: " << internallyStoredSuffixes << " / "
-			<< internallyStoredRatioPercent << "% (avg "
-			<< avgInternalSuffixBits << " bits), avg external bits: " << avgExternalSuffixBits << " bits ("
-			<< avgExternalSuffixBlocks << " blocks)" << endl;
+	out << "suffixes internally stored: " << internallyStoredSuffixes << " / "
+				<< internallyStoredRatioPercent << "% (avg "
+				<< avgInternalSuffixBits << " bits), avg external bits: " << avgExternalSuffixBits << " bits ("
+				<< avgExternalSuffixBlocks << " blocks)" << endl;
+	out << "suffix block histogram:" << endl;
+	for (unsigned i = 0; i < suffixBlockHistogram.size(); ++i) {
+		out << "\t" << i << " block(s): " << suffixBlockHistogram[i] << endl;
+	}
+
+	return out;
 }
 
 

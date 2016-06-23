@@ -37,7 +37,10 @@ protected:
 private:
 	unsigned long nAHCNodes_;
 	unsigned long nLHCNodes_;
+	vector<unsigned int> lhcSizeHistogram;
 };
+
+using namespace std;
 
 /* implementation of template */
 template <unsigned int DIM>
@@ -53,6 +56,7 @@ template <unsigned int DIM>
 void CountNodeTypesVisitor<DIM>::reset() {
 	nAHCNodes_ = 0;
 	nLHCNodes_ = 0;
+	lhcSizeHistogram.clear();
 }
 
 template <unsigned int DIM>
@@ -73,6 +77,12 @@ template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS, unsigned int N>
 void CountNodeTypesVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
 	nLHCNodes_++;
+
+	while (N >= lhcSizeHistogram.size()) {
+		lhcSizeHistogram.push_back(0);
+	}
+
+	++lhcSizeHistogram[N];
 }
 
 template <unsigned int DIM>
@@ -90,7 +100,11 @@ template <unsigned int DIM>
 std::ostream& CountNodeTypesVisitor<DIM>::output(std::ostream &out) const {
 	out << "nodes: " << (getNumberOfVisitedAHCNodes() + getNumberOfVisitedLHCNodes());
 	out << " (AHC nodes: " << getNumberOfVisitedAHCNodes();
-	out << " | LHC nodes: " << getNumberOfVisitedLHCNodes()  << ")"<< std::endl;
+	out << " | LHC nodes: " << getNumberOfVisitedLHCNodes()  << ")"<< endl;
+	out << "LHC size histogram:" << endl;
+	for (unsigned i = 0; i < lhcSizeHistogram.size(); ++i) {
+		out << "\t" << i << ": " << lhcSizeHistogram[i] << endl;
+	}
 	return out;
 }
 

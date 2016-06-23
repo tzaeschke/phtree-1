@@ -23,6 +23,11 @@ public:
 
 	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
 
+	static unsigned int nInsertSplitSuffix;
+	static unsigned int nInsertSuffix;
+	static unsigned int nInsertSuffixEnlarge;
+	static unsigned int nInsertSplitPrefix;
+
 private:
 	static inline void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
@@ -32,6 +37,15 @@ private:
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
 };
+
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
 
 #include <assert.h>
 #include <stdexcept>
@@ -49,6 +63,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 		size_t currentIndex, Node<DIM>* currentNode, const NodeAddressContent<DIM>& content,
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+
+	++DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix;
 
 	const size_t currentSuffixBits = DIM * (WIDTH - currentIndex - 1);
 	const unsigned long* suffixStartBlock = content.getSuffixStartBlock();
@@ -121,10 +137,12 @@ template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+	++nInsertSuffix;
 	// TODO reuse this method in other two cases!
 	Node<DIM>* adjustedNode = currentNode;
 	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
 		// need to adjust the node to insert another entry
+		++nInsertSuffixEnlarge;
 		adjustedNode = NodeTypeUtil<DIM>::copyIntoLargerNode(currentNode->getMaximumNumberOfContents() + 1, currentNode);
 	}
 	assert(adjustedNode->getNumberOfContents() < adjustedNode->getMaximumNumberOfContents());
@@ -153,6 +171,8 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 		Node<DIM>* currentNode,	const NodeAddressContent<DIM>& content,
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
 	assert (newPrefixLength < oldPrefixLength && oldPrefixLength > 0);
+
+	++nInsertSplitPrefix;
 
 	const Node<DIM>* oldSubnode = content.subnode;
 	assert (oldSubnode->getPrefixLength() == oldPrefixLength);

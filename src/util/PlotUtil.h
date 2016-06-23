@@ -100,6 +100,7 @@ private:
 #include "util/rdtsc.h"
 #include "util/RangeQueryUtil.h"
 #include "util/RandUtil.h"
+#include "util/DynamicNodeOperationsUtil.h"
 
 using namespace std;
 
@@ -147,6 +148,11 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 	for (unsigned run = 0; run < axonsFiles.size(); ++run) {
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
 
+		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix = 0;
+		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix = 0;
+		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix = 0;
+		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
+
 		// insert all dendrites into a PH-Tree
 		cout << "loading dendrites... " << flush;
 		vector<vector<unsigned long>>* dendritesRectValues = FileInputUtil::readFloatEntries<DIM>(dendritesFiles[run], FLOAT_ACCURACY_DECIMALS);
@@ -163,9 +169,14 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 			assert (phtree->lookup((*dendritesRectValues)[iEntry]).second == iEntry);
 		}
 		cout << "ok" << endl;
-
 		dendritesRectValues->clear();
 		delete dendritesRectValues;
+
+		cout << "insert calls:" << endl;
+		cout << "\t#suffix insertion = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix
+				<< " (with enlarging node: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge << ")" << endl;
+		cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << endl;
+		cout << "\t#split prefix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix << endl;
 
 		CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
 		SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();

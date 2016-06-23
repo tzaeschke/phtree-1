@@ -38,6 +38,8 @@ protected:
 private:
 	unsigned long prefixSharedBits;
 	unsigned long prefixBitsWithoutSharing;
+	unsigned long nSharedPrefixes;
+	vector<unsigned int> prefixBlockHistogram;
 
 	template <unsigned int PREF_BLOCKS>
 	void visitGeneral(const TNode<DIM, PREF_BLOCKS>* node);
@@ -75,14 +77,24 @@ void PrefixSharingVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned i
 template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 void PrefixSharingVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node) {
+	while (PREF_BLOCKS >= prefixBlockHistogram.size()) {
+		prefixBlockHistogram.push_back(0);
+	}
+	++prefixBlockHistogram[PREF_BLOCKS];
+
 	prefixSharedBits += node->getPrefixLength() * DIM;
 	prefixBitsWithoutSharing += node->getPrefixLength() * DIM * node->getNumberOfContents();
+	if (node->getPrefixLength() > 0) {
+		++nSharedPrefixes;
+	}
 }
 
 template <unsigned int DIM>
 void PrefixSharingVisitor<DIM>::reset() {
 	prefixBitsWithoutSharing = 0;
 	prefixSharedBits = 0;
+	nSharedPrefixes = 0;
+	prefixBlockHistogram.clear();
 }
 
 template <unsigned int DIM>
@@ -103,9 +115,15 @@ std::ostream& operator <<(std::ostream &out, const PrefixSharingVisitor<D>& v) {
 template <unsigned int DIM>
 std::ostream& PrefixSharingVisitor<DIM>::output(std::ostream &out) const {
 	float sharingSavedPercent = float(getPrefixSharedBits()) / float(getPrefixBitsWithoutSharing());
-	return out << "total shared prefixes: " << getPrefixSharedBits() << " bits"
+	out << "#nodes with prefix=" << nSharedPrefixes << ", total shared prefix bits: " << getPrefixSharedBits() << " bits"
 			<< " (only " << sharingSavedPercent << "% of otherwise "
 			<< getPrefixBitsWithoutSharing() << " bits)" << endl;
+	out << "prefix blocks histogram:" << endl;
+	for (unsigned i = 0; i < prefixBlockHistogram.size(); ++i) {
+		out << "\t" << i << " block(s): " << prefixBlockHistogram[i] << endl;
+	}
+
+	return out;
 }
 
 #endif /* SRC_VISITORS_PREFIXSHARINGVISITOR_H_ */
