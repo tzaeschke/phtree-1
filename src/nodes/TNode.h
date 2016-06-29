@@ -43,22 +43,33 @@ public:
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
 	virtual size_t getMaximumNumberOfContents() const = 0;
+	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual Node<DIM>* adjustSize() = 0;
+
 	size_t getMaxPrefixLength() const override;
 	size_t getPrefixLength() const override;
 	unsigned long* getPrefixStartBlock() override;
 	const unsigned long* getFixPrefixStartBlock() const override;
-	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const = 0;
-	NodeAddressContent<DIM> lookup(unsigned long address) const override;
-	virtual void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
-	virtual Node<DIM>* adjustSize() = 0;
+	NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const override;
 	bool canStoreSuffixInternally(size_t nSuffixBits) const override;
+	unsigned int canStoreSuffix(size_t nSuffixBits) const override;
+	void setSuffixStorage(TSuffixStorage* suffixStorage) override;
+	const TSuffixStorage* getSuffixStorage() const override;
+	std::pair<unsigned long*, unsigned int> reserveSuffixSpace(size_t nSuffixBits) override;
+	void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock) override;
+	void copySuffixStorageFrom(const Node<DIM>& other) override;
 
+	unsigned long* getSuffixStartBlockPointerFromIndex(unsigned int index) const;
 protected:
 	size_t prefixBits_;
+	TSuffixStorage* suffixes_;
 	// TODO template block type
 	unsigned long prefix_[PREF_BLOCKS];
+
+	TSuffixStorage* getChangeableSuffixStorage() const override;
 	virtual string getName() const =0;
 };
 
@@ -68,16 +79,17 @@ protected:
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "iterators/RangeQueryIterator.h"
 #include "iterators/NodeIterator.h"
+#include "nodes/TSuffixStorage.h"
 
 using namespace std;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-TNode<DIM, PREF_BLOCKS>::TNode(size_t prefixLength) : prefixBits_(prefixLength * DIM), prefix_() {
+TNode<DIM, PREF_BLOCKS>::TNode(size_t prefixLength) : prefixBits_(prefixLength * DIM), suffixes_(NULL), prefix_() {
 	assert (prefixBits_ <= PREF_BLOCKS * sizeof (unsigned long) * 8);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-TNode<DIM, PREF_BLOCKS>::TNode(TNode<DIM, PREF_BLOCKS>* other) : prefixBits_(other->prefixBits_) {
+TNode<DIM, PREF_BLOCKS>::TNode(TNode<DIM, PREF_BLOCKS>* other) : prefixBits_(other->prefixBits_), suffixes_(other->suffixes_) {
 	assert (prefixBits_ <= PREF_BLOCKS * sizeof (unsigned long) * 8);
 	for (unsigned i = 0; i < PREF_BLOCKS; ++i) {
 		prefix_[i] = other->prefix_[i];
@@ -129,9 +141,91 @@ bool TNode<DIM, PREF_BLOCKS>::canStoreSuffixInternally(size_t nSuffixBits) const
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address) const {
+unsigned int TNode<DIM, PREF_BLOCKS>::canStoreSuffix(size_t nSuffixBits) const {
+	assert(nSuffixBits > 0);
+
+	if (suffixes_) {
+		if (suffixes_->canStoreBits(nSuffixBits)) {
+			return 0;
+		} else {
+			return suffixes_->getTotalBlocksToStoreAdditionalSuffix(nSuffixBits);
+		}
+	} else {
+		const unsigned int suffixBlocks = 1 + (nSuffixBits - 1) / (8 * sizeof (unsigned long));
+		return suffixBlocks;
+	}
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void TNode<DIM, PREF_BLOCKS>::setSuffixStorage(TSuffixStorage* suffixes) {
+	suffixes_ = suffixes;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+const TSuffixStorage* TNode<DIM, PREF_BLOCKS>::getSuffixStorage() const {
+	return suffixes_;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+TSuffixStorage* TNode<DIM, PREF_BLOCKS>::getChangeableSuffixStorage() const {
+	return suffixes_;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+std::pair<unsigned long*, unsigned int> TNode<DIM, PREF_BLOCKS>::reserveSuffixSpace(size_t nSuffixBits) {
+	assert (suffixes_ && suffixes_->canStoreBits(nSuffixBits));
+	// assumes insertion order: reserve space -> fill suffix -> insert index
+	assert (this->getNStoredSuffixes() == suffixes_->getNStoredSuffixes(nSuffixBits));
+	return suffixes_->reserveBits(nSuffixBits);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+unsigned long* TNode<DIM, PREF_BLOCKS>::getSuffixStartBlockPointerFromIndex(unsigned int index) const {
+	assert (suffixes_);
+	return suffixes_->getPointerFromIndex(index);
+}
+
+template<unsigned int DIM, unsigned int PREF_BLOCKS>
+void TNode<DIM, PREF_BLOCKS>::freeSuffixSpace(size_t nSuffixBits,
+		unsigned long* suffixStartBlock) {
+	assert(suffixes_ && !suffixes_->empty());
+
+	const unsigned int suffixStartBlockIndex = suffixes_->getIndexFromPointer(suffixStartBlock);
+	const unsigned int lastStartBlockIndex = suffixes_->overrideBlocksWithLast(nSuffixBits, suffixStartBlockIndex);
+	if (lastStartBlockIndex != 0) {
+		NodeIterator<DIM>* it = this->begin();
+		it->disableResolvingSuffixIndex();
+		NodeIterator<DIM>* endIt = this->end();
+		bool foundLastRef = false;
+		for (; (*it != *endIt) && !foundLastRef; ++(*it)) {
+			NodeAddressContent<DIM> content = (*(*it));
+			if (content.exists && !content.hasSubnode
+					&& content.suffixStartBlockIndex == lastStartBlockIndex) {
+				assert(!content.directlyStoredSuffix);
+				insertAtAddress(content.address, suffixStartBlockIndex, content.id);
+				foundLastRef = true;
+			}
+		}
+
+		assert(foundLastRef);
+		delete it;
+		delete endIt;
+	} else {
+		suffixes_->clearLast(nSuffixBits);
+	}
+
+	assert (this->getNStoredSuffixes() == suffixes_->getNStoredSuffixes(nSuffixBits));
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void TNode<DIM, PREF_BLOCKS>::copySuffixStorageFrom(const Node<DIM>& other) {
+	suffixes_ = other.getChangeableSuffixStorage();
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address, bool resolveSuffixIndex) const {
 	NodeAddressContent<DIM> content;
-	this->lookup(address, content);
+	this->lookup(address, content, resolveSuffixIndex);
 	return content;
 }
 

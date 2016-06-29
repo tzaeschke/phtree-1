@@ -164,7 +164,7 @@ Entry<DIM, WIDTH> RangeQueryIterator<DIM, WIDTH>::next() {
 
 #ifndef NDEBUG
 	// validation only: is the entry contained in the current node
-	assert (entry.id_ == currentContent.node_->lookup(currentAddressContent.address).id);
+	assert (entry.id_ == currentContent.node_->lookup(currentAddressContent.address, true).id);
 
 	// validation only: is the retrieved entry part of the tree?
 	const Node<DIM>* rootNode = NULL;

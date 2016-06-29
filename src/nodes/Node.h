@@ -21,6 +21,7 @@ template <unsigned int DIM>
 class PrefixSharingVisitor;
 template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil;
+class TSuffixStorage;
 
 template <unsigned int DIM>
 class Node {
@@ -44,16 +45,26 @@ public:
 	virtual size_t getPrefixLength() const =0;
 	virtual unsigned long* getPrefixStartBlock() =0;
 	virtual const unsigned long* getFixPrefixStartBlock() const =0;
-	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const = 0;
-	virtual NodeAddressContent<DIM> lookup(unsigned long address) const =0;
-	virtual void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
+	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
+	virtual NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const =0;
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual Node<DIM>* adjustSize() = 0;
 	virtual bool canStoreSuffixInternally(size_t nSuffixBits) const =0;
+	virtual unsigned int canStoreSuffix(size_t nSuffixBits) const =0;
+	virtual void setSuffixStorage(TSuffixStorage* suffixStorage) =0;
+	virtual const TSuffixStorage* getSuffixStorage() const =0;
+	virtual TSuffixStorage* getChangeableSuffixStorage() const =0;
+	// returns the storage address to write to and the index to store
+	virtual std::pair<unsigned long*, unsigned int> reserveSuffixSpace(size_t nSuffixBits) =0;
+	virtual void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock) =0;
+	virtual void copySuffixStorageFrom(const Node<DIM>& other) =0;
 
-	// attention: linear check! should be used for validation only
+	// attention: linear checks! should be used for validation only
 	bool containsId(int id) const;
+	size_t getNStoredSuffixes() const;
+
 };
 
 template <unsigned int DIM>
@@ -70,6 +81,27 @@ bool Node<DIM>::containsId(int id) const {
 	delete startIt;
 	delete endIt;
 	return false;
+}
+
+template <unsigned int DIM>
+size_t Node<DIM>::getNStoredSuffixes() const {
+	if (this->getNumberOfContents() != 0) {
+		size_t nSuffixes = 0;
+		NodeIterator<DIM>* startIt = this->begin();
+		NodeIterator<DIM>* endIt = this->end();
+		for (; (*startIt) != (*endIt); ++(*startIt)) {
+			NodeAddressContent<DIM> content = *(*startIt);
+			if (content.exists && !content.hasSubnode) {
+				++nSuffixes;
+			}
+		}
+
+		delete startIt;
+		delete endIt;
+		return nSuffixes;
+	} else {
+		return 0;
+	}
 }
 
 #endif /* SRC_NODE_H_ */

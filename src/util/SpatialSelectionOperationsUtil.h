@@ -63,7 +63,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 		// validate HC address
 		index += prefixLength;
 		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e.values_, index, DIM * WIDTH);
-		currentNode->lookup(hcAddress, content);
+		currentNode->lookup(hcAddress, content, true);
 
 		if (!content.exists) {
 			#ifdef PRINT

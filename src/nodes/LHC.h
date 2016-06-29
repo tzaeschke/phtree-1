@@ -34,8 +34,8 @@ public:
 	void recursiveDelete() override;
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
-	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const override;
-	void insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) override;
+	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const override;
+	void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
 	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	Node<DIM>* adjustSize() override;
@@ -274,7 +274,7 @@ void LHC<DIM, PREF_BLOCKS, N>::lookupAddress(unsigned long hcAddress, bool* outE
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent) const {
+void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const {
 	assert (address < 1uL << DIM);
 
 	outContent.address = address;
@@ -288,9 +288,14 @@ void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<
 			if (outContent.directlyStoredSuffix) {
 				outContent.suffix = reinterpret_cast<unsigned long>(references_[index]);
 			} else {
-				// return the stored reference
-				outContent.suffixStartBlock = reinterpret_cast<const unsigned long*>(references_[index]);
+				const unsigned long suffixStartBlockIndex = reinterpret_cast<unsigned long>(references_[index]);
+				if (resolveSuffixIndex) {
+					outContent.suffixStartBlock = this->getSuffixStartBlockPointerFromIndex(suffixStartBlockIndex);
+				} else {
+					outContent.suffixStartBlockIndex = suffixStartBlockIndex;
+				}
 			}
+
 			outContent.id = ids_[index];
 		}
 	}
@@ -300,7 +305,7 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAddress,
 		bool newHasSub, bool newDirectlyStored, uintptr_t newReference, int newId) {
 
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(newHcAddress)).exists);
+	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(newHcAddress, true)).exists);
 
 	++m;
 	if (index != m - 1) {
@@ -353,7 +358,7 @@ void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAdd
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const unsigned long* const startSuffixBlock, int id) {
+void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
 	assert (hcAddress < 1uL << DIM);
 
 	unsigned int index = m;
@@ -362,7 +367,8 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const un
 	bool directlyStored = false;
 	lookupAddress(hcAddress, &exists, &index, &hasSub, &directlyStored);
 	assert (index <= m);
-	uintptr_t reference = reinterpret_cast<uintptr_t>(startSuffixBlock);
+	const unsigned long suffixStartBlockIndexExtended = suffixStartBlockIndex;
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended);
 
 	if (exists) {
 		// replace the contents at the address
@@ -376,10 +382,10 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const un
 		addRow(index, hcAddress, false, false, reference, id);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).hasSubnode);
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).directlyStoredSuffix);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
+	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSubnode);
+	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).directlyStoredSuffix);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -393,7 +399,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 	bool directlyStored = false;
 	lookupAddress(hcAddress, &exists, &index, &hasSub, &directlyStored);
 	assert (index <= m);
-	uintptr_t reference = reinterpret_cast<uintptr_t>(suffix);
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffix);
 
 	if (exists) {
 		// replace the contents at the address
@@ -407,10 +413,10 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 		addRow(index, hcAddress, false, true, reference, id);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).id == id);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).directlyStoredSuffix);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).suffix == suffix);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).directlyStoredSuffix);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).suffix == suffix);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -423,7 +429,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 	bool directlyStored = false;
 	lookupAddress(hcAddress, &exists, &index, &hasSub, &directlyStored);
 	assert (index <= m);
-	uintptr_t reference = reinterpret_cast<uintptr_t>(subnode);
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(subnode);
 
 	if (exists) {
 		// replace the contents at the address
@@ -437,8 +443,8 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 		addRow(index, hcAddress, true, false, reference, 0);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress)).hasSubnode);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSubnode);
 }
 
 

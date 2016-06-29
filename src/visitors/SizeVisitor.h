@@ -66,7 +66,6 @@ private:
 #include "nodes/TNode.h"
 #include "nodes/LHC.h"
 #include "nodes/AHC.h"
-#include "util/SuffixBlock.h"
 
 using namespace std;
 
@@ -81,15 +80,7 @@ SizeVisitor<DIM>::~SizeVisitor() { }
 template <unsigned int DIM>
 template <unsigned int WIDTH>
 void SizeVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {
-	const unsigned int suffixBlockSize = 50;
 	totalTreeByteSize += sizeof (tree->root_);
-	SuffixBlock<suffixBlockSize>* currentBlock = tree->firstSuffixBlock;
-	assert (currentBlock);
-	do {
-		externalSuffixBlocks++;
-		totalTreeByteSize += sizeof(SuffixBlock<suffixBlockSize>);
-		currentBlock = currentBlock->next;
-	} while (currentBlock);
 }
 
 template <unsigned int DIM>
@@ -114,9 +105,14 @@ void SizeVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth)
 template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 unsigned long SizeVisitor<DIM>::superSize(const TNode<DIM, PREF_BLOCKS>* node) {
-	unsigned long superSize = sizeof (node->prefixBits_);
-	superSize += sizeof (node->prefix_);
-	return superSize;
+	unsigned long prefixSize = sizeof (node->prefixBits_);
+	prefixSize += sizeof (node->prefix_);
+	unsigned long suffixSize = 0;
+	if (node->getSuffixStorage()) {
+		suffixSize = node->getSuffixStorage()->getByteSize();
+	}
+
+	return prefixSize + suffixSize;
 }
 
 template <unsigned int DIM>

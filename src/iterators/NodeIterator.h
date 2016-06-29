@@ -29,19 +29,21 @@ public:
 	virtual NodeIterator<DIM> operator++(int);
 	virtual NodeAddressContent<DIM> operator*() const;
 	unsigned long getAddress() const;
+	void disableResolvingSuffixIndex();
 
 protected:
+	bool resolveSuffixIndexToPointer_;
 	unsigned long address_;
 };
 
 #include <stdexcept>
 
 template <unsigned int DIM>
-NodeIterator<DIM>::NodeIterator() : address_(0) {
+NodeIterator<DIM>::NodeIterator() : resolveSuffixIndexToPointer_(true), address_(0) {
 }
 
 template <unsigned int DIM>
-NodeIterator<DIM>::NodeIterator(unsigned long address) : address_(address) {
+NodeIterator<DIM>::NodeIterator(unsigned long address) : resolveSuffixIndexToPointer_(true), address_(address) {
 }
 
 template <unsigned int DIM>
@@ -50,6 +52,11 @@ NodeIterator<DIM>::~NodeIterator() { }
 template <unsigned int DIM>
 unsigned long NodeIterator<DIM>::getAddress() const {
 	return address_;
+}
+
+template <unsigned int DIM>
+void NodeIterator<DIM>::disableResolvingSuffixIndex() {
+	resolveSuffixIndexToPointer_ = false;
 }
 
 template <unsigned int DIM>

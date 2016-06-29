@@ -86,7 +86,7 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 NodeAddressContent<DIM> AHCIterator<DIM, PREF_BLOCKS>::operator*() const {
 
 	NodeAddressContent<DIM> content;
-	node_->lookup(this->address_, content);
+	node_->lookup(this->address_, content, this->resolveSuffixIndexToPointer_);
 	content.address = this->address_;
 	return content;
 }

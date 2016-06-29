@@ -13,6 +13,7 @@ class Node;
 
 template <unsigned int DIM>
 struct NodeAddressContent {
+	// TODO reduce bool values or align them!
 	bool exists;
 	bool hasSubnode;
 	bool directlyStoredSuffix;
@@ -21,6 +22,7 @@ struct NodeAddressContent {
 	union {
 		Node<DIM>* subnode;
 		const unsigned long* suffixStartBlock;
+		unsigned int suffixStartBlockIndex;
 		unsigned long suffix;
 	};
 

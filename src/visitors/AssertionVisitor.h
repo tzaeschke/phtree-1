@@ -80,7 +80,7 @@ void AssertionVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned in
 		assert (indexTest == i);
 		assert (exists);
 		assert (hasSubnode == hasSubnodeTest && directlyStored == directlyStoredTest);
-		node->lookup(hcAddress, content);
+		node->lookup(hcAddress, content, true);
 		assert (content.exists && content.address == hcAddress && content.hasSubnode == hasSubnode);
 		lastHcAddress = hcAddress;
 	}

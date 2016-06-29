@@ -110,7 +110,12 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() const {
 		if (content.directlyStoredSuffix) {
 			content.suffix = static_cast<unsigned long>(node_->references_[currentIndex]);
 		} else {
-			content.suffixStartBlock = reinterpret_cast<const unsigned long*>(node_->references_[currentIndex]);
+			const unsigned long suffixStartBlockIndex = reinterpret_cast<unsigned long>(node_->references_[currentIndex]);
+			if (this->resolveSuffixIndexToPointer_) {
+				content.suffixStartBlock = node_->getSuffixStartBlockPointerFromIndex(suffixStartBlockIndex);
+			} else {
+				content.suffixStartBlockIndex = suffixStartBlockIndex;
+			}
 		}
 	}
 

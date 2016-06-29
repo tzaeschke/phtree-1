@@ -21,8 +21,6 @@ template <unsigned int DIM>
 class SizeVisitor;
 template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryIterator;
-template <unsigned int SUFF_PER_BLOCK>
-class SuffixBlock;
 
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree {
@@ -50,14 +48,9 @@ public:
 	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& values) const;
 
 	void accept(Visitor<DIM>* visitor);
-	unsigned long* reserveSuffixSpace(size_t nSuffixBits);
-	void freeSuffixSpace(unsigned long* suffixStartBlock, size_t nSuffixBits);
 
 private:
 	Node<DIM>* root_;
-	// TODO whats the best size for each suffix block?
-	SuffixBlock<50>* firstSuffixBlock;
-	SuffixBlock<50>* currentSuffixBlock;
 };
 
 #include <assert.h>
@@ -65,26 +58,22 @@ private:
 #include "util/DynamicNodeOperationsUtil.h"
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "util/NodeTypeUtil.h"
-#include "util/SuffixBlock.h"
 
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 PHTree<DIM, WIDTH>::PHTree() {
-	root_ = NodeTypeUtil<DIM>::buildNode(0, 1);
-	firstSuffixBlock = new SuffixBlock<50>();
-	currentSuffixBlock = firstSuffixBlock;
+
+	const unsigned int blocksForFirstSuffix = 1 + ((WIDTH - 1) * DIM - 1) / (8 * sizeof (unsigned long));
+	root_ = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(0, 1, 1, blocksForFirstSuffix);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-PHTree<DIM, WIDTH>::PHTree(const PHTree<DIM, WIDTH>& other) : root_(other.root_),
-firstSuffixBlock(other.firstSuffixBlock),
-currentSuffixBlock(other.currentSuffixBlock) { }
+PHTree<DIM, WIDTH>::PHTree(const PHTree<DIM, WIDTH>& other) : root_(other.root_) { }
 
 template <unsigned int DIM, unsigned int WIDTH>
 PHTree<DIM, WIDTH>::~PHTree() {
 	root_->recursiveDelete();
-	delete firstSuffixBlock;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -245,18 +234,6 @@ void PHTree<DIM, WIDTH>::accept(Visitor<DIM>* visitor) {
 	(*visitor).template visit<WIDTH>(this);
 	root_->accept(visitor, 0, 0);
 }
-
-template <unsigned int DIM, unsigned int WIDTH>
-unsigned long* PHTree<DIM, WIDTH>::reserveSuffixSpace(size_t nSuffixBits) {
-	const size_t nSuffixBlocks = (nSuffixBits > 0)? 1 + ((nSuffixBits - 1) / (sizeof (unsigned long) * 8)) : 0;
-	return currentSuffixBlock->reserveSuffixBlocks(nSuffixBlocks, &currentSuffixBlock);
-}
-
-template <unsigned int DIM, unsigned int WIDTH>
-void PHTree<DIM, WIDTH>::freeSuffixSpace(unsigned long* suffixStartBlock, size_t nSuffixBits) {
-	// TODO handle free!
-}
-
 
 template <unsigned int D, unsigned int W>
 ostream& operator <<(ostream& os, const PHTree<D, W> &tree) {
