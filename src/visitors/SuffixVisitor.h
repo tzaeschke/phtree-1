@@ -46,7 +46,11 @@ private:
 	unsigned long internallyStoredSuffixes;
 	unsigned long visitedSuffixes;
 	unsigned long treeWidth;
+	unsigned long totalUnusedLeafBlocks;
+	unsigned long totalLeaves;
 	vector<unsigned int> suffixBlockHistogram;
+	vector<unsigned int> leafMaxSizeHistogram;
+	vector<unsigned int> leafFilledSizeHistogram;
 };
 
 #include "nodes/TNode.h"
@@ -83,6 +87,19 @@ template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 void SuffixVisitor<DIM>::visitGeneral(const TNode<DIM, PREF_BLOCKS>* node, unsigned int index) {
 
+	const TSuffixStorage* storage = node->getSuffixStorage();
+	const unsigned int leafSize = (storage)? storage->getNMaxStorageBlocks() : 0;
+	const unsigned int filledSize = (storage)? storage->getNCurrentStorageBlocks() : 0;
+	assert (leafSize >= filledSize);
+	totalUnusedLeafBlocks += leafSize - filledSize;
+	if (leafSize > 0) {++totalLeaves;}
+	while (leafSize >= leafMaxSizeHistogram.size()) {
+		leafMaxSizeHistogram.push_back(0);
+		leafFilledSizeHistogram.push_back(0);
+	}
+
+	++leafMaxSizeHistogram[leafSize];
+	++leafFilledSizeHistogram[filledSize];
 
 	const unsigned long currentSuffixBits = DIM * (treeWidth - 1 - index - 1);
 	assert (currentSuffixBits <= DIM * (treeWidth - 1));
@@ -121,7 +138,11 @@ void SuffixVisitor<DIM>::reset() {
 	externallyStoredSuffixBits = 0;
 	externalSuffixBlocks = 0;
 	internallyStoredSuffixBits = 0;
+	totalUnusedLeafBlocks = 0;
+	totalLeaves = 0;
 	suffixBlockHistogram.clear();
+	leafMaxSizeHistogram.clear();
+	leafFilledSizeHistogram.clear();
 }
 
 template <unsigned int D>
@@ -145,6 +166,13 @@ std::ostream& SuffixVisitor<DIM>::output(std::ostream &out) const {
 	out << "suffix block histogram:" << endl;
 	for (unsigned i = 0; i < suffixBlockHistogram.size(); ++i) {
 		out << "\t" << i << " block(s): " << suffixBlockHistogram[i] << endl;
+	}
+	out << "unused leaf storage: " << float(totalUnusedLeafBlocks) / totalLeaves << " block(s) per leaf" << endl;
+	out << "leaf size histogram:" << endl;
+	assert (leafMaxSizeHistogram.size() == leafFilledSizeHistogram.size());
+	out << "\t\tcapacity |\tactually used" << endl;
+	for (unsigned i = 0; i < leafMaxSizeHistogram.size(); ++i) {
+		out << "\t" << i << " block(s): " << leafMaxSizeHistogram[i] << " |\t" << leafFilledSizeHistogram[i] << endl;
 	}
 
 	return out;

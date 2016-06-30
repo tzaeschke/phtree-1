@@ -112,6 +112,10 @@ private:
 			case 5: newGrantedSuffixBlocks = 5; break;
 			default: throw runtime_error("Only supports up to 5 fixed suffix blocks right now.");
 			}
+		} else if (newRequiredSuffixBlocks < 8 ) {
+			newGrantedSuffixBlocks = 7;
+		} else if (newRequiredSuffixBlocks < 11) {
+			newGrantedSuffixBlocks = 10;
 		} else if (suffixRatio < 0.001) {
 			newGrantedSuffixBlocks = 1 + maxSuffixBlocks / 1000;
 		} else if (suffixRatio < 0.005) {
@@ -157,14 +161,18 @@ private:
 			case 5: suffixes = new SuffixStorage<5>(); break;
 			default: throw runtime_error("Only supports up to 5 fixed suffix blocks right now.");
 			}
+		} else if (suffixBlocks < 8 ) {
+			suffixes = new SuffixStorage<7>();
+		} else if (suffixBlocks < 11) {
+			suffixes = new SuffixStorage<10>();
 		} else if (suffixRatio < 0.001) {
-					suffixes = new SuffixStorage<1 + maxSuffixBlocks / 1000>();
+			suffixes = new SuffixStorage<1 + maxSuffixBlocks / 1000>();
 		} else if (suffixRatio < 0.005) {
-					suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 1000>();
+			suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 1000>();
 		} else if (suffixRatio < 0.01) {
-					suffixes = new SuffixStorage<1 + maxSuffixBlocks / 100>();
+			suffixes = new SuffixStorage<1 + maxSuffixBlocks / 100>();
 		} else if (suffixRatio < 0.05) {
-					suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 100>();
+			suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 100>();
 		} else if (suffixRatio < 0.1) {
 			suffixes = new SuffixStorage<1 + 10 * maxSuffixBlocks / 100>();
 		} else if (suffixRatio < 0.25) {

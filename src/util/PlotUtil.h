@@ -295,18 +295,18 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 		phtree->accept(prefixVisitor);
 		phtree->accept(suffixVisitor);
 		cout << "d=" << DIM << endl << *visitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
-		unsigned int nAHCNodes = visitor->getNumberOfVisitedAHCNodes();
-		unsigned int nLHCNodes = visitor->getNumberOfVisitedLHCNodes();
-		unsigned int totalAhcBitSize = sizeVisitor->getTotalAhcBitSize();
-		unsigned int totalLhcBitSize = sizeVisitor->getTotalLhcBitSize();
-		unsigned int totalTreeBitSize = sizeVisitor->getTotalTreeBitSize();
+		const unsigned int nAHCNodes = visitor->getNumberOfVisitedAHCNodes();
+		const unsigned int nLHCNodes = visitor->getNumberOfVisitedLHCNodes();
+		const unsigned int totalAhcBitSize = sizeVisitor->getTotalAhcBitSize();
+		const unsigned int totalLhcBitSize = sizeVisitor->getTotalLhcBitSize();
+		const unsigned int totalLeafBitSize = sizeVisitor->getTotalLeafBitSize();
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME, false);
 		float insertMs = (float (insertTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
 		float lookupMs = (float (lookupTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
 		float rangeQueryMs = (float (rangeQueryTicks) / nElementsInRange / (CLOCKS_PER_SEC / 1000));
-		float totalSizeBit = (float(totalAhcBitSize + totalLhcBitSize + totalTreeBitSize)) / entries->size();
+		float totalSizeBit = (float(totalAhcBitSize + totalLhcBitSize + totalLeafBitSize)) / entries->size();
 		(*plotFile) << runNumber
 			<< "\t" << DIM
 			<< "\t"	<< insertMs
@@ -316,7 +316,7 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 			<< "\t" << nLHCNodes
 			<< "\t" << (float(totalAhcBitSize) / entries->size() / DIM)
 			<< "\t" << (float(totalLhcBitSize) / entries->size() / DIM)
-			<< "\t" << (float(totalTreeBitSize) / entries->size() / DIM) << "\n";
+			<< "\t" << (float(totalLeafBitSize) / entries->size() / DIM) << "\n";
 		cout << "\tdim\tinsert [ms]\t\tlookup [ms]\t\trange query [ms]\tsize [bit per dimension]" << endl;
 		cout << runNumber << "\t" << DIM << "\t" << insertMs << "\t\t"
 				<< lookupMs << "\t\t" << rangeQueryMs  << "\t\t" << totalSizeBit << endl;
@@ -535,7 +535,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<vector<unsi
 		vector<unsigned int> nLHCNodes(entries.size());
 		vector<unsigned int> totalLhcBitSize(entries.size());
 		vector<unsigned int> totalAhcBitSize(entries.size());
-		vector<unsigned int> totalTreeBitSize(entries.size());
+		vector<unsigned int> totalLeafBitSize(entries.size());
 		vector<unsigned int> sizes(entries.size());
 
 		cout << "start insertions..." << flush;
@@ -584,7 +584,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<vector<unsi
 			nLHCNodes.at(test) = visitor->getNumberOfVisitedLHCNodes();
 			totalLhcBitSize.at(test) = sizeVisitor->getTotalLhcBitSize();
 			totalAhcBitSize.at(test) = sizeVisitor->getTotalAhcBitSize();
-			totalTreeBitSize.at(test) = sizeVisitor->getTotalTreeBitSize();
+			totalLeafBitSize.at(test) = sizeVisitor->getTotalLeafBitSize();
 			sizes.at(test) = entries[test]->size();
 
 			visitor->reset();
@@ -612,7 +612,7 @@ void PlotUtil::plotAverageInsertTimePerNumberOfEntries(vector<vector<vector<unsi
 					<< nLHCNodes.at(test) << "\t"
 					<< (float(totalAhcBitSize.at(test)) / sizes[test] / ENTRY_DIM_INSERT_SERIES) << "\t"
 					<< (float(totalLhcBitSize.at(test)) / sizes[test] / ENTRY_DIM_INSERT_SERIES) << "\t"
-					<< (float(totalTreeBitSize.at(test)) / sizes[test] / ENTRY_DIM_INSERT_SERIES) << "\n";
+					<< (float(totalLeafBitSize.at(test)) / sizes[test] / ENTRY_DIM_INSERT_SERIES) << "\n";
 		}
 		plotFile->close();
 		delete plotFile;

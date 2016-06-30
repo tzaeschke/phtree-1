@@ -35,8 +35,9 @@ public:
 	unsigned long getTotalKByteSize() const;
 	unsigned long getTotalMByteSize() const;
 
-	unsigned long getTotalTreeBitSize() const;
-	unsigned long getTotalTreeByteSize() const;
+	unsigned long getTotalLeafBitSize() const;
+	unsigned long getTotalLeafByteSize() const;
+	double getTotalLeafMByteSize() const;
 
 	unsigned long getTotalLhcBitSize() const;
 	unsigned long getTotalLhcByteSize() const;
@@ -55,7 +56,7 @@ private:
 	unsigned long totalLHCByteSize;
 	unsigned long totalAHCByteSize;
 	unsigned long totalTreeByteSize;
-	size_t externalSuffixBlocks;
+	unsigned long totalLeafByteSize;
 
 	template <unsigned int PREF_BLOCKS>
 	unsigned long superSize(const TNode<DIM, PREF_BLOCKS>* node);
@@ -111,8 +112,9 @@ unsigned long SizeVisitor<DIM>::superSize(const TNode<DIM, PREF_BLOCKS>* node) {
 	if (node->getSuffixStorage()) {
 		suffixSize = node->getSuffixStorage()->getByteSize();
 	}
+	totalLeafByteSize += suffixSize;
 
-	return prefixSize + suffixSize;
+	return prefixSize;
 }
 
 template <unsigned int DIM>
@@ -120,7 +122,7 @@ void SizeVisitor<DIM>::reset() {
 	totalLHCByteSize = 0;
 	totalAHCByteSize = 0;
 	totalTreeByteSize = 0;
-	externalSuffixBlocks = 0;
+	totalLeafByteSize = 0;
 }
 
 template <unsigned int DIM>
@@ -130,7 +132,7 @@ std::ostream& SizeVisitor<DIM>::output(std::ostream &out) const {
 	return out << "total size: " << getTotalKByteSize()
 			<< "KByte | " << getTotalMByteSize()
 			<< "MByte (LHC: " << lhcSizePercent << "%, AHC: "
-			<< ahcSizePercent << "%), external suffix superblocks: " << externalSuffixBlocks << std::endl;
+			<< ahcSizePercent << "%), suffixes (leafs): " << getTotalLeafMByteSize() << "MByte" << std::endl;
 }
 
 template <unsigned int D>
@@ -139,13 +141,18 @@ std::ostream& operator <<(std::ostream &out, const SizeVisitor<D>& v) {
 }
 
 template <unsigned int DIM>
-unsigned long SizeVisitor<DIM>::getTotalTreeByteSize() const {
-	return totalTreeByteSize;
+unsigned long SizeVisitor<DIM>::getTotalLeafByteSize() const {
+	return totalLeafByteSize;
 }
 
 template <unsigned int DIM>
-unsigned long SizeVisitor<DIM>::getTotalTreeBitSize() const {
-	return getTotalTreeByteSize() * 8;
+unsigned long SizeVisitor<DIM>::getTotalLeafBitSize() const {
+	return getTotalLeafByteSize() * 8;
+}
+
+template <unsigned int DIM>
+double SizeVisitor<DIM>::getTotalLeafMByteSize() const {
+	return double(getTotalLeafByteSize()) / 1000000.0;
 }
 
 template <unsigned int DIM>
@@ -155,7 +162,7 @@ unsigned long SizeVisitor<DIM>::getTotalBitSize() const {
 
 template <unsigned int DIM>
 unsigned long SizeVisitor<DIM>::getTotalByteSize() const {
-	return totalLHCByteSize + totalAHCByteSize + totalTreeByteSize;
+	return totalLHCByteSize + totalAHCByteSize + totalLeafByteSize;
 }
 
 template <unsigned int DIM>
