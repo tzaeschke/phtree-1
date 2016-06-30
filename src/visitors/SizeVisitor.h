@@ -89,7 +89,6 @@ template <unsigned int PREF_BLOCKS, unsigned int N>
 void SizeVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
 	totalLHCByteSize += this->template superSize<PREF_BLOCKS>(node);
 	totalLHCByteSize += sizeof (node->addresses_);
-	totalLHCByteSize += sizeof (node->ids_);
 	totalLHCByteSize += sizeof (node->m);
 	totalLHCByteSize += sizeof (node->references_);
 }

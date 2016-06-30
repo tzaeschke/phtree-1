@@ -54,7 +54,6 @@ private:
 	// bits  : <-   DIM    -><-  1    |     1          ->|<-   DIM    -><-  1    |     1          -> ...
 	// N rows: [ hc address | hasSub? | directlyStored? ] [ hc address | hasSub? | directlyStored? ] ...
 	unsigned long addresses_[1 + ((N * (DIM + 2)) - 1) / bitsPerBlock];
-	int ids_[N];
 	std::uintptr_t references_[N];
 	// number of actually filled rows: 0 <= m <= N
 	unsigned int m;
@@ -62,7 +61,7 @@ private:
 	// <found?, index, hasSub?>
 	void lookupAddress(unsigned long hcAddress, bool* outExists, unsigned int* outIndex, bool* outHasSub, bool* outDirectlyStored) const;
 	void lookupIndex(unsigned int index, unsigned long* outHcAddress, bool* outHasSub, bool* outDirectlyStored) const;
-	inline void addRow(unsigned int index, unsigned long hcAddress, bool hasSub, bool directlyStored, std::uintptr_t reference, int id);
+	inline void addRow(unsigned int index, unsigned long hcAddress, bool hasSub, bool directlyStored, std::uintptr_t reference);
 	inline void insertAddress(unsigned int index, unsigned long hcAddress);
 	inline void insertHasSubFlag(unsigned int index, bool hasSub);
 	inline void insertDirectlyStoredFlag(unsigned int index, bool directlyStored);
@@ -79,7 +78,7 @@ private:
 using namespace std;
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 LHC<DIM, PREF_BLOCKS, N>::LHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength),
-	addresses_(), ids_(), references_(), m(0) {
+	addresses_(), references_(), m(0) {
 	assert (N > 0 && m >= 0 && m <= N);
 	assert (N <= (1 << DIM));
 }
@@ -285,25 +284,29 @@ void LHC<DIM, PREF_BLOCKS, N>::lookup(unsigned long address, NodeAddressContent<
 		if (outContent.hasSubnode) {
 			outContent.subnode = reinterpret_cast<Node<DIM>*>(references_[index]);
 		} else {
+			const unsigned long suffixAndId = reinterpret_cast<unsigned long>(references_[index]);
+			const unsigned long suffixMask = (-1uL) >> 32;
+			const unsigned int suffixPart = suffixAndId & suffixMask;
 			if (outContent.directlyStoredSuffix) {
-				outContent.suffix = reinterpret_cast<unsigned long>(references_[index]);
+				outContent.suffix = suffixPart;
 			} else {
-				const unsigned long suffixStartBlockIndex = reinterpret_cast<unsigned long>(references_[index]);
 				if (resolveSuffixIndex) {
-					outContent.suffixStartBlock = this->getSuffixStartBlockPointerFromIndex(suffixStartBlockIndex);
+					outContent.suffixStartBlock = this->getSuffixStartBlockPointerFromIndex(suffixPart);
 				} else {
-					outContent.suffixStartBlockIndex = suffixStartBlockIndex;
+					outContent.suffixStartBlockIndex = suffixPart;
 				}
 			}
 
-			outContent.id = ids_[index];
+			const unsigned long idPart = (suffixAndId & (~suffixMask)) >> 32;
+			assert (idPart < (1uL << 32));
+			outContent.id = idPart;
 		}
 	}
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAddress,
-		bool newHasSub, bool newDirectlyStored, uintptr_t newReference, int newId) {
+		bool newHasSub, bool newDirectlyStored, uintptr_t newReference) {
 
 	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(newHcAddress, true)).exists);
 
@@ -312,7 +315,6 @@ void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAdd
 		assert (index < m && m <= N);
 		// move all contents as of the given index
 		// (copying from lower index because of forward prefetching)
-		int lastId = ids_[index];
 		uintptr_t lastRef = references_[index];
 		unsigned long lastAddress = 0;
 		bool lastHasSub = false;
@@ -324,23 +326,19 @@ void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAdd
 		bool tmpDirStored = false;
 
 		for (unsigned i = index + 1; i < m - 1; ++i) {
-			const int tmpId = ids_[i];
 			const uintptr_t tmpRef = references_[i];
 			lookupIndex(i, &tmpAddress, &tmpHasSub, &tmpDirStored);
 			assert (tmpAddress > newHcAddress);
-			ids_[i] = lastId;
 			references_[i] = lastRef;
 			insertAddress(i, lastAddress);
 			insertHasSubFlag(i, lastHasSub);
 			insertDirectlyStoredFlag(i, lastDirStored);
-			lastId = tmpId;
 			lastRef = tmpRef;
 			lastAddress = tmpAddress;
 			lastHasSub = tmpHasSub;
 			lastDirStored = tmpDirStored;
 		}
 
-		ids_[m - 1] = lastId;
 		references_[m - 1] = lastRef;
 		insertAddress(m - 1, lastAddress);
 		insertHasSubFlag(m - 1, lastHasSub);
@@ -348,7 +346,6 @@ void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAdd
 	}
 
 	// insert the new entry at the freed index
-	ids_[index] = newId;
 	references_[index] = newReference;
 	insertAddress(index, newHcAddress);
 	insertHasSubFlag(index, newHasSub);
@@ -367,19 +364,19 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 	bool directlyStored = false;
 	lookupAddress(hcAddress, &exists, &index, &hasSub, &directlyStored);
 	assert (index <= m);
-	const unsigned long suffixStartBlockIndexExtended = suffixStartBlockIndex;
+	const unsigned long upperId = id;
+	const unsigned long suffixStartBlockIndexExtended = suffixStartBlockIndex | (upperId << 32);
 	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended);
 
 	if (exists) {
 		// replace the contents at the address
-		ids_[index] = id;
 		references_[index] = reference;
 		insertHasSubFlag(index, false);
 		insertDirectlyStoredFlag(index, false);
 	} else {
 		// add a new entry
 		assert (m < N && "the maximum number of entries must not have been reached");
-		addRow(index, hcAddress, false, false, reference, id);
+		addRow(index, hcAddress, false, false, reference);
 	}
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
@@ -391,7 +388,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) {
 	assert (hcAddress < 1uL << DIM);
-	assert (suffix < (1uL << (sizeof(uintptr_t) * 8uL - 2uL)));
+	assert (suffix < (1uL << (sizeof(int) * 8uL)));
 
 	unsigned int index = m;
 	bool hasSub = false;
@@ -399,18 +396,18 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 	bool directlyStored = false;
 	lookupAddress(hcAddress, &exists, &index, &hasSub, &directlyStored);
 	assert (index <= m);
-	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffix);
+	const unsigned long upperId = id;
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffix | (upperId << 32));
 
 	if (exists) {
 		// replace the contents at the address
-		ids_[index] = id;
 		references_[index] = reference;
 		insertHasSubFlag(index, false);
 		insertDirectlyStoredFlag(index, true);
 	} else {
 		// add a new entry
 		assert (m < N && "the maximum number of entries must not have been reached");
-		addRow(index, hcAddress, false, true, reference, id);
+		addRow(index, hcAddress, false, true, reference);
 	}
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
@@ -433,14 +430,13 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 
 	if (exists) {
 		// replace the contents at the address
-		ids_[index] = 0; // TODO not really needed
 		references_[index] = reference;
 		insertHasSubFlag(index, true); // TODO if hasSub flag is already set this is also not needed
 		insertDirectlyStoredFlag(index, false); // TODO also not really needed
 	} else {
 		// add a new entry
 		assert (m < N && "the maximum number of entries must not have been reached");
-		addRow(index, hcAddress, true, false, reference, 0);
+		addRow(index, hcAddress, true, false, reference);
 	}
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);

@@ -105,18 +105,22 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() const {
 	if (content.hasSubnode) {
 		content.subnode = reinterpret_cast<Node<DIM>*>(node_->references_[currentIndex]);
 	} else {
-		content.id = node_->ids_[currentIndex];
-
+		const unsigned long suffixAndId = reinterpret_cast<unsigned long>(node_->references_[currentIndex]);
+		const unsigned long suffixMask = (-1uL) >> 32;
+		const unsigned int suffixPart = suffixAndId & suffixMask;
 		if (content.directlyStoredSuffix) {
-			content.suffix = static_cast<unsigned long>(node_->references_[currentIndex]);
+			content.suffix = suffixPart;
 		} else {
-			const unsigned long suffixStartBlockIndex = reinterpret_cast<unsigned long>(node_->references_[currentIndex]);
 			if (this->resolveSuffixIndexToPointer_) {
-				content.suffixStartBlock = node_->getSuffixStartBlockPointerFromIndex(suffixStartBlockIndex);
+				content.suffixStartBlock = node_->getSuffixStartBlockPointerFromIndex(suffixPart);
 			} else {
-				content.suffixStartBlockIndex = suffixStartBlockIndex;
+				content.suffixStartBlockIndex = suffixPart;
 			}
 		}
+
+		const unsigned long idPart = (suffixAndId & (~suffixMask)) >> 32;
+		assert (idPart < (1uL << 32));
+		content.id = idPart;
 	}
 
 	return content;
