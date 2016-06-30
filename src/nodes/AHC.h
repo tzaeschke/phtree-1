@@ -49,7 +49,6 @@ protected:
 private:
 
 	size_t nContents;
-	int ids_[1 << DIM];
 
 	// stores flags in 2 lowest bits per reference: isPointer | isSuffix
 	// 00 - entry does not exist
@@ -73,11 +72,11 @@ private:
 using namespace std;
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHC<DIM, PREF_BLOCKS>::AHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength), nContents(0), ids_(), references_() {
+AHC<DIM, PREF_BLOCKS>::AHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength), nContents(0), references_() {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>(other), nContents(0), ids_(), references_() {
+AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLOCKS>(other), nContents(0), references_() {
 
 	// TODO use more efficient way to convert LHC->AHC
 	NodeIterator<DIM>* it;
@@ -88,7 +87,7 @@ AHC<DIM, PREF_BLOCKS>::AHC(TNode<DIM, PREF_BLOCKS>* other) : TNode<DIM, PREF_BLO
 		if (content.hasSubnode) {
 			insertAtAddress(content.address, content.subnode);
 		} else if (content.directlyStoredSuffix) {
-			assert (content.suffix < sizeof (uintptr_t) * 8 - 2);
+			assert (content.suffix < sizeof (int) * 8 - 2);
 			insertAtAddress(content.address, content.suffix, content.id);
 		} else {
 			assert (content.suffixStartBlock);
@@ -166,18 +165,23 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 		if (outContent.hasSubnode) {
 			outContent.subnode = reinterpret_cast<Node<DIM>*>(ref);
 		} else {
+			const unsigned long suffixAndId = reinterpret_cast<unsigned long>(ref);
+			const unsigned long suffixMask = (-1uL) >> 32;
+			// convert the stored suffix and shift back where meta flags were stored
+			const unsigned int suffixPart = (suffixAndId & suffixMask) >> 2;
+			const unsigned long idPart = (suffixAndId & (~suffixMask)) >> 32;
+			assert (idPart < (1uL << 32));
+			outContent.id = idPart;
+
 			if (outContent.directlyStoredSuffix) {
-				// convert the stored suffix and shift back where meta flags were stored
-				outContent.suffix = reinterpret_cast<unsigned long>(ref) >> 2;
+				outContent.suffix = suffixPart;
 			} else {
-				const unsigned long suffixStartBlockIndex = reinterpret_cast<unsigned long>(ref) >> 2;
 				if (resolveSuffixIndex) {
-					outContent.suffixStartBlock = this->getSuffixStartBlockPointerFromIndex(suffixStartBlockIndex);
+					outContent.suffixStartBlock = this->getSuffixStartBlockPointerFromIndex(suffixPart);
 				} else {
-					outContent.suffixStartBlockIndex = suffixStartBlockIndex;
+					outContent.suffixStartBlockIndex = suffixPart;
 				}
 			}
-			outContent.id = ids_[address];
 		}
 	}
 }
@@ -186,7 +190,7 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long  suffix, int id) {
 	assert (hcAddress < 1ul << DIM);
 	assert (sizeof (unsigned long) == sizeof (uintptr_t));
-	assert (suffix < (1uL << (sizeof(uintptr_t) * 8uL - 2uL)));
+	assert (suffix < (1uL << (sizeof(int) * 8uL - 2uL)));
 
 	bool exists;
 	bool hasSubnode;
@@ -199,11 +203,12 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 		assert ((references_[hcAddress] & 3) == 0);
 	}
 
+	// layout: [ ID (32) | suffix bits (30) | flags (2)]
 	// 01 -> internally stored suffix
 	// need to shift the suffix in order to have enough space for the meta flags
-	const unsigned long suffixShifted = 1 | (suffix << 2);
+	const unsigned long extendedId = id;
+	const unsigned long suffixShifted = 1 | (suffix << 2) | (extendedId << 32);
 	references_[hcAddress] = reinterpret_cast<uintptr_t>(suffixShifted);
-	ids_[hcAddress] = id;
 
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
@@ -215,7 +220,7 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
 	assert (hcAddress < 1ul << DIM);
-	assert (suffixStartBlockIndex < (1uL << (8 * sizeof (unsigned long) - 2)));
+	assert (suffixStartBlockIndex < (1uL << (8 * sizeof (int) - 2)));
 
 	bool exists;
 	bool hasSubnode;
@@ -229,11 +234,12 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned in
 	}
 
 	const unsigned long suffixStartBlockIndexExtended = suffixStartBlockIndex;
+	const unsigned long extendedId = id;
 	const uintptr_t storedRef = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended << 2);
 	assert (((storedRef & 3) == 0) && "last 2 bits must not be set!");
+	// layout: [ ID (32) | suffix index (30) | flags (2)]
 	// 11 -> pointer to suffix
-	references_[hcAddress] = 3 | storedRef;
-	ids_[hcAddress] = id;
+	references_[hcAddress] = 3 | storedRef | (extendedId << 32);
 
 
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);

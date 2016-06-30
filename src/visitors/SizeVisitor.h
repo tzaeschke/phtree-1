@@ -98,7 +98,6 @@ template <unsigned int PREF_BLOCKS>
 void SizeVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	totalAHCByteSize += this->template superSize<PREF_BLOCKS>(node);
 	totalAHCByteSize += sizeof(node->nContents);
-	totalAHCByteSize += sizeof(node->ids_);
 	totalAHCByteSize += sizeof(node->references_);
 }
 

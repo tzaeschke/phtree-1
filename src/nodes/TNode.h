@@ -136,8 +136,8 @@ void TNode<DIM, PREF_BLOCKS>::accept(Visitor<DIM>* visitor, size_t depth, unsign
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 bool TNode<DIM, PREF_BLOCKS>::canStoreSuffixInternally(size_t nSuffixBits) const {
-	// needs to store 2 bits for meta data
-	return nSuffixBits <= 32;
+	// needs to store 2 bits for meta data and 32 bits for the ID
+	return nSuffixBits <= 30;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
