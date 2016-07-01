@@ -276,8 +276,9 @@ int main(int argc, char* argv[]) {
 		mainHyperCubeExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
+		PlotUtil::plotInsertPerformanceDifferentOrder<6, 64>("./axons.dat");
 //		PlotUtil::plotTimeSeriesOfInserts();
-		PlotUtil::plotAverageInsertTimePerDimensionRandom();
+//		PlotUtil::plotAverageInsertTimePerDimensionRandom();
 //		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
 //		PlotUtil::plotRangeQueryTimePerPercentFilledRandom();
 //		PlotUtil::plotRangeQueryTimePerSelectivityRandom();
