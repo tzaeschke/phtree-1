@@ -83,7 +83,7 @@ private:
 	template <unsigned int DIM, unsigned int WIDTH>
 	static inline std::vector<std::vector<unsigned long>>* generateUniqueRandomEntriesList(size_t nUniqueEntries);
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries,
+	static double writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries,
 			ofstream* plotFile, size_t runNumber, std::string lable);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries);
@@ -162,7 +162,7 @@ bool zOrderCompare(vector<unsigned long> i, vector<unsigned long> j) {
 	}
 
 	assert (false);
-	return false;
+	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -172,12 +172,12 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file) {
 			readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
 
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "original");
+	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "original");
 
 	cout << "shuffling... " << flush;
 	random_shuffle(original->begin(), original->end());
 	cout << "ok" << endl;
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "shuffled");
+	const double shuffledMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "shuffled");
 
 	cout << "sorting (default)... " << flush;
 	sort(original->begin(), original->end());
@@ -187,14 +187,20 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file) {
 	cout << "sorting (z-order)... " << flush;
 	sort(original->begin(), original->end(), zOrderCompare<DIM,WIDTH>);
 	cout << "ok" << endl;
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "z-ordered");
+	const double zOrderMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "z-ordered");
+
+	const double betterThanWorst = 100.0 * ((shuffledMs / normalMs) - 1.0);
+	const double worseThanBest = 100.0 * (1.0 - (zOrderMs / normalMs));
+	cout << "The given order of the data was:" << endl
+			<< "\t" << betterThanWorst << "% better than the worst case (shuffled)" << endl
+			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;
 
 	delete plotFile;
 	plot(INSERT_ORDER_NAME);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable) {
+double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable) {
 
 	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM,WIDTH>();
 	unsigned int smallestInsertTime = (-1u);
@@ -244,9 +250,10 @@ void PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entrie
 	delete suffixVisitor;
 	delete phtree;
 
-	double insertMs = double(smallestInsertTime) / double(CLOCKS_PER_SEC);
+	const double insertMs = double(smallestInsertTime) / double(CLOCKS_PER_SEC);
 	(*plotFile) << run << "\t" << lable << "\t" << insertMs << endl;
 	cout << "Run nr. " << run << "(" << lable << "): " << insertMs << " ms" << endl;
+	return insertMs;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
