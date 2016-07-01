@@ -19,6 +19,7 @@
 #define AVERAGE_INSERT_ENTRIES_PLOT_NAME 	"phtree_average_insert_entries"
 #define INSERT_SERIES_PLOT_NAME 			"phtree_insert_series"
 #define AXONS_DENDRITES_PLOT_NAME 			"phtree_axons_dendrites"
+#define INSERT_ORDER_NAME		 			"phtree_insert_order"
 
 #define PLOT_DATA_PATH "./plot/data/"
 #define PLOT_DATA_EXTENSION ".dat"
@@ -49,8 +50,6 @@ public:
 	static std::set<std::vector<unsigned long>>* generateUniqueRandomEntries(size_t nUniqueEntries);
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries);
-	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotAverageInsertTimePerDimension(std::string file);
 	static void plotAverageInsertTimePerDimensionRandom();
 
@@ -74,12 +73,20 @@ public:
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotAxonsAndDendrites(std::vector<std::string> axonsFiles, std::vector<std::string> dendritesFiles);
 
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotInsertPerformanceDifferentOrder(std::string file);
+
 private:
 	static void plot(std::string gnuplotFileName);
 	static void clearPlotFile(std::string dataFileName);
 	static std::ofstream* openPlotFile(std::string dataFileName, bool removePreviousData);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static inline std::vector<std::vector<unsigned long>>* generateUniqueRandomEntriesList(size_t nUniqueEntries);
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries,
+			ofstream* plotFile, size_t runNumber, std::string lable);
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries);
 };
 
 #include <fstream>
@@ -88,6 +95,7 @@ private:
 #include <stdexcept>
 #include <assert.h>
 #include <valgrind/callgrind.h>
+#include <cstdlib>
 
 #include "Entry.h"
 #include "PHTree.h"
@@ -140,6 +148,108 @@ void PlotUtil::plot(string gnuplotFileName) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
+bool zOrderCompare(vector<unsigned long> i, vector<unsigned long> j) {
+	Entry<DIM, WIDTH> e1(i, 0);
+	Entry<DIM, WIDTH> e2(j, 1);
+
+	for (unsigned index = 0; index < WIDTH; ++index) {
+		unsigned long hcAddress1 = MultiDimBitset<DIM>::interleaveBits(e1.values_, index, DIM * WIDTH);
+		unsigned long hcAddress2 = MultiDimBitset<DIM>::interleaveBits(e2.values_, index, DIM * WIDTH);
+
+		if (hcAddress1 != hcAddress2) {
+			return hcAddress1 < hcAddress2;
+		}
+	}
+
+	assert (false);
+	return false;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file) {
+
+	vector<vector<unsigned long>>* original = FileInputUtil::
+			readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
+
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "original");
+
+	cout << "shuffling... " << flush;
+	random_shuffle(original->begin(), original->end());
+	cout << "ok" << endl;
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "shuffled");
+
+	cout << "sorting (default)... " << flush;
+	sort(original->begin(), original->end());
+	cout << "ok" << endl;
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 3, "sorted");
+
+	cout << "sorting (z-order)... " << flush;
+	sort(original->begin(), original->end(), zOrderCompare<DIM,WIDTH>);
+	cout << "ok" << endl;
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "z-ordered");
+
+	delete plotFile;
+	plot(INSERT_ORDER_NAME);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable) {
+
+	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM,WIDTH>();
+	unsigned int smallestInsertTime = (-1u);
+	cout << "run with " << N_REPETITIONS << " repetitions: " << flush;
+	for (unsigned repeat = 0; repeat < N_REPETITIONS; ++repeat) {
+		DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters();
+		delete phtree;
+		phtree = new PHTree<DIM,WIDTH>();
+
+		const unsigned int startInsertTime = clock();
+		for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
+			phtree->insert((*entries)[iEntry], iEntry);
+		}
+
+		const unsigned int insertTime = clock() - startInsertTime;
+		if (smallestInsertTime > insertTime) {
+			cout << "<" << flush;
+			smallestInsertTime = insertTime;
+		} else {
+			cout << "-" << flush;
+		}
+	}
+	cout << endl;
+
+	for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
+		assert (phtree->lookup((*entries)[iEntry]).second == iEntry);
+	}
+
+	cout << "insert calls:" << endl;
+	cout << "\t#suffix insertion = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix
+			<< " (with enlarging node: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge << ")" << endl;
+	cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << endl;
+	cout << "\t#split prefix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix << endl;
+
+	CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
+	SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
+	PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
+	SuffixVisitor<DIM>* suffixVisitor = new SuffixVisitor<DIM>();
+	phtree->accept(typesVisitor);
+	phtree->accept(sizeVisitor);
+	phtree->accept(prefixVisitor);
+	phtree->accept(suffixVisitor);
+	cout << *typesVisitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
+	delete typesVisitor;
+	delete sizeVisitor;
+	delete prefixVisitor;
+	delete suffixVisitor;
+	delete phtree;
+
+	double insertMs = double(smallestInsertTime) / double(CLOCKS_PER_SEC);
+	(*plotFile) << run << "\t" << lable << "\t" << insertMs << endl;
+	cout << "Run nr. " << run << "(" << lable << "): " << insertMs << " ms" << endl;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> dendritesFiles) {
 	assert (axonsFiles.size() == dendritesFiles.size());
 
@@ -147,11 +257,7 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 
 	for (unsigned run = 0; run < axonsFiles.size(); ++run) {
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
-
-		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix = 0;
-		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix = 0;
-		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix = 0;
-		DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
+		DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters();
 
 		// insert all dendrites into a PH-Tree
 		cout << "loading dendrites... " << flush;
