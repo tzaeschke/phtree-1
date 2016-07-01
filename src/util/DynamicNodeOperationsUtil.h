@@ -21,6 +21,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil {
 public:
 
+	static void resetCounters();
 	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
 
 	static unsigned int nInsertSplitSuffix;
@@ -59,6 +60,13 @@ unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
 
 using namespace std;
 
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters() {
+	nInsertSplitPrefix = 0;
+	nInsertSplitSuffix = 0;
+	nInsertSuffix = 0;
+	nInsertSuffixEnlarge = 0;
+}
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
