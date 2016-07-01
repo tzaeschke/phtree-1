@@ -88,6 +88,7 @@ NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS, N>::operator++() {
 		bool directlyStored = false;
 		node_->lookupIndex(currentIndex, &(this->address_), &hasSub, &directlyStored);
 	}
+
 	return *this;
 }
 
@@ -101,28 +102,12 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() const {
 
 	NodeAddressContent<DIM> content;
 	content.exists = true;
-	node_->lookupIndex(currentIndex, &content.address, &content.hasSubnode, &content.directlyStoredSuffix);
-	if (content.hasSubnode) {
-		content.subnode = reinterpret_cast<Node<DIM>*>(node_->references_[currentIndex]);
-	} else {
-		const unsigned long suffixAndId = reinterpret_cast<unsigned long>(node_->references_[currentIndex]);
-		const unsigned long suffixMask = (-1uL) >> 32;
-		const unsigned int suffixPart = suffixAndId & suffixMask;
-		if (content.directlyStoredSuffix) {
-			content.suffix = suffixPart;
-		} else {
-			if (this->resolveSuffixIndexToPointer_) {
-				content.suffixStartBlock = node_->getSuffixStartBlockPointerFromIndex(suffixPart);
-			} else {
-				content.suffixStartBlockIndex = suffixPart;
-			}
-		}
-
-		const unsigned long idPart = (suffixAndId & (~suffixMask)) >> 32;
-		assert (idPart < (1uL << 32));
-		content.id = idPart;
-	}
-
+	bool isPointer, isSuffix;
+	node_->lookupIndex(currentIndex, &content.address, &isPointer, &isSuffix);
+	node_->fillLookupContent(content,
+			isPointer, isSuffix,
+			node_->references_[currentIndex],
+			this->resolveSuffixIndexToPointer_);
 	return content;
 }
 

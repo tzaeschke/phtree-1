@@ -12,6 +12,7 @@
 #include "nodes/LHC.h"
 #include "nodes/AHC.h"
 #include "nodes/SuffixStorage.h"
+#include "util/EntryBuffer.h"
 
 template <unsigned int DIM>
 class Node;
@@ -202,6 +203,10 @@ private:
 			NodeAddressContent<DIM> content = *(*it);
 			if (content.hasSubnode) {
 				to.insertAtAddress(content.address, content.subnode);
+			} else if (content.hasSpecialPointer) {
+				to.insertAtAddress(content.address, content.specialPointer);
+				EntryBuffer<DIM, 10>* buffer = reinterpret_cast<EntryBuffer<DIM, 10>*>(content.specialPointer);
+				buffer->updateNode(*to);
 			} else if (content.directlyStoredSuffix) {
 				to.insertAtAddress(content.address, content.suffix, content.id);
 			} else {

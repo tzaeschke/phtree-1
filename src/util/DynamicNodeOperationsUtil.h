@@ -16,24 +16,30 @@ template <unsigned int DIM>
 class Node;
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
+template <unsigned int DIM, unsigned int WIDTH>
+class EntryBuffer;
 
 template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil {
 public:
-
-	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
 
 	static unsigned int nInsertSplitSuffix;
 	static unsigned int nInsertSuffix;
 	static unsigned int nInsertSuffixEnlarge;
 	static unsigned int nInsertSplitPrefix;
 
-private:
-	static inline void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
-			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
-	static inline Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
+	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
+	static void bulkInsert(const std::vector<const Entry<DIM, WIDTH>&>& entries, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
+
+	static void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
+			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
+			PHTree<DIM, WIDTH>& tree);
+	static void swapSuffixWithBuffer(size_t currentIndex, Node<DIM>* currentNode,
+			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
+			EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree);
+	static Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
 			const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
-	static inline void splitSubnodePrefix(size_t currentIndex, size_t newPrefixLength, size_t oldPrefixLength,
+	static void splitSubnodePrefix(size_t currentIndex, size_t newPrefixLength, size_t oldPrefixLength,
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
 };
@@ -49,6 +55,7 @@ unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
 
 #include <assert.h>
 #include <stdexcept>
+#include <cstdint>
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "util/NodeTypeUtil.h"
 #include "util/MultiDimBitset.h"
@@ -56,9 +63,9 @@ unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
 #include "nodes/NodeAddressContent.h"
 #include "PHTree.h"
 #include "nodes/TSuffixStorage.h"
+#include "util/EntryBuffer.h"
 
 using namespace std;
-
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
@@ -150,6 +157,30 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 			&& (!subnode->getSuffixStorage()
 					|| subnode->getSuffixStorage()->getNStoredSuffixes(newSuffixBits) == 2));
 	assert (tree.lookup(entry).first);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentIndex, Node<DIM>* currentNode,
+			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
+			EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree) {
+	assert (buffer);
+	assert (content.exists && !content.hasSubnode && !content.directlyStoredSuffix);
+
+	// 1. move the entire current suffix into the buffer
+	const size_t suffixLength = WIDTH - currentIndex - 1;
+	assert (suffixLength > 0);
+	unsigned long* newSuffixStorage = buffer->init(suffixLength);
+	MultiDimBitset<DIM>::duplicateHighestBits(content.suffixStartBlock,
+			suffixLength * DIM, suffixLength * DIM, newSuffixStorage);
+
+	// 2. insert the new entry into the buffer
+	assert (!buffer->full());
+	buffer->insert(entry, currentIndex + 1);
+	assert (!buffer->full());
+
+	// 3. insert the buffer into the node
+	const uintptr_t bufferRef = reinterpret_cast<uintptr_t>(buffer);
+	currentNode->insertAtAddress(content.address, bufferRef);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -274,6 +305,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entr
 		// TODO create content once and populate after each iteration instead of creating a new one
 		currentNode->lookup(hcAddress, content, true);
 		assert(!content.exists || content.address == hcAddress);
+		assert(!content.hasSpecialPointer);
 
 		if (content.exists && content.hasSubnode) {
 			// node entry and subnode exist:
@@ -363,6 +395,118 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entr
 		//const size_t blocksPerSuffix = 1 + (remainingSuffixBits - 1) / (8 * sizeof (unsigned long));
 		//size_t suffixesInNode =
 	#endif
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
+		const std::vector<const Entry<DIM, WIDTH>&>& entries,
+		Node<DIM>* rootNode,
+		PHTree<DIM, WIDTH>& tree) {
+
+	Node<DIM>* currentRoot = rootNode;
+	NodeAddressContent<DIM> content;
+	set<EntryBuffer<DIM, WIDTH>*> openBuffers;
+
+	for (const auto &entry : entries) {
+		size_t lastHcAddress = 0;
+		size_t index = 0;
+		Node<DIM>* lastNode = NULL;
+		Node<DIM>* currentNode = currentRoot;
+
+		while (index < WIDTH) {
+			const size_t currentIndex = index + currentNode->getPrefixLength();
+			const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(
+					entry.values_, currentIndex, WIDTH * DIM);
+			// TODO create content once and populate after each iteration instead of creating a new one
+			currentNode->lookup(hcAddress, content, true);
+			assert(!content.exists || content.address == hcAddress);
+			assert(!content.hasSpecialPointer);
+
+			if (content.exists && content.hasSubnode) {
+				// node entry and subnode exist:
+				// validate prefix of subnode
+				// case 1 (entry contains prefix): recurse on subnode
+				// case 2 (otherwise): split prefix at difference into two subnodes
+				const size_t subnodePrefixLength =
+						content.subnode->getPrefixLength();
+				bool prefixIncluded = true;
+				size_t differentBitAtPrefixIndex = -1;
+				if (subnodePrefixLength > 0) {
+					const pair<bool, size_t> comp =
+							MultiDimBitset<DIM>::compare(entry.values_,
+									DIM * WIDTH, currentIndex + 1,
+									currentIndex + 1 + subnodePrefixLength,
+									content.subnode->getFixPrefixStartBlock(),
+									DIM * subnodePrefixLength);
+					prefixIncluded = comp.first;
+					differentBitAtPrefixIndex = comp.second;
+				}
+
+				if (prefixIncluded) {
+					// recurse on subnode
+					lastHcAddress = hcAddress;
+					lastNode = currentNode;
+					currentNode = content.subnode;
+					index = currentIndex + 1;
+				} else {
+					// split prefix of subnode [A | d | B] where d is the index of the first different bit
+					// create new node with prefix A and only leave prefix B in old subnode
+					splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex,
+							subnodePrefixLength, currentNode, content, entry,
+							tree);
+
+					break;
+				}
+			} else if (content.exists && content.hasSpecialPointer) {
+				// a buffer was found that can be filled
+				EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM, WIDTH>*>(content.specialPointer);
+				assert (openBuffers.count(buffer));
+				assert (buffer && !buffer->full());
+				bool needFlush = buffer->insert(entry, currentIndex);
+				if (needFlush) {
+					buffer->flushToSubtree(tree);
+					openBuffers.erase(buffer);
+					delete buffer;
+				}
+
+				break;
+			} else if (content.exists && !content.hasSubnode) {
+				// instead of splitting the suffix a buffer is added
+				EntryBuffer<DIM, WIDTH>* buffer = new EntryBuffer<DIM, WIDTH>();
+				assert (!openBuffers.count(buffer));
+				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
+				openBuffers.insert(buffer);
+				break;
+			} else {
+				// node entry does not exist:
+				// insert entry + suffix
+				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress,
+						currentNode, entry, tree);
+				assert(adjustedNode);
+				if (adjustedNode != currentNode && lastNode) {
+					// the subnode changed: store the new one and delete the old
+					lastNode->insertAtAddress(lastHcAddress, adjustedNode);
+					delete currentNode;
+					currentNode = adjustedNode;
+				} else if (adjustedNode != currentNode) {
+					// the root node changed
+					currentRoot = adjustedNode;
+					// update the root node
+					delete tree.root_;
+					tree.root_ = currentRoot;
+				}
+
+				break;
+			}
+		}
+	}
+
+
+	// remove all buffers
+	for (EntryBuffer<DIM, WIDTH>* buffer : openBuffers) {
+		buffer->flushToSubtree(tree);
+		delete buffer;
+	}
 }
 
 #endif /* SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_ */

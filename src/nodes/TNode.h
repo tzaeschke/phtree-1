@@ -44,6 +44,7 @@ public:
 	virtual size_t getNumberOfContents() const = 0;
 	virtual size_t getMaximumNumberOfContents() const = 0;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
+	virtual void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;

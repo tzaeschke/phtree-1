@@ -38,6 +38,7 @@ public:
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const override;
+	void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) override;
 	void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
 	void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
@@ -51,15 +52,16 @@ private:
 	size_t nContents;
 
 	// stores flags in 2 lowest bits per reference: isPointer | isSuffix
-	// 00 - entry does not exist
-	// 01 - the entry directly stores a suffix
-	// 10 - the entry holds a reference to a subnode
-	// 11 - the entry holds a reference to a suffix
+	// 00 & reference == 0	- entry does not exist
+	// 00 & reference != 0	- entry is a special pointer
+	// 01 					- the entry directly stores a suffix and the ID
+	// 10 					- the entry holds a reference to a subnode
+	// 11 					- the entry holds the index of the suffix and the ID
 	std::uintptr_t references_[1 << DIM];
 	static const unsigned long refMask = (-1uL) << 2uL; // mask to remove the 2 flag bits
 
 	void inline getRef(unsigned long hcAddress, bool* exists, bool* hasSub,
-			bool* directlyStoredSuffix, std::uintptr_t* ref) const;
+			bool* directlyStoredSuffix, bool* isSpecial, std::uintptr_t* ref) const;
 };
 
 #include <assert.h>
@@ -108,9 +110,11 @@ void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 	bool hasSubnode = false;
 	bool filled = false;
 	bool isDirectlyStoredSuffix = false;
+	bool isSpecial = false;
 	uintptr_t ref = 0;
 	for (size_t i = 0; i < 1uL << DIM; ++i) {
-		getRef(i, &filled, &hasSubnode, &isDirectlyStoredSuffix, &ref);
+		getRef(i, &filled, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
+		assert (!isSpecial);
 		if (filled && hasSubnode) {
 			Node<DIM>* subnode = reinterpret_cast<Node<DIM>*>(ref);
 			assert (subnode);
@@ -128,7 +132,7 @@ string AHC<DIM,PREF_BLOCKS>::getName() const {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM,PREF_BLOCKS>::getRef(unsigned long hcAddress, bool* exists, bool* hasSub,
-		bool* directlyStoredSuffix, std::uintptr_t* ref) const {
+		bool* directlyStoredSuffix, bool* isSpecial, std::uintptr_t* ref) const {
 	assert (hcAddress < 1 << DIM);
 	assert (exists && hasSub && ref);
 
@@ -137,10 +141,11 @@ void AHC<DIM,PREF_BLOCKS>::getRef(unsigned long hcAddress, bool* exists, bool* h
 	const bool isPointer = (reference >> 1) & 1;
 
 	(*ref) = reference & refMask;
-	(*exists) = isPointer || isSuffix;
+	(*exists) = reference != 0;
 	assert ((*exists) || reference == 0);
 	(*hasSub) = isPointer && !isSuffix;
 	(*directlyStoredSuffix) = !isPointer && isSuffix;
+	(*isSpecial) = !isSuffix && !isPointer && (reference != 0);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -159,11 +164,15 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 
 	uintptr_t ref;
 	outContent.address = address;
-	getRef(address, &outContent.exists, &outContent.hasSubnode, &outContent.directlyStoredSuffix, &ref);
+	getRef(address, &outContent.exists, &outContent.hasSubnode,
+			&outContent.directlyStoredSuffix, &outContent.hasSpecialPointer,
+			&ref);
 
 	if (outContent.exists) {
 		if (outContent.hasSubnode) {
 			outContent.subnode = reinterpret_cast<Node<DIM>*>(ref);
+		} else if (outContent.hasSpecialPointer) {
+			outContent.specialPointer = ref;
 		} else {
 			const unsigned long suffixAndId = reinterpret_cast<unsigned long>(ref);
 			const unsigned long suffixMask = (-1uL) >> 32;
@@ -195,8 +204,9 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned lo
 	bool exists;
 	bool hasSubnode;
 	bool isDirectlyStoredSuffix;
+	bool isSpecial;
 	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &ref);
+	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
 
 	if (!exists) {
 		nContents++;
@@ -225,8 +235,9 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned in
 	bool exists;
 	bool hasSubnode;
 	bool isDirectlyStoredSuffix;
+	bool isSpecial;
 	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &ref);
+	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
 
 	if (!exists) {
 		nContents++;
@@ -255,8 +266,9 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const Node<
 	bool exists;
 	bool hasSubnode;
 	bool isDirectlyStoredSuffix;
+	bool isSpecial;
 	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &ref);
+	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
 
 	if (!exists) {
 		nContents++;
@@ -270,6 +282,31 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const Node<
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSubnode);
 	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).subnode == subnode);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, uintptr_t pointer) {
+	assert (hcAddress < 1ul << DIM);
+	assert ((pointer & 3) == 0 && "last 2 bits must not be set!");
+	assert (pointer != 0 && "cannot store null pointers");
+
+	bool exists;
+	bool hasSubnode;
+	bool isDirectlyStoredSuffix;
+	bool isSpecial;
+	uintptr_t ref;
+	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
+
+	if (!exists) {
+		nContents++;
+	}
+
+	// 00 & pointer != 0 -> special pointer
+	references_[hcAddress] = pointer;
+
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSpecialPointer);
+	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).specialPointer == pointer);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

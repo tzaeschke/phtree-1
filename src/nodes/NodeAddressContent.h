@@ -17,6 +17,7 @@ struct NodeAddressContent {
 	bool exists;
 	bool hasSubnode;
 	bool directlyStoredSuffix;
+	bool hasSpecialPointer;
 	int id;
 	unsigned long address;
 	union {
@@ -24,6 +25,7 @@ struct NodeAddressContent {
 		const unsigned long* suffixStartBlock;
 		unsigned int suffixStartBlockIndex;
 		unsigned long suffix;
+		uintptr_t specialPointer;
 	};
 
 	const unsigned long* getSuffixStartBlock() const {

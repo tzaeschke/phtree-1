@@ -47,6 +47,7 @@ public:
 	virtual const unsigned long* getFixPrefixStartBlock() const =0;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
 	virtual NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const =0;
+	virtual void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
