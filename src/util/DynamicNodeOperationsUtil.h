@@ -30,7 +30,7 @@ public:
 
 	static void resetCounters();
 	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
-	static void bulkInsert(const std::vector<const Entry<DIM, WIDTH>&>& entries, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
+	static void bulkInsert(const std::vector<const Entry<DIM, WIDTH>>& entries, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
 
 	static void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
@@ -57,6 +57,7 @@ unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge = 0;
 #include <assert.h>
 #include <stdexcept>
 #include <cstdint>
+#include <set>
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "util/NodeTypeUtil.h"
 #include "util/MultiDimBitset.h"
@@ -178,7 +179,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentI
 	// 1. move the entire current suffix into the buffer
 	const size_t suffixLength = WIDTH - currentIndex - 1;
 	assert (suffixLength > 0);
-	unsigned long* newSuffixStorage = buffer->init(suffixLength);
+	unsigned long* newSuffixStorage = buffer->init(suffixLength, currentNode, content.address, content.id);
 	MultiDimBitset<DIM>::duplicateHighestBits(content.suffixStartBlock,
 			suffixLength * DIM, suffixLength * DIM, newSuffixStorage);
 
@@ -408,13 +409,13 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entr
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
-		const std::vector<const Entry<DIM, WIDTH>&>& entries,
+		const std::vector<const Entry<DIM, WIDTH>>& entries,
 		Node<DIM>* rootNode,
 		PHTree<DIM, WIDTH>& tree) {
 
 	Node<DIM>* currentRoot = rootNode;
 	NodeAddressContent<DIM> content;
-	set<EntryBuffer<DIM, WIDTH>*> openBuffers;
+	set<EntryBuffer<DIM, WIDTH>*>* openBuffers = new set<EntryBuffer<DIM, WIDTH>*>();
 
 	for (const auto &entry : entries) {
 		size_t lastHcAddress = 0;
@@ -473,8 +474,8 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				assert (buffer && !buffer->full());
 				bool needFlush = buffer->insert(entry, currentIndex);
 				if (needFlush) {
-					buffer->flushToSubtree(tree);
-					openBuffers.erase(buffer);
+					buffer->flushToSubtree(tree, openBuffers);
+					openBuffers->erase(buffer);
 					delete buffer;
 				}
 
@@ -484,7 +485,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				EntryBuffer<DIM, WIDTH>* buffer = new EntryBuffer<DIM, WIDTH>();
 				assert (!openBuffers.count(buffer));
 				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
-				openBuffers.insert(buffer);
+				openBuffers->insert(buffer);
 				break;
 			} else {
 				// node entry does not exist:
@@ -512,9 +513,16 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 
 
 	// remove all buffers
-	for (EntryBuffer<DIM, WIDTH>* buffer : openBuffers) {
-		buffer->flushToSubtree(tree);
-		delete buffer;
+	set<EntryBuffer<DIM, WIDTH>*>* newOpenBuffers = new set<EntryBuffer<DIM, WIDTH>*>();
+	while (!openBuffers->empty()) {
+		for (EntryBuffer<DIM, WIDTH>* buffer : (*openBuffers)) {
+			buffer->flushToSubtree(tree, newOpenBuffers);
+			delete buffer;
+		}
+
+		set<EntryBuffer<DIM, WIDTH>*>* tmp = openBuffers;
+		openBuffers = newOpenBuffers;
+		newOpenBuffers = tmp;
 	}
 }
 

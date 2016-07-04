@@ -330,7 +330,7 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAddress,
 		bool newIsPointer, bool newIsSuffix, uintptr_t newReference) {
 
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(newHcAddress, true)).exists);
+	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(newHcAddress, true)).exists);
 
 	++m;
 	if (index != m - 1) {
@@ -396,9 +396,9 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, uintptr_
 		addRow(index, hcAddress, false, false, pointer);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSpecialPointer);
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).specialPointer == pointer);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
+	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSpecialPointer);
+	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).specialPointer == pointer);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -424,10 +424,10 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 		addRow(index, hcAddress, true, true, reference);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSubnode);
-	assert (!((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).directlyStoredSuffix);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).id == id);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
+	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSubnode);
+	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).directlyStoredSuffix);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -453,10 +453,10 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 		addRow(index, hcAddress, false, true, reference);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).id == id);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).directlyStoredSuffix);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).suffix == suffix);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).id == id);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).directlyStoredSuffix);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).suffix == suffix);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -480,8 +480,8 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 		addRow(index, hcAddress, true, false, reference);
 	}
 
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)TNode<DIM, PREF_BLOCKS>::lookup(hcAddress, true)).hasSubnode);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSubnode);
 }
 
 

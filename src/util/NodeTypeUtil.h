@@ -12,7 +12,7 @@
 #include "nodes/LHC.h"
 #include "nodes/AHC.h"
 #include "nodes/SuffixStorage.h"
-#include "util/EntryBuffer.h"
+#include "util/TEntryBuffer.h"
 
 template <unsigned int DIM>
 class Node;
@@ -36,6 +36,7 @@ public:
 	template <unsigned int WIDTH>
 	static void enlargeSuffixStorage(unsigned int suffixBlocks, Node<DIM>* node) {
 		assert (suffixBlocks > 0);
+
 		TSuffixStorage* suffixes = createSuffixStorage<WIDTH>(suffixBlocks);
 
 		// copy the old contents
@@ -205,8 +206,8 @@ private:
 				to.insertAtAddress(content.address, content.subnode);
 			} else if (content.hasSpecialPointer) {
 				to.insertAtAddress(content.address, content.specialPointer);
-				EntryBuffer<DIM, 10>* buffer = reinterpret_cast<EntryBuffer<DIM, 10>*>(content.specialPointer);
-				buffer->updateNode(*to);
+				TEntryBuffer<DIM>* buffer = reinterpret_cast<TEntryBuffer<DIM>*>(content.specialPointer);
+				buffer->updateNode(&to);
 			} else if (content.directlyStoredSuffix) {
 				to.insertAtAddress(content.address, content.suffix, content.id);
 			} else {

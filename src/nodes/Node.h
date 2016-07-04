@@ -46,7 +46,6 @@ public:
 	virtual unsigned long* getPrefixStartBlock() =0;
 	virtual const unsigned long* getFixPrefixStartBlock() const =0;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
-	virtual NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const =0;
 	virtual void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
@@ -62,11 +61,19 @@ public:
 	virtual void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock) =0;
 	virtual void copySuffixStorageFrom(const Node<DIM>& other) =0;
 
+	NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const;
 	// attention: linear checks! should be used for validation only
 	bool containsId(int id) const;
 	size_t getNStoredSuffixes() const;
 
 };
+
+template <unsigned int DIM>
+NodeAddressContent<DIM> Node<DIM>::lookup(unsigned long address, bool resolveSuffixIndex) const {
+	NodeAddressContent<DIM> content;
+	this->lookup(address, content, resolveSuffixIndex);
+	return content;
+}
 
 template <unsigned int DIM>
 bool Node<DIM>::containsId(int id) const {

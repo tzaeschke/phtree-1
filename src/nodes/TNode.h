@@ -54,7 +54,6 @@ public:
 	size_t getPrefixLength() const override;
 	unsigned long* getPrefixStartBlock() override;
 	const unsigned long* getFixPrefixStartBlock() const override;
-	NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const override;
 	bool canStoreSuffixInternally(size_t nSuffixBits) const override;
 	unsigned int canStoreSuffix(size_t nSuffixBits) const override;
 	void setSuffixStorage(TSuffixStorage* suffixStorage) override;
@@ -221,13 +220,6 @@ void TNode<DIM, PREF_BLOCKS>::freeSuffixSpace(size_t nSuffixBits,
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void TNode<DIM, PREF_BLOCKS>::copySuffixStorageFrom(const Node<DIM>& other) {
 	suffixes_ = other.getChangeableSuffixStorage();
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-NodeAddressContent<DIM> TNode<DIM, PREF_BLOCKS>::lookup(unsigned long address, bool resolveSuffixIndex) const {
-	NodeAddressContent<DIM> content;
-	this->lookup(address, content, resolveSuffixIndex);
-	return content;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

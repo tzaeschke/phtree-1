@@ -37,6 +37,9 @@ public:
 	void insert(const Entry<DIM, WIDTH>& e);
 	void insert(const std::vector<unsigned long>& values, int id);
 	void insertHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
+	void bulkInsert(const std::vector<const std::vector<unsigned long>>& values, const std::vector<int>& ids);
+	void bulkInsert(const std::vector<const Entry<DIM,WIDTH>>& entries);
+
 	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>& e) const;
 	std::pair<bool,int> lookup(const std::vector<unsigned long>& values) const;
 	std::pair<bool,int> lookupHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
@@ -90,6 +93,28 @@ void PHTree<DIM, WIDTH>::insert(const vector<unsigned long>& values, int id) {
 	assert (values.size() == DIM);
 	const Entry<DIM, WIDTH> entry(values, id);
 	insert(entry);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::bulkInsert(
+		const vector<const vector<unsigned long>>& values,
+		const vector<int>& ids) {
+	assert (values.size() == ids.size());
+
+
+	vector<const Entry<DIM,WIDTH>>* entries = new vector<const Entry<DIM,WIDTH>>();
+	entries->capacity(values.size());
+	for (unsigned i = 0; i < values.size(); ++i) {
+		entries->emplace_back(values[i], ids[i]);
+	}
+
+	bulkInsert(entries);
+	delete entries;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::bulkInsert(const vector<const Entry<DIM,WIDTH>>& entries) {
+	DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(entries, root_, *this);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

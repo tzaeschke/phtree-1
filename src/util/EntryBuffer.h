@@ -9,7 +9,9 @@
 #define SRC_UTIL_ENTRYBUFFER_H_
 
 #include <assert.h>
+#include <set>
 #include "Entry.h"
+#include "util/TEntryBuffer.h"
 
 template <unsigned int DIM>
 class Node;
@@ -17,7 +19,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
 
 template <unsigned int DIM, unsigned int WIDTH>
-class EntryBuffer {
+class EntryBuffer : public TEntryBuffer<DIM> {
 public:
 	EntryBuffer();
 	~EntryBuffer() {};
@@ -30,10 +32,10 @@ public:
 	size_t size() const;
 	size_t capacity() const;
 	void clear();
-	unsigned long* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress);
+	unsigned long* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress, int id);
 	void updateNode(Node<DIM>* node);
 	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
-	void flushToSubtree(PHTree<DIM, WIDTH>& tree);
+	void flushToSubtree(PHTree<DIM, WIDTH>& tree, set<EntryBuffer<DIM, WIDTH>>* globalBuffers);
 
 private:
 	static const size_t capacity_ = 50;
@@ -41,8 +43,7 @@ private:
 	size_t nextIndex_;
 	size_t logestCommonPrefixLength_;
 	size_t suffixBits_;
-	Node<DIM>* node_;
-	unsigned long nodeHcAddress;
+	int suffixId_;
 	unsigned long suffixToCompareTo_[1 + (DIM * WIDTH - 1) / (8 * sizeof (unsigned long))];
 	unsigned int lcpToSuffix_[capacity_];
 	const Entry<DIM, WIDTH> buffer_[capacity_];
@@ -57,32 +58,17 @@ private:
 
 template <unsigned int DIM, unsigned int WIDTH>
 EntryBuffer<DIM, WIDTH>::EntryBuffer() : nextIndex_(0), logestCommonPrefixLength_(0), suffixBits_(0),
-	node_(NULL), nodeHcAddress(0),
-	suffixToCompareTo_(), lcpToSuffix_(), buffer_() {
+	suffixId_(0), suffixToCompareTo_(), lcpToSuffix_(), buffer_() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-size_t EntryBuffer<DIM, WIDTH>::getLongestCommonPrefix() const {
-	return logestCommonPrefixLength_;
-}
-
-template <unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::updateNode(Node<DIM>* node) {
-	node_ = node;
-}
-
-template <unsigned int DIM, unsigned int WIDTH>
-pair<Node<DIM>*, unsigned long> EntryBuffer<DIM, WIDTH>::getNodeAndAddress() {
-	return pair<Node<DIM>*, unsigned long>(node_, nodeHcAddress);
-}
-
-template <unsigned int DIM, unsigned int WIDTH>
-unsigned long* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress) {
+unsigned long* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress, int id) {
 	clear();
 	assert (suffixLength <= (WIDTH - 1));
 	suffixBits_ = suffixLength * DIM;
-	node_ = node;
-	nodeHcAddress = hcAddress;
+	suffixId_ = id;
+	this->node_ = node;
+	this->nodeHcAddress = hcAddress;
 	return suffixToCompareTo_;
 }
 
@@ -165,33 +151,75 @@ void EntryBuffer<DIM, WIDTH>::sortByPrefixLengthAscending() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
+void EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree, set<EntryBuffer<DIM, WIDTH>>* globalBuffers) {
+	assert (nextIndex_ > 0);
 
 	sortByPrefixLengthAscending();
 
-	Node<DIM>* currentNode = node_;
-	unsigned long currentHcAddress = nodeHcAddress;
+	Node<DIM>* currentNode = this->node_;
+	unsigned long currentHcAddress = this->nodeHcAddress;
+	unsigned int nEntries = 0;
 	unsigned int lastLcp = 0;
-	unsigned int nSuffixes;
+	const unsigned int highestLcp = lcpToSuffix_[nextIndex_ - 1];
 	const unsigned int index = WIDTH - suffixBits_ / DIM;
+	vector<unsigned long> currentLevelAddresses;
+	vector<bool> currentLevelAddressesUnique;
+	vector<bool> currentLevelAddressesSameFirst;
+	vector<EntryBuffer<DIM, WIDTH>*> newBuffers;
 
-	for (unsigned i = 0; i < nextIndex_; i += nSuffixes) {
+	for (unsigned i = 0; i < nextIndex_; i += nEntries) {
 		const unsigned int currentLcp = lcpToSuffix_[i];
+		assert (currentLcp > lastLcp);
+		const unsigned int currentIndex = index + currentLcp;
 
-		// count the suffixes for the new subnode
-		nSuffixes = 1;
+		// count the number of entries that are directly inserted into the current node
+		nEntries = 1;
 		for (unsigned j = i + 1; j < nextIndex_ && lcpToSuffix_[j] == currentLcp; ++j) {
-			++nSuffixes;
+			++nEntries;
 		}
 
-		// create the new subnode
-		assert (currentLcp > lastLcp);
+		// extract all addresses
+		for (unsigned j = i; j < i + nEntries; ++j) {
+			const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(buffer_[j], currentIndex, DIM * WIDTH);
+			currentLevelAddresses.push_back(hcAddress);
+			currentLevelAddressesUnique.push_back(true);
+			currentLevelAddressesSameFirst.push_back(false);
+			newBuffers.push_back(NULL);
+		}
+
+		// count the number of unique addresses = #direct suffixes
+		unsigned int nSuffixes = (currentLcp == highestLcp)? 1 : 0;
+		for (unsigned j = 1; j < nEntries; ++j) {
+			bool unique = true;
+			unsigned k;
+			for (k = 0; k < j && unique; k++) {
+				unique = currentLevelAddresses[j] != currentLevelAddresses[k];
+			}
+
+			if (unique) {
+				++nSuffixes;
+			} else {
+				if (!currentLevelAddressesSameFirst[k]) {
+					newBuffers[k] = new EntryBuffer<DIM, WIDTH>();
+					assert (nSuffixes > 0);
+					--nSuffixes;
+				}
+
+				newBuffers[j] = newBuffers[k];
+				currentLevelAddressesUnique[k] = false;
+				currentLevelAddressesUnique[j] = false;
+				currentLevelAddressesSameFirst[k] = true;
+			}
+		}
+		assert (0 <= nSuffixes && nSuffixes <= nEntries);
+
+		// create the new subnode of the correct size
+		assert (nEntries > 0 && nSuffixes > 0 && nEntries >= nSuffixes);
 		const unsigned int prefixLength = currentLcp - lastLcp;
-		const unsigned int currentIndex = index + currentLcp;
 		const unsigned int prefixBits = DIM * prefixLength;
 		const unsigned int suffixBits = DIM * (WIDTH - (currentIndex + 1));
 		Node<DIM>* newSubnode = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(
-				prefixBits, nSuffixes + 1, nSuffixes, suffixBits);
+				prefixBits, nEntries, nSuffixes, suffixBits);
 		currentNode->insertAtAddress(currentHcAddress, newSubnode);
 
 		// copy prefix into the new node
@@ -202,14 +230,57 @@ void EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 		}
 
 		// insert all suffixes into the new subnode
-		for (unsigned j = i; j < i + nSuffixes; ++j) {
-			const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(buffer_[j], currentIndex, DIM * WIDTH);
-			// TODO what if several same addresses in the subnode?
-			DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(currentIndex, hcAddress, newSubnode, buffer_[j], tree);
+		for (unsigned j = 0; j < nEntries; ++j) {
+			const unsigned long hcAddress = currentLevelAddresses[j];
+			if (currentLevelAddressesUnique[j]) {
+				// insert suffix directly into node
+				// TODO actually no need to varify if the node is big enough!
+				assert (!(newSubnode->lookup(hcAddress, true)).exists);
+				Node<DIM>* adjustedNode = DynamicNodeOperationsUtil<DIM, WIDTH>::
+						insertSuffix(currentIndex, hcAddress, newSubnode, buffer_[i + j], tree);
+				assert (adjustedNode == newSubnode);
+			} else if (currentLevelAddressesSameFirst[j]) {
+				// inject suffix of entry into buffer and insert the buffer directly into the node
+				assert (!(newSubnode->lookup(hcAddress, true)).exists);
+				EntryBuffer<DIM, WIDTH>* newBuffer = newBuffers[j];
+				unsigned long* newSuffixStorage = newBuffer->init((suffixBits / DIM), newSubnode, hcAddress, buffer_[i + j].id_);
+				MultiDimBitset<DIM>::duplicateHighestBits(buffer_[i + j], suffixBits, suffixBits, newSuffixStorage);
+				uintptr_t bufferRef = reinterpret_cast<uintptr_t>(newBuffer);
+				newSubnode->insertAtAddress(hcAddress, bufferRef);
+			} else {
+				// insert entry into existing buffer
+				assert ((newSubnode->lookup(hcAddress, true)).hasSpecialPointer);
+				EntryBuffer<DIM, WIDTH>* existingBuffer = newBuffers[j];
+				bool needFlush = existingBuffer->insert(buffer_[i + j], currentIndex);
+				assert (!needFlush);
+			}
 		}
 
 		currentNode = newSubnode;
 		currentHcAddress = MultiDimBitset<DIM>::interleaveBits(suffixToCompareTo_, currentIndex + 1, DIM * WIDTH);
+		lastLcp = currentLcp;
+		currentLevelAddresses.clear();
+		currentLevelAddressesUnique.clear();
+		currentLevelAddressesSameFirst.clear();
+		globalBuffers->insert(newBuffers.begin(), newBuffers.end());
+		newBuffers.clear();
+	}
+
+	// insert the suffix into the lowest node
+	assert (logestCommonPrefixLength_ * DIM < suffixBits_);
+	const unsigned int currentIndex = index + highestLcp;
+	currentHcAddress = MultiDimBitset<DIM>::interleaveBits(suffixToCompareTo_, currentIndex + 1, DIM * WIDTH);
+	assert (!(currentNode->lookup(currentHcAddress, true)).exists);
+	const unsigned int newSuffixBits = DIM * (WIDTH - (currentIndex + 1));
+	if (currentNode->canStoreSuffixInternally(newSuffixBits)) {
+		unsigned long suffix = 0uL;
+		MultiDimBitset<DIM>::removeHighestBits(suffixToCompareTo_, suffixBits_, highestLcp, &suffix);
+		currentNode->insertAtAddress(currentHcAddress, suffix, suffixId_);
+	} else {
+		assert (currentNode->canStoreSuffix(newSuffixBits) == 0);
+		const pair<unsigned long*, unsigned int> suffixStartBlock = currentNode->reserveSuffixSpace(newSuffixBits);
+		currentNode->insertAtAddress(currentHcAddress, suffixStartBlock.second, suffixId_);
+		MultiDimBitset<DIM>::removeHighestBits(suffixToCompareTo_, suffixBits_, highestLcp, suffixStartBlock.first);
 	}
 }
 
