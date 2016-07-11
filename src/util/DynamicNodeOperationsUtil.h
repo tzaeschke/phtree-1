@@ -521,9 +521,9 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				cout << "insert into buffer (flush: " << needFlush << ")" << endl;
 #endif
 				if (needFlush) {
+					openBuffers->erase(buffer);
 					flushSubtree(buffer, tree);
 					++nFlushCountWithin;
-					openBuffers->erase(buffer); // TODO erase before delete?!
 				}
 
 				break;
