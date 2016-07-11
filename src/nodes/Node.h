@@ -99,7 +99,7 @@ size_t Node<DIM>::getNStoredSuffixes() const {
 		NodeIterator<DIM>* endIt = this->end();
 		for (; (*startIt) != (*endIt); ++(*startIt)) {
 			NodeAddressContent<DIM> content = *(*startIt);
-			if (content.exists && !content.hasSubnode) {
+			if (content.exists && !content.hasSubnode && !content.hasSpecialPointer) {
 				++nSuffixes;
 			}
 		}

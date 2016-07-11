@@ -50,8 +50,8 @@ public:
 	static std::set<std::vector<unsigned long>>* generateUniqueRandomEntries(size_t nUniqueEntries);
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotAverageInsertTimePerDimension(std::string file);
-	static void plotAverageInsertTimePerDimensionRandom();
+	static void plotAverageInsertTimePerDimension(std::string file, bool bulk);
+	static void plotAverageInsertTimePerDimensionRandom(bool bulk);
 
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotAverageInsertTimePerNumberOfEntries(std::vector<std::vector<std::vector<unsigned long>>*> entries);
@@ -74,7 +74,7 @@ public:
 	static void plotAxonsAndDendrites(std::vector<std::string> axonsFiles, std::vector<std::string> dendritesFiles);
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotInsertPerformanceDifferentOrder(std::string file);
+	static void plotInsertPerformanceDifferentOrder(std::string file, bool isFloat);
 
 private:
 	static void plot(std::string gnuplotFileName);
@@ -84,9 +84,9 @@ private:
 	static inline std::vector<std::vector<unsigned long>>* generateUniqueRandomEntriesList(size_t nUniqueEntries);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static double writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries,
-			ofstream* plotFile, size_t runNumber, std::string lable);
+			ofstream* plotFile, size_t runNumber, std::string lable, bool bulk);
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries);
+	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries, bool bulk);
 };
 
 #include <fstream>
@@ -142,8 +142,13 @@ std::vector<vector<unsigned long>>* PlotUtil::generateUniqueRandomEntriesList(si
 }
 
 void PlotUtil::plot(string gnuplotFileName) {
-	string path = GNUPLOT_FILE_PATH + gnuplotFileName + GNUPLOT_FILE_EXTENSION;
-	string gnuplotCommand = "gnuplot -p '" + path + "'";
+	string dataPath = PLOT_DATA_PATH + gnuplotFileName + PLOT_DATA_EXTENSION;
+	// first sort the file
+	string sortCommand = "sort " + dataPath + " -o " + dataPath;
+	system(sortCommand.c_str());
+	// second plot the file
+	string plotPath = GNUPLOT_FILE_PATH + gnuplotFileName + GNUPLOT_FILE_EXTENSION;
+	string gnuplotCommand = "gnuplot -p '" + plotPath + "'";
 	system(gnuplotCommand.c_str());
 }
 
@@ -166,28 +171,38 @@ bool zOrderCompare(vector<unsigned long> i, vector<unsigned long> j) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file) {
+void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloat) {
 
-	vector<vector<unsigned long>>* original = FileInputUtil::
+	vector<vector<unsigned long>>* original;
+	if (isFloat) {
+		original= FileInputUtil::
 			readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		original = FileInputUtil::readEntries<DIM>(file);
+	}
+
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
 
-	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "original");
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true);
+	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
 
 	cout << "shuffling... " << flush;
 	random_shuffle(original->begin(), original->end());
 	cout << "ok" << endl;
-	const double shuffledMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "shuffled");
+	const double shuffledMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "shuffled", false);
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 6, "shuffled-bulk", false);
 
 	cout << "sorting (default)... " << flush;
 	sort(original->begin(), original->end());
 	cout << "ok" << endl;
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 3, "sorted");
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 3, "sorted", false);
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 7, "sorted-bulk", false);
 
 	cout << "sorting (z-order)... " << flush;
 	sort(original->begin(), original->end(), zOrderCompare<DIM,WIDTH>);
 	cout << "ok" << endl;
-	const double zOrderMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "z-ordered");
+	const double zOrderMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "z-ordered", false);
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 8, "z-ordered-bulk", false);
 
 	const double betterThanWorst = 100.0 * ((shuffledMs / normalMs) - 1.0);
 	const double worseThanBest = 100.0 * (1.0 - (zOrderMs / normalMs));
@@ -200,22 +215,34 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable) {
+double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable, bool bulk) {
 
 	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM,WIDTH>();
 	unsigned int smallestInsertTime = (-1u);
 	cout << "run with " << N_REPETITIONS << " repetitions: " << flush;
+	vector<int>* ids = new vector<int>();
+	for (unsigned iEntry = 0; iEntry < entries->size() && bulk; ++iEntry) {
+		ids->push_back(iEntry);
+	}
+
 	for (unsigned repeat = 0; repeat < N_REPETITIONS; ++repeat) {
 		DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters();
 		delete phtree;
 		phtree = new PHTree<DIM,WIDTH>();
 
-		const unsigned int startInsertTime = clock();
-		for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
-			phtree->insert((*entries)[iEntry], iEntry);
+		unsigned int startInsertTime, insertTime;
+		if (bulk) {
+			startInsertTime = clock();
+			phtree->bulkInsert(*entries, *ids);
+			insertTime = clock() - startInsertTime;
+		} else {
+			startInsertTime = clock();
+			for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
+				phtree->insert((*entries)[iEntry], iEntry);
+			}
+			insertTime = clock() - startInsertTime;
 		}
 
-		const unsigned int insertTime = clock() - startInsertTime;
 		if (smallestInsertTime > insertTime) {
 			cout << "<" << flush;
 			smallestInsertTime = insertTime;
@@ -223,8 +250,11 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 			cout << "-" << flush;
 		}
 	}
+
+	delete ids;
 	cout << endl;
 
+	// validation only
 	for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
 		assert (phtree->lookup((*entries)[iEntry]).second == iEntry);
 	}
@@ -232,8 +262,14 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 	cout << "insert calls:" << endl;
 	cout << "\t#suffix insertion = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix
 			<< " (with enlarging node: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge << ")" << endl;
-	cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << endl;
 	cout << "\t#split prefix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix << endl;
+	if (bulk) {
+		cout << "\t#new suffix buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer << endl;
+		cout << "\t#flushes (bulk) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountWithin << endl;
+		cout << "\t#flushes (clean up) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountAfter << endl;
+	} else {
+		cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << endl;
+	}
 
 	CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
 	SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
@@ -367,7 +403,7 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector<unsigned long>>* entries)  {
+void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector<unsigned long>>* entries, bool bulk)  {
 		cout << "inserting all entries into a PH-Tree while logging the time per insertion..." << endl;
 
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
@@ -379,10 +415,18 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 
 		// insertion
 		// clock() -> insert all entries of one dim into the appropriate tree -> clock()
-		unsigned int startInsertTime = clock();
-		for (size_t iEntry = 0; iEntry < entries->size(); ++iEntry) {
-			vector<unsigned long> entry = (*entries)[iEntry];
-			phtree->insert(entry, iEntry);
+		unsigned int startInsertTime;
+		if (bulk) {
+			vector<int> ids(entries->size());
+			for (unsigned i = 0; i < entries->size(); ++i) {ids[i] = i;}
+			startInsertTime = clock();
+			phtree->bulkInsert(*entries, ids);
+		} else {
+			startInsertTime = clock();
+			for (size_t iEntry = 0; iEntry < entries->size(); ++iEntry) {
+				vector<unsigned long> entry = (*entries)[iEntry];
+				phtree->insert(entry, iEntry);
+			}
 		}
 		unsigned int insertTicks = clock() - startInsertTime;
 		// lookup
@@ -446,12 +490,12 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotAverageInsertTimePerDimension(std::string file) {
+void PlotUtil::plotAverageInsertTimePerDimension(std::string file, bool bulk) {
 	cout << "loading entries from file..." << flush;
 	vector<vector<unsigned long>>* entries = FileInputUtil::readEntries<DIM>(file);
 	cout << " ok" << endl;
 
-	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries);
+	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries, bulk);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -576,7 +620,7 @@ void PlotUtil::plotRangeQueryTimePerPercentFilled(std::vector<vector<unsigned lo
 	plot(RANGE_QUERY_RATIO_PLOT_NAME);
 }
 
-void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
+void PlotUtil::plotAverageInsertTimePerDimensionRandom(bool bulk) {
 	size_t dimTests[] = INSERT_ENTRY_DIMS
 	;
 	size_t dimTestsSize = sizeof(dimTests) / sizeof(*dimTests);
@@ -588,43 +632,43 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom() {
 		case 2: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<2, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<2, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<2, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		case 3: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<3, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<3, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		case 4: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<4, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<4, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<4, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		case 5: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<5, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<5, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<5, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		case 6: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<6, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<6, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<6, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		case 8: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<8, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<8, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<8, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		case 10: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<10, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
-						writeAverageInsertTimeOfDimension<10, BIT_LENGTH>(test, randomDimEntries);
+						writeAverageInsertTimeOfDimension<10, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
 		}
 		default:

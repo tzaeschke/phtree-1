@@ -111,6 +111,27 @@ int mainSimpleExample() {
 	return 0;
 }
 
+void mainBulkExample() {
+	const unsigned int bitLength = 6;
+	PHTree<1, bitLength>* phtree = new PHTree<1, bitLength>();
+	vector<vector<unsigned long>>* values = new vector<vector<unsigned long>>();
+	vector<int>* ids = new vector<int>();
+	values->push_back({15});	ids->push_back(1);
+	values->push_back({18});	ids->push_back(2);
+	values->push_back({9});		ids->push_back(3);
+	values->push_back({21});	ids->push_back(4);
+	values->push_back({14});	ids->push_back(5);
+	values->push_back({8}); 	ids->push_back(6);
+	values->push_back({19});	ids->push_back(7);
+	phtree->bulkInsert(*values, *ids);
+
+	cout << *phtree << endl;
+
+	delete phtree;
+	delete values;
+	delete ids;
+}
+
 int mainFull1DExample() {
 	const unsigned int bitLength = 4;
 	PHTree<1, bitLength>* phtree = new PHTree<1, bitLength>();
@@ -274,9 +295,12 @@ int main(int argc, char* argv[]) {
 		mainSimpleExample();
 		cout << endl;
 		mainHyperCubeExample();
+		cout << endl;
+		mainBulkExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotInsertPerformanceDifferentOrder<6, 64>("./axons.dat");
+		PlotUtil::plotInsertPerformanceDifferentOrder<6, 64>("./axons.dat", true);
+		PlotUtil::plotInsertPerformanceDifferentOrder<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat", false);
 //		PlotUtil::plotTimeSeriesOfInserts();
 //		PlotUtil::plotAverageInsertTimePerDimensionRandom();
 //		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom();
@@ -290,7 +314,8 @@ int main(int argc, char* argv[]) {
 		PlotUtil::plotAverageInsertTimePerNumberOfEntriesRandom(nEntries);
 	} else if (benchmark.compare(argv[1]) == 0) {
 		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
-		PlotUtil::plotAverageInsertTimePerDimension<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat");
+		PlotUtil::plotAverageInsertTimePerDimension<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat", true);
+
 	} else if (axon.compare(argv[1]) == 0) {
 		vector<string> axonFiles;
 		axonFiles.push_back("./axons.dat");

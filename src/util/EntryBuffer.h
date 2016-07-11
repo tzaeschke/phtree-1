@@ -24,31 +24,31 @@ public:
 	EntryBuffer();
 	~EntryBuffer() {};
 
-	size_t getLongestCommonPrefix() const;
-	bool insert(const Entry<DIM, WIDTH>& entry, unsigned int msbIndex);
+	bool insert(const Entry<DIM, WIDTH>& entry);
 	bool full() const;
 	bool empty() const;
-	bool hasPrefix() const;
 	size_t size() const;
 	size_t capacity() const;
 	void clear();
-	unsigned long* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress, int id);
+	Entry<DIM, WIDTH>* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress);
 	void updateNode(Node<DIM>* node);
 	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
-	void flushToSubtree(PHTree<DIM, WIDTH>& tree, set<EntryBuffer<DIM, WIDTH>>* globalBuffers);
+	Node<DIM>* flushToSubtree(PHTree<DIM, WIDTH>& tree);
 
 private:
-	static const size_t capacity_ = 50;
+	static const size_t capacity_ = 10;
 
 	size_t nextIndex_;
-	size_t logestCommonPrefixLength_;
 	size_t suffixBits_;
-	int suffixId_;
-	unsigned long suffixToCompareTo_[1 + (DIM * WIDTH - 1) / (8 * sizeof (unsigned long))];
-	unsigned int lcpToSuffix_[capacity_];
-	const Entry<DIM, WIDTH> buffer_[capacity_];
+	// TODO symmetric matrix with no information on diagonal: need to store n/2 (n-1) fields only
+	unsigned int lcps_[capacity_ * capacity_];
+	Entry<DIM, WIDTH> buffer_[capacity_];
 
-	inline void sortByPrefixLengthAscending();
+	// TODO validation only:
+	const Entry<DIM, WIDTH>* originals_[capacity_];
+
+	inline void setLcp(unsigned int row, unsigned int column, unsigned int lcp);
+	inline unsigned int getLcp(unsigned int row, unsigned int column) const;
 };
 
 #include "util/MultiDimBitset.h"
@@ -57,30 +57,43 @@ private:
 #include "PHTree.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
-EntryBuffer<DIM, WIDTH>::EntryBuffer() : nextIndex_(0), logestCommonPrefixLength_(0), suffixBits_(0),
-	suffixId_(0), suffixToCompareTo_(), lcpToSuffix_(), buffer_() {
+EntryBuffer<DIM, WIDTH>::EntryBuffer() : nextIndex_(0), suffixBits_(0), lcps_(), buffer_() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-unsigned long* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress, int id) {
+Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress) {
 	clear();
 	assert (suffixLength <= (WIDTH - 1));
 	suffixBits_ = suffixLength * DIM;
-	suffixId_ = id;
 	this->node_ = node;
 	this->nodeHcAddress = hcAddress;
-	return suffixToCompareTo_;
+	nextIndex_ = 1;
+	return &(buffer_[0]);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::clear() {
 	nextIndex_ = 0;
-	logestCommonPrefixLength_ = WIDTH;
 	suffixBits_ = 0;
-	const size_t suffixBlocks = sizeof (suffixToCompareTo_) / sizeof (unsigned long);
-	for (unsigned i = 0; i < suffixBlocks; ++i) {
-		suffixToCompareTo_ = 0;
+	for (unsigned row = 0; row < capacity_; ++row) {
+		for (unsigned column = 0; column < capacity_; ++column) {
+			setLcp(row, column, 0);
+		}
 	}
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+inline void EntryBuffer<DIM, WIDTH>::setLcp(unsigned int row, unsigned int column, unsigned int lcp) {
+	assert (row < capacity_ && column < capacity_);
+	const unsigned int index = row * capacity_ + column;
+	lcps_[index] = lcp;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+inline unsigned int EntryBuffer<DIM, WIDTH>::getLcp(unsigned int row, unsigned int column) const {
+	assert (row < capacity_ && column < capacity_);
+	const unsigned int index = row * capacity_ + column;
+	return lcps_[index];
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -105,183 +118,217 @@ bool EntryBuffer<DIM, WIDTH>::empty() const {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-bool EntryBuffer<DIM, WIDTH>::hasPrefix() const {
-	assert (!empty());
-	return logestCommonPrefixLength_ != 0;
-}
+bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
+	assert (!full());
+	assert (suffixBits_ > 0 && suffixBits_ % DIM == 0);
 
-template <unsigned int DIM, unsigned int WIDTH>
-size_t EntryBuffer<DIM, WIDTH>::getLongestCommonPrefix() const {
-	assert (logestCommonPrefixLength_ < WIDTH);
-	return logestCommonPrefixLength_;
-}
+	// copy ID and necessary bits into the local buffer
+	buffer_[nextIndex_].id_ = entry.id_;
+	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[nextIndex_].values_);
 
-template <unsigned int DIM, unsigned int WIDTH>
-bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry, unsigned int msbIndex) {
-	assert (!full() && hasPrefix());
+	originals_[nextIndex_] = &entry;
 
-	buffer_[nextIndex_] = entry;
-	const unsigned int nBitsToCompare = DIM * (WIDTH - msbIndex);
-	const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
-			entry.values_, WIDTH * DIM, msbIndex, WIDTH, suffixToCompareTo_, suffixBits_);
-	assert(!comp.first);
-	lcpToSuffix_[nextIndex_] = comp.second;
-
-	if (comp.second < logestCommonPrefixLength_) {
-		logestCommonPrefixLength_ = comp.second;
+	// compare the new entry to all previously inserted entries
+	const unsigned int startIndexDim = WIDTH - (suffixBits_ / DIM);
+	for (unsigned other = 0; other < nextIndex_; ++other) {
+		// TODO no need to compare all values!
+		// TODO no need to compare to full values!
+		assert (getLcp(other, nextIndex_) == 0 && getLcp(nextIndex_, other) == 0);
+		assert (MultiDimBitset<DIM>::checkRangeUnset(buffer_[other].values_, DIM * WIDTH, suffixBits_));
+		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
+				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
+		assert(!comp.first);
+		setLcp(other, nextIndex_, comp.second); // TODO only one set necessary with half matrix!
+		setLcp(nextIndex_, other, comp.second);
 	}
 
 	++nextIndex_;
-	// empty the buffer if it is full or if there is no more shared prefix
-	return full() || !hasPrefix();
+
+	// empty the buffer if it is full
+	return full();
 }
 
+
 template <unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::sortByPrefixLengthAscending() {
-	// insertion sort efficient for small sets
-	unsigned int i, j;
-	for (i = 1; i < nextIndex_; i++) {
-		const size_t tmp = lcpToSuffix_[i];
-		const Entry<DIM, WIDTH> entry = buffer_[i];
-		for (j = i; j >= 1 && tmp < lcpToSuffix_[j - 1]; j--)
-			lcpToSuffix_[j] = lcpToSuffix_[j - 1];
-		lcpToSuffix_[j] = tmp;
-		buffer_[j] = entry;
+Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
+	assert (nextIndex_ > 0 && nextIndex_ <= capacity_);
+
+	// builds the subtree from bottom up
+	bool rowEmpty[capacity_];
+	unsigned int rowMax[capacity_];
+	unsigned int rowNextMax[capacity_];
+	unsigned int rowNSuffixes[capacity_];
+	unsigned int rowNSubnodes[capacity_];
+	Node<DIM>* rowNode[capacity_];
+	for (unsigned row = 0; row < nextIndex_; ++row) {
+		rowEmpty[row] = false;
+		rowNode[row] = NULL;
+		rowMax[row] = -1u; // TODO not needed ?!
+		rowNextMax[row] = -1u;
 	}
-}
 
-template <unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree, set<EntryBuffer<DIM, WIDTH>>* globalBuffers) {
-	assert (nextIndex_ > 0);
+	const unsigned int basicMsbIndex = WIDTH - suffixBits_ / DIM;
+	bool hasMoreRows = true;
+	while (hasMoreRows) {
+		hasMoreRows = false;
+		unsigned int maxRowMax = 0;
 
-	sortByPrefixLengthAscending();
+		// calculate maximum and number of occurrences per row
+		// TODO no need to revisit rows that were not changed!
+		for (unsigned row = 0; row < nextIndex_; ++row) {
+			if (rowEmpty[row]) continue;
+			hasMoreRows = row != 0;
 
-	Node<DIM>* currentNode = this->node_;
-	unsigned long currentHcAddress = this->nodeHcAddress;
-	unsigned int nEntries = 0;
-	unsigned int lastLcp = 0;
-	const unsigned int highestLcp = lcpToSuffix_[nextIndex_ - 1];
-	const unsigned int index = WIDTH - suffixBits_ / DIM;
-	vector<unsigned long> currentLevelAddresses;
-	vector<bool> currentLevelAddressesUnique;
-	vector<bool> currentLevelAddressesSameFirst;
-	vector<EntryBuffer<DIM, WIDTH>*> newBuffers;
+//			if (lastMaxRowMax == rowMax[row]) {
+				// the row needs to be updated as the maximum changed
 
-	for (unsigned i = 0; i < nextIndex_; i += nEntries) {
-		const unsigned int currentLcp = lcpToSuffix_[i];
-		assert (currentLcp > lastLcp);
-		const unsigned int currentIndex = index + currentLcp;
+				rowMax[row] = -1u; // TODO possible similar to: (rowNextMax[row] == (-1u))? -1u : rowNextMax[row] - 1;
+				rowNextMax[row] = -1u;
 
-		// count the number of entries that are directly inserted into the current node
-		nEntries = 1;
-		for (unsigned j = i + 1; j < nextIndex_ && lcpToSuffix_[j] == currentLcp; ++j) {
-			++nEntries;
+				for (unsigned column = 0; column < nextIndex_; ++column) { // TODO how to save iterations?
+					if (rowEmpty[column] || row == column) continue;
+
+					const unsigned int currentLcp = getLcp(row, column);
+					if ((1 + currentLcp) <= (1 + rowNextMax[row])) {
+						// most common case: no need to update any values
+						continue;
+					} else if (currentLcp == rowMax[row] && rowNode[column]) {
+						// found another LCP of the same length that has a subnode
+						++rowNSubnodes[row];
+					} else if (currentLcp == rowMax[row]) {
+						// found another LCP of the same length without a subnode
+						++rowNSuffixes[row];
+					} else if ((1 + currentLcp) > (1 + rowMax[row])) {
+						// found a higher LCP: store the new one
+						rowNextMax[row] = rowMax[row];
+						rowMax[row] = currentLcp;
+						rowNSuffixes[row] = 0;
+						rowNSubnodes[row] = 0;
+						if (rowNode[row])	{++rowNSubnodes[row];}
+						else 				{++rowNSuffixes[row];}
+						if (rowNode[column]){++rowNSubnodes[row];}
+						else 				{++rowNSuffixes[row];}
+					} else { // TODO probably more likely and less expensive than case above
+						assert ((1 + rowNextMax[row]) < (1 + currentLcp));
+						// the second highest value needs to be updated
+						rowNextMax[row] = currentLcp;
+					}
+
+					assert (rowNextMax[row] < rowMax[row] || rowNextMax[row] == (-1u));
+				}
+//			}
+
+			assert ((1 + rowNextMax[row]) <= (1 + rowMax[row]));
+//			assert (rowNSuffixes[row] + rowNSubnodes[row] <= (1uL << DIM));
+			if ((1 + rowMax[row]) > (1 + maxRowMax)) {maxRowMax = rowMax[row];}
 		}
 
-		// extract all addresses
-		for (unsigned j = i; j < i + nEntries; ++j) {
-			const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(buffer_[j], currentIndex, DIM * WIDTH);
-			currentLevelAddresses.push_back(hcAddress);
-			currentLevelAddressesUnique.push_back(true);
-			currentLevelAddressesSameFirst.push_back(false);
-			newBuffers.push_back(NULL);
-		}
+#ifdef PRINT
+		// print the current LCP matrix
+		cout << "type\tmax\tnext\t#suff\t#node\t| i";
+		for (unsigned row = 0; row < nextIndex_; ++row) { cout << "\t"  << row;}
+		cout << endl;
 
-		// count the number of unique addresses = #direct suffixes
-		unsigned int nSuffixes = (currentLcp == highestLcp)? 1 : 0;
-		for (unsigned j = 1; j < nEntries; ++j) {
-			bool unique = true;
-			unsigned k;
-			for (k = 0; k < j && unique; k++) {
-				unique = currentLevelAddresses[j] != currentLevelAddresses[k];
+		for (unsigned row = 0; row < nextIndex_; ++row) {
+			if (rowNode[row]) { cout << "(node)\t"; }
+			else { cout << "(suff)\t"; }
+			if (rowMax[row] == -1u) { cout << "-1\t"; }
+			else { cout << rowMax[row] << "\t"; }
+			if (rowNextMax[row] == -1u) { cout << "-1\t"; }
+			else {cout << rowNextMax[row] << "\t"; }
+			cout << rowNSuffixes[row] << "\t";
+			cout << rowNSubnodes[row] << "\t| ";
+
+			cout << row;
+
+			for (unsigned col = 0; col < nextIndex_; ++col) {
+				cout << "\t";
+				if (rowEmpty[row] || rowEmpty[col]) {cout << "-";}
+				else if (getLcp(row, col) == (-1u)) {cout << "(-1)";}
+				else {
+					cout << getLcp(row, col);
+					if (getLcp(row, col) == maxRowMax) {cout << "*";}
+				}
+			}
+			cout << endl;
+		}
+		cout << endl;
+#endif
+
+		// create a new node for each row that was not ruled out yet
+		const unsigned int index = basicMsbIndex + maxRowMax;
+		// current suffix bits: buffer suffix bits - current longest prefix bits - HC address bits (one node)
+		const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax + 1);
+		for (unsigned row = 0; row < (nextIndex_ - 1) && hasMoreRows; ++row) {
+			if (rowEmpty[row] || maxRowMax != rowMax[row]) continue;
+
+			setLcp(row, row, maxRowMax);
+			assert ((1 + rowMax[row]) > (1 + rowNextMax[row]));
+			// <nextMax>
+			// <       current max        >
+			// [ ------ |-  prefix -| DIM | .... ]
+			const unsigned int prefixBits = (rowMax[row] - (1 + rowNextMax[row])) * DIM;
+			const unsigned int nEntries = rowNSuffixes[row] + rowNSubnodes[row];
+			assert (nEntries <= (1uL << DIM));
+			Node<DIM>* currentNode = NodeTypeUtil<DIM>::
+					template buildNodeWithSuffixes<WIDTH>(prefixBits, nEntries, rowNSuffixes[row], suffixBits);
+			if (prefixBits > 0) {
+				const unsigned int currentBits = suffixBits + DIM + prefixBits;
+				assert (currentBits <= suffixBits_);
+				MultiDimBitset<DIM>::duplicateBits(buffer_[row].values_,
+						currentBits, prefixBits / DIM, currentNode->getPrefixStartBlock());
 			}
 
-			if (unique) {
-				++nSuffixes;
-			} else {
-				if (!currentLevelAddressesSameFirst[k]) {
-					newBuffers[k] = new EntryBuffer<DIM, WIDTH>();
-					assert (nSuffixes > 0);
-					--nSuffixes;
+			// insert all entries within this row into the new sub node
+			for (unsigned column = row; column < nextIndex_; ++column) {
+				const unsigned int currentLcp = getLcp(row, column);
+				if (rowEmpty[column] || currentLcp != rowMax[row]) continue;
+
+				const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(buffer_[column].values_,index , DIM * WIDTH);
+				assert (!(currentNode->lookup(hcAddress, true).exists));
+				assert (currentNode->getNumberOfContents() < currentNode->getMaximumNumberOfContents());
+				if (rowNode[column]) {
+					// insert the subnode
+					currentNode->insertAtAddress(hcAddress, rowNode[column]);
+					 // TODO double???					setLcp(row, column, rowNextMax[row]);
+				} else {
+					// insert the suffix
+					// TODO maybe sort before insertion so there is no need for swapping and sorting and shifting in LHC
+
+					if (currentNode->canStoreSuffixInternally(suffixBits)) {
+						unsigned long suffix = 0uL;
+						MultiDimBitset<DIM>::removeHighestBits(buffer_[column].values_, DIM * WIDTH, index + 1, &suffix);
+						currentNode->insertAtAddress(hcAddress, suffix, buffer_[column].id_);
+					} else {
+						assert (currentNode->canStoreSuffix(suffixBits) == 0);
+						const pair<unsigned long*, unsigned int> suffixStartBlock = currentNode->reserveSuffixSpace(suffixBits);
+						currentNode->insertAtAddress(hcAddress, suffixStartBlock.second, buffer_[column].id_);
+						MultiDimBitset<DIM>::duplicateLowestBitsAligned(buffer_[column].values_, suffixBits, suffixStartBlock.first);
+						assert(currentNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
+					}
 				}
 
-				newBuffers[j] = newBuffers[k];
-				currentLevelAddressesUnique[k] = false;
-				currentLevelAddressesUnique[j] = false;
-				currentLevelAddressesSameFirst[k] = true;
+				rowEmpty[column] |= (row != column);
+				rowNode[column] = currentNode;
 			}
+
+			setLcp(row, row, rowNextMax[row]); // TODO not needed?!
 		}
-		assert (0 <= nSuffixes && nSuffixes <= nEntries);
-
-		// create the new subnode of the correct size
-		assert (nEntries > 0 && nSuffixes > 0 && nEntries >= nSuffixes);
-		const unsigned int prefixLength = currentLcp - lastLcp;
-		const unsigned int prefixBits = DIM * prefixLength;
-		const unsigned int suffixBits = DIM * (WIDTH - (currentIndex + 1));
-		Node<DIM>* newSubnode = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(
-				prefixBits, nEntries, nSuffixes, suffixBits);
-		currentNode->insertAtAddress(currentHcAddress, newSubnode);
-
-		// copy prefix into the new node
-		if (prefixLength > 0) {
-			const size_t suffixBitsForCopy = suffixBits + DIM;
-			MultiDimBitset<DIM>::duplicateHighestBits(suffixToCompareTo_, suffixBitsForCopy,
-					prefixLength, newSubnode->getPrefixStartBlock());
-		}
-
-		// insert all suffixes into the new subnode
-		for (unsigned j = 0; j < nEntries; ++j) {
-			const unsigned long hcAddress = currentLevelAddresses[j];
-			if (currentLevelAddressesUnique[j]) {
-				// insert suffix directly into node
-				// TODO actually no need to varify if the node is big enough!
-				assert (!(newSubnode->lookup(hcAddress, true)).exists);
-				Node<DIM>* adjustedNode = DynamicNodeOperationsUtil<DIM, WIDTH>::
-						insertSuffix(currentIndex, hcAddress, newSubnode, buffer_[i + j], tree);
-				assert (adjustedNode == newSubnode);
-			} else if (currentLevelAddressesSameFirst[j]) {
-				// inject suffix of entry into buffer and insert the buffer directly into the node
-				assert (!(newSubnode->lookup(hcAddress, true)).exists);
-				EntryBuffer<DIM, WIDTH>* newBuffer = newBuffers[j];
-				unsigned long* newSuffixStorage = newBuffer->init((suffixBits / DIM), newSubnode, hcAddress, buffer_[i + j].id_);
-				MultiDimBitset<DIM>::duplicateHighestBits(buffer_[i + j], suffixBits, suffixBits, newSuffixStorage);
-				uintptr_t bufferRef = reinterpret_cast<uintptr_t>(newBuffer);
-				newSubnode->insertAtAddress(hcAddress, bufferRef);
-			} else {
-				// insert entry into existing buffer
-				assert ((newSubnode->lookup(hcAddress, true)).hasSpecialPointer);
-				EntryBuffer<DIM, WIDTH>* existingBuffer = newBuffers[j];
-				bool needFlush = existingBuffer->insert(buffer_[i + j], currentIndex);
-				assert (!needFlush);
-			}
-		}
-
-		currentNode = newSubnode;
-		currentHcAddress = MultiDimBitset<DIM>::interleaveBits(suffixToCompareTo_, currentIndex + 1, DIM * WIDTH);
-		lastLcp = currentLcp;
-		currentLevelAddresses.clear();
-		currentLevelAddressesUnique.clear();
-		currentLevelAddressesSameFirst.clear();
-		globalBuffers->insert(newBuffers.begin(), newBuffers.end());
-		newBuffers.clear();
 	}
 
-	// insert the suffix into the lowest node
-	assert (logestCommonPrefixLength_ * DIM < suffixBits_);
-	const unsigned int currentIndex = index + highestLcp;
-	currentHcAddress = MultiDimBitset<DIM>::interleaveBits(suffixToCompareTo_, currentIndex + 1, DIM * WIDTH);
-	assert (!(currentNode->lookup(currentHcAddress, true)).exists);
-	const unsigned int newSuffixBits = DIM * (WIDTH - (currentIndex + 1));
-	if (currentNode->canStoreSuffixInternally(newSuffixBits)) {
-		unsigned long suffix = 0uL;
-		MultiDimBitset<DIM>::removeHighestBits(suffixToCompareTo_, suffixBits_, highestLcp, &suffix);
-		currentNode->insertAtAddress(currentHcAddress, suffix, suffixId_);
-	} else {
-		assert (currentNode->canStoreSuffix(newSuffixBits) == 0);
-		const pair<unsigned long*, unsigned int> suffixStartBlock = currentNode->reserveSuffixSpace(newSuffixBits);
-		currentNode->insertAtAddress(currentHcAddress, suffixStartBlock.second, suffixId_);
-		MultiDimBitset<DIM>::removeHighestBits(suffixToCompareTo_, suffixBits_, highestLcp, suffixStartBlock.first);
+	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
+			&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
+	this->node_->insertAtAddress(this->nodeHcAddress, rowNode[0]);
+
+#ifndef NDEBUG
+	// Validate all copied entries (except for the first one which was only copied partially)
+	for (unsigned i = 1; i < nextIndex_; ++i) {
+		assert (rowEmpty[i]);
+		assert (tree.lookup(*(originals_[i])).first);
 	}
+#endif
+
+	return rowNode[0];
 }
 
 

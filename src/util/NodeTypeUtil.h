@@ -24,7 +24,7 @@ public:
 	static Node<DIM>* buildNodeWithSuffixes(size_t prefixBits, size_t nDirectInserts, size_t nSuffixes, unsigned int suffixBits) {
 		assert (nSuffixes <= nDirectInserts);
 		Node<DIM>* node = buildNode(prefixBits, nDirectInserts);
-		if (suffixBits > 0) {
+		if (nSuffixes > 0 && suffixBits > 0 && !node->canStoreSuffixInternally(suffixBits)) {
 			const unsigned int suffixBlocks = 1 + (suffixBits - 1) / (8 * sizeof (unsigned long));
 			TSuffixStorage* storage = createSuffixStorage<WIDTH>(nSuffixes * suffixBlocks);
 			node->setSuffixStorage(storage);

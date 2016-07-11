@@ -10,9 +10,8 @@
 
 #include <iostream>
 #include <vector>
+#include "Entry.h"
 
-template <unsigned int DIM, unsigned int WIDTH>
-class Entry;
 template <unsigned int DIM>
 class Node;
 template <unsigned int DIM>
@@ -37,8 +36,8 @@ public:
 	void insert(const Entry<DIM, WIDTH>& e);
 	void insert(const std::vector<unsigned long>& values, int id);
 	void insertHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
-	void bulkInsert(const std::vector<const std::vector<unsigned long>>& values, const std::vector<int>& ids);
-	void bulkInsert(const std::vector<const Entry<DIM,WIDTH>>& entries);
+	void bulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids);
+	void bulkInsert(const std::vector<Entry<DIM,WIDTH>>& entries);
 
 	std::pair<bool,int> lookup(const Entry<DIM, WIDTH>& e) const;
 	std::pair<bool,int> lookup(const std::vector<unsigned long>& values) const;
@@ -97,23 +96,24 @@ void PHTree<DIM, WIDTH>::insert(const vector<unsigned long>& values, int id) {
 
 template <unsigned int DIM, unsigned int WIDTH>
 void PHTree<DIM, WIDTH>::bulkInsert(
-		const vector<const vector<unsigned long>>& values,
+		const vector<vector<unsigned long>>& values,
 		const vector<int>& ids) {
 	assert (values.size() == ids.size());
 
 
-	vector<const Entry<DIM,WIDTH>>* entries = new vector<const Entry<DIM,WIDTH>>();
-	entries->capacity(values.size());
-	for (unsigned i = 0; i < values.size(); ++i) {
+	vector<Entry<DIM,WIDTH>>* entries = new vector<Entry<DIM,WIDTH>>();
+	const size_t size = values.size();
+	entries->reserve(size);
+	for (unsigned i = 0; i < size; ++i) {
 		entries->emplace_back(values[i], ids[i]);
 	}
 
-	bulkInsert(entries);
+	bulkInsert(*entries);
 	delete entries;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PHTree<DIM, WIDTH>::bulkInsert(const vector<const Entry<DIM,WIDTH>>& entries) {
+void PHTree<DIM, WIDTH>::bulkInsert(const vector<Entry<DIM,WIDTH>>& entries) {
 	DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(entries, root_, *this);
 }
 

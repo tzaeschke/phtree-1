@@ -19,8 +19,8 @@ public:
 	TEntryBuffer();
 	virtual ~TEntryBuffer() {};
 
-	virtual void updateNode(Node<DIM>* node);
-	virtual std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
+	void updateNode(Node<DIM>* node);
+	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
 
 protected:
 	Node<DIM>* node_;
@@ -32,7 +32,7 @@ protected:
 using namespace std;
 
 template <unsigned int DIM>
-TEntryBuffer<DIM>::TEntryBuffer() {
+TEntryBuffer<DIM>::TEntryBuffer() : node_(NULL), nodeHcAddress(0) {
 }
 
 template <unsigned int DIM>

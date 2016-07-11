@@ -33,6 +33,12 @@ public:
 
 	static void duplicateHighestBits(const unsigned long* startBlock, unsigned int nBits, unsigned int nBitsToDuplicate, unsigned long* const outStartBlock);
 
+	static void duplicateBits(const unsigned long* startBlock, unsigned int nBits,
+			unsigned int nBitsToDuplicate, unsigned long* const outStartBlock);
+
+	static void duplicateLowestBitsAligned(const unsigned long* startBlock,
+			unsigned nBitsToCopy, unsigned long* const outStartBlock);
+
 	static size_t calculateLongestCommonPrefix(const unsigned long* const startBlock, unsigned int nBits, size_t startIndex,
 			const unsigned long* const otherStartBlock, unsigned int otherNBits, unsigned long* const outStartBlock);
 
@@ -515,6 +521,43 @@ void MultiDimBitset<DIM>::duplicateHighestBits(const unsigned long* startBlock,
 		//   (i.e. the last part is aligned with the end of a block)
 		assert (outStartBlock[lastBlockIndex - startCopyBlock] == 0);
 		outStartBlock[lastBlockIndex - startCopyBlock] = currentBlock;
+	}
+}
+
+template <unsigned int DIM>
+void MultiDimBitset<DIM>::duplicateBits(const unsigned long* startBlock, unsigned int nBits,
+		unsigned int nBitsToDuplicate, unsigned long* const outStartBlock) {
+
+	// duplicate the bits as if they are the highest bits
+	duplicateHighestBits(startBlock, nBits, nBitsToDuplicate, outStartBlock);
+
+	assert (nBits >= DIM * nBitsToDuplicate);
+	assert (nBitsToDuplicate > 0);
+
+	// remove bits from the highest block that might be copied wrongly
+	const size_t newNBits = DIM * nBitsToDuplicate;
+	const size_t lastCopyBitIndex = (newNBits - 1) % bitsPerBlock;
+	const size_t lastBlockIndex = (newNBits - 1) / bitsPerBlock;
+	const unsigned long highestBlockMask = ~((-1uL) << (lastCopyBitIndex + 1));
+	outStartBlock[lastBlockIndex] &= highestBlockMask;
+}
+
+template <unsigned int DIM>
+void MultiDimBitset<DIM>::duplicateLowestBitsAligned(const unsigned long* startBlock,
+		unsigned nBitsToCopy, unsigned long* const outStartBlock) {
+	assert (nBitsToCopy % DIM == 0);
+
+	const size_t nFullCopyBlocks = nBitsToCopy / bitsPerBlock;
+	for (unsigned b = 0; b < nFullCopyBlocks; ++b) {
+		outStartBlock[b] = startBlock[b];
+	}
+
+	const size_t remainingBits = nBitsToCopy % bitsPerBlock;
+	if (remainingBits > 0) {
+		outStartBlock[nFullCopyBlocks] = startBlock[nFullCopyBlocks];
+		// remove bits that were copied to much
+		const unsigned long upperEndMask = ~(filledBlock << remainingBits);
+		outStartBlock[nFullCopyBlocks] &= upperEndMask;
 	}
 }
 

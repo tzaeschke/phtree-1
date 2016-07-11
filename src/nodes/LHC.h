@@ -397,8 +397,8 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, uintptr_
 	}
 
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
-	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSpecialPointer);
-	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).specialPointer == pointer);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSpecialPointer);
+	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).specialPointer == pointer);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>

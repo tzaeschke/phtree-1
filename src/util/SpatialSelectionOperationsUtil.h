@@ -51,7 +51,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 
 			if (!prefixComp.first) {
 				#ifdef PRINT
-					cout << "prefix mismatch" << endl;
+					cout << "prefix mismatch at prefix index " << prefixComp.second << endl;
 				#endif
 				return pair<bool, int>(false, 0);
 			}
@@ -64,6 +64,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 		index += prefixLength;
 		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e.values_, index, DIM * WIDTH);
 		currentNode->lookup(hcAddress, content, true);
+		assert (!content.hasSpecialPointer);
 
 		if (!content.exists) {
 			#ifdef PRINT
@@ -74,6 +75,9 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 
 		if (content.hasSubnode) {
 			// recurse
+			#ifdef PRINT
+				cout << "ok up to index " << index << " > ";
+			#endif
 			++index;
 			currentNode = content.subnode;
 			lastHcAddress = content.address;
@@ -86,7 +90,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 								content.getSuffixStartBlock(), suffixBits);
 				if (!suffixComp.first) {
 					#ifdef PRINT
-						cout << "suffix mismatch" << endl;
+						cout << "suffix mismatch at suffix index " << suffixComp.second << endl;
 					#endif
 					return pair<bool, int>(false, 0);
 				}

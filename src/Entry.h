@@ -10,7 +10,6 @@
 
 #include <vector>
 #include <iostream>
-#include "util/MultiDimBitset.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
 class Entry {
@@ -25,6 +24,7 @@ class Entry {
 
 public:
 
+	Entry();
 	Entry(const std::vector<unsigned long> &values, int id);
 	Entry(const unsigned long* startBlock, int id);
 	~Entry();
@@ -39,8 +39,12 @@ public:
 
 #include <string>
 #include <assert.h>
+#include "util/MultiDimBitset.h"
 
 using namespace std;
+
+template <unsigned int DIM, unsigned int WIDTH>
+Entry<DIM, WIDTH>::Entry() : id_(0), nBits_(DIM * WIDTH), values_() { }
 
 template <unsigned int DIM, unsigned int WIDTH>
 Entry<DIM, WIDTH>::Entry(const vector<unsigned long> &values, int id) : id_(id), nBits_(DIM * WIDTH), values_() {
