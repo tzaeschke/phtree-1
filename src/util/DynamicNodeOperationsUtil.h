@@ -27,6 +27,7 @@ public:
 	static unsigned int nInsertSuffix;
 	static unsigned int nInsertSuffixEnlarge;
 	static unsigned int nInsertSuffixBuffer;
+	static unsigned int nInsertSuffixIntoBuffer;
 	static unsigned int nInsertSplitPrefix;
 	static unsigned int nFlushCountWithin;
 	static unsigned int nFlushCountAfter;
@@ -65,6 +66,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountAfter = 0;
 template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixIntoBuffer = 0;
 
 #include <assert.h>
 #include <stdexcept>
@@ -90,6 +93,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters() {
 	nFlushCountAfter = 0;
 	nFlushCountWithin = 0;
 	nInsertSuffixBuffer = 0;
+	nInsertSuffixIntoBuffer = 0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

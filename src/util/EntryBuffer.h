@@ -40,8 +40,10 @@ private:
 
 	size_t nextIndex_;
 	size_t suffixBits_;
-	// TODO symmetric matrix with no information on diagonal: need to store n/2 (n-1) fields only
-	unsigned int lcps_[capacity_ * capacity_];
+	// - symmetric matrix: need to store n/2 (n+1) fields only
+	// - stores the diagonal too for easier access
+	// - stores the lower matrix because LCP values of one row are stored together
+	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
 	Entry<DIM, WIDTH> buffer_[capacity_];
 
 	// TODO validation only:
@@ -76,7 +78,7 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 	nextIndex_ = 0;
 	suffixBits_ = 0;
 	for (unsigned row = 0; row < capacity_; ++row) {
-		for (unsigned column = 0; column < capacity_; ++column) {
+		for (unsigned column = 0; column <= row; ++column) {
 			setLcp(row, column, 0);
 		}
 	}
@@ -85,14 +87,20 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 template <unsigned int DIM, unsigned int WIDTH>
 inline void EntryBuffer<DIM, WIDTH>::setLcp(unsigned int row, unsigned int column, unsigned int lcp) {
 	assert (row < capacity_ && column < capacity_);
-	const unsigned int index = row * capacity_ + column;
+	// only stores lower half of the symmetrical matrix
+	const unsigned int i = (row > column)? row : column;
+	const unsigned int j = (row > column)? column : row;
+	const unsigned int index = i * (i + 1) / 2 + j;
 	lcps_[index] = lcp;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 inline unsigned int EntryBuffer<DIM, WIDTH>::getLcp(unsigned int row, unsigned int column) const {
 	assert (row < capacity_ && column < capacity_);
-	const unsigned int index = row * capacity_ + column;
+	// only stores lower half of the symmetrical matrix
+	const unsigned int i = (row > column)? row : column;
+	const unsigned int j = (row > column)? column : row;
+	const unsigned int index = i * (i + 1) / 2 + j;
 	return lcps_[index];
 }
 
@@ -138,7 +146,6 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
 				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
 		assert(!comp.first);
-		setLcp(other, nextIndex_, comp.second); // TODO only one set necessary with half matrix!
 		setLcp(nextIndex_, other, comp.second);
 	}
 

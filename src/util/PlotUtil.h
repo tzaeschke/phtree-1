@@ -265,6 +265,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 	cout << "\t#split prefix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix << endl;
 	if (bulk) {
 		cout << "\t#new suffix buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer << endl;
+		cout << "\t#suffix insertion into buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixIntoBuffer << endl;
 		cout << "\t#flushes (bulk) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountWithin << endl;
 		cout << "\t#flushes (clean up) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountAfter << endl;
 	} else {
