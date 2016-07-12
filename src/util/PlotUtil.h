@@ -184,7 +184,7 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
 
 	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true);
-	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
+	/*const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
 
 	cout << "shuffling... " << flush;
 	random_shuffle(original->begin(), original->end());
@@ -208,7 +208,7 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	const double worseThanBest = 100.0 * (1.0 - (zOrderMs / normalMs));
 	cout << "The given order of the data was:" << endl
 			<< "\t" << betterThanWorst << "% better than the worst case (shuffled)" << endl
-			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;
+			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;*/
 
 	delete plotFile;
 	plot(INSERT_ORDER_NAME);
@@ -232,9 +232,11 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 		unsigned int startInsertTime, insertTime;
 		if (bulk) {
+			CALLGRIND_START_INSTRUMENTATION;
 			startInsertTime = clock();
 			phtree->bulkInsert(*entries, *ids);
 			insertTime = clock() - startInsertTime;
+			CALLGRIND_STOP_INSTRUMENTATION;
 		} else {
 			startInsertTime = clock();
 			for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
