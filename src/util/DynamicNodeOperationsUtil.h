@@ -18,6 +18,9 @@ template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
 template <unsigned int DIM, unsigned int WIDTH>
 class EntryBuffer;
+template <unsigned int DIM, unsigned int WIDTH>
+class EntryBufferPool;
+
 
 template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil {
@@ -48,7 +51,11 @@ public:
 			PHTree<DIM, WIDTH>& tree);
 
 private:
-	static inline void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree);
+	static inline void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer,
+			PHTree<DIM, WIDTH>& tree,
+			EntryBufferPool<DIM,WIDTH>* pool);
+	static inline void flushPool(PHTree<DIM, WIDTH>& tree,
+			EntryBufferPool<DIM,WIDTH>* pool);
 };
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -78,6 +85,7 @@ unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer = 0;
 #include "PHTree.h"
 #include "nodes/TSuffixStorage.h"
 #include "util/EntryBuffer.h"
+#include "util/EntryBufferPool.h"
 
 using namespace std;
 
@@ -460,7 +468,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 
 	Node<DIM>* currentRoot = rootNode;
 	NodeAddressContent<DIM> content;
-	set<EntryBuffer<DIM, WIDTH>*>* openBuffers = new set<EntryBuffer<DIM, WIDTH>*>();
+	EntryBufferPool<DIM, WIDTH>* pool = new EntryBufferPool<DIM,WIDTH>();
 
 	for (const auto &entry : entries) {
 		size_t lastHcAddress = 0;
@@ -514,25 +522,27 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 			} else if (content.exists && content.hasSpecialPointer) {
 				// a buffer was found that can be filled
 				EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM, WIDTH>*>(content.specialPointer);
-				assert (openBuffers->count(buffer));
 				assert (buffer && !buffer->full());
 				bool needFlush = buffer->insert(entry);
 #ifdef PRINT
 				cout << "insert into buffer (flush: " << needFlush << ")" << endl;
 #endif
 				if (needFlush) {
-					flushSubtree(buffer, tree);
+					flushSubtree(buffer, tree, pool);
 					++nFlushCountWithin;
-					openBuffers->erase(buffer); // TODO erase before delete?!
 				}
 
 				break;
 			} else if (content.exists && !content.hasSubnode) {
 				// instead of splitting the suffix a buffer is added
-				EntryBuffer<DIM, WIDTH>* buffer = new EntryBuffer<DIM, WIDTH>();
-				assert (!openBuffers->count(buffer));
+				EntryBuffer<DIM, WIDTH>* buffer = pool->allocate();
+				if (!buffer) {
+					flushPool(tree, pool);
+					buffer = pool->allocate();
+					assert (buffer);
+				}
+
 				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
-				openBuffers->insert(buffer);
 				break;
 			} else {
 				// node entry does not exist:
@@ -559,20 +569,35 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 	}
 
 	// remove all buffers
-	for (EntryBuffer<DIM, WIDTH>* buffer : (*openBuffers)) {
-		flushSubtree(buffer, tree);
-		++nFlushCountAfter;
-	}
-
-	delete openBuffers;
+	flushPool(tree, pool);
+	delete pool;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(
 		EntryBuffer<DIM, WIDTH>* buffer,
-		PHTree<DIM, WIDTH>& tree) {
+		PHTree<DIM, WIDTH>& tree,
+		EntryBufferPool<DIM,WIDTH>* pool) {
 	buffer->flushToSubtree(tree);
-	delete buffer;
+	buffer->clear();
+	pool->deallocate(buffer);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::flushPool(
+		PHTree<DIM, WIDTH>& tree,
+		EntryBufferPool<DIM,WIDTH>* pool) {
+	const size_t size = pool->prepareFullDeallocate();
+	for (unsigned i = 0; i < size; ++i) {
+		EntryBuffer<DIM, WIDTH>* buffer = pool->get(i);
+		if (buffer) {
+			assert (!buffer->empty());
+			buffer->flushToSubtree(tree);
+			buffer->clear();
+		}
+	}
+
+	pool->reset();
 }
 
 #endif /* SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_ */

@@ -8,7 +8,6 @@
 #ifndef SRC_UTIL_ENTRYBUFFER_H_
 #define SRC_UTIL_ENTRYBUFFER_H_
 
-#include <assert.h>
 #include <set>
 #include "Entry.h"
 #include "util/TEntryBuffer.h"
@@ -17,9 +16,12 @@ template <unsigned int DIM>
 class Node;
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
+template <unsigned int DIM, unsigned int WIDTH>
+class EntryBufferPool;
 
 template <unsigned int DIM, unsigned int WIDTH>
 class EntryBuffer : public TEntryBuffer<DIM> {
+	friend class EntryBufferPool<DIM, WIDTH>;
 public:
 	EntryBuffer();
 	~EntryBuffer() {};
@@ -51,6 +53,7 @@ private:
 	inline unsigned int getLcp(unsigned int row, unsigned int column) const;
 };
 
+#include <assert.h>
 #include "util/MultiDimBitset.h"
 #include "util/NodeTypeUtil.h"
 #include "nodes/Node.h"
@@ -62,7 +65,6 @@ EntryBuffer<DIM, WIDTH>::EntryBuffer() : nextIndex_(0), suffixBits_(0), lcps_(),
 
 template <unsigned int DIM, unsigned int WIDTH>
 Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress) {
-	clear();
 	assert (suffixLength <= (WIDTH - 1));
 	suffixBits_ = suffixLength * DIM;
 	this->node_ = node;
@@ -73,13 +75,20 @@ Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>*
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::clear() {
-	nextIndex_ = 0;
-	suffixBits_ = 0;
-	for (unsigned row = 0; row < capacity_; ++row) {
-		for (unsigned column = 0; column < capacity_; ++column) {
+	assert (suffixBits_ > 0);
+	const size_t blocksPerEntry = 1 + (suffixBits_ - 1) / MultiDimBitset<DIM>::bitsPerBlock;
+	for (unsigned row = 0; row < nextIndex_; ++row) {
+		for (unsigned column = 0; column < nextIndex_; ++column) {
 			setLcp(row, column, 0);
 		}
+
+		for (unsigned block = 0; block < blocksPerEntry; ++block) {
+			buffer_[row].values_[block] = 0;
+		}
 	}
+
+	suffixBits_ = 0;
+	nextIndex_ = 0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -121,6 +130,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	assert (!full());
 	assert (suffixBits_ > 0 && suffixBits_ % DIM == 0);
+	assert (0 < nextIndex_ && nextIndex_ <= capacity_);
 
 	// copy ID and necessary bits into the local buffer
 	buffer_[nextIndex_].id_ = entry.id_;
