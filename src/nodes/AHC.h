@@ -122,6 +122,7 @@ void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 		}
 	}
 
+	if (this->suffixes_) { delete this->suffixes_; }
 	delete this;
 }
 

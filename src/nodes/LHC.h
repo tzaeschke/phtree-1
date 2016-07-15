@@ -109,6 +109,7 @@ void LHC<DIM, PREF_BLOCKS, N>::recursiveDelete() {
 		}
 	}
 
+	if (this->suffixes_) { delete this->suffixes_; }
 	delete this;
 }
 

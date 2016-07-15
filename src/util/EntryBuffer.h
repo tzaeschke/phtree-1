@@ -162,6 +162,7 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 	assert (nextIndex_ > 0 && nextIndex_ <= capacity_);
+	assert (suffixBits_ > 0);
 
 	// builds the subtree from bottom up
 	bool rowEmpty[capacity_];
@@ -267,6 +268,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 		// create a new node for each row that was not ruled out yet
 		const unsigned int index = basicMsbIndex + maxRowMax;
+		assert (index < WIDTH);
 		// current suffix bits: buffer suffix bits - current longest prefix bits - HC address bits (one node)
 		const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax + 1);
 		for (unsigned row = 0; row < (nextIndex_ - 1) && hasMoreRows; ++row) {

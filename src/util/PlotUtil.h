@@ -36,7 +36,7 @@
 #define SQUARE_WIDTH_PERCENT {0.5};
 #define SELECTIVITY {0.1, 0.01, 0.001};
 
-#define N_REPETITIONS 10
+#define N_REPETITIONS 1
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
 #define N_RANDOM_ENTRIES_INSERT_SERIES 1000
 #define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
@@ -184,7 +184,7 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
 
 	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true);
-	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
+/*	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
 
 	cout << "shuffling... " << flush;
 	random_shuffle(original->begin(), original->end());
@@ -208,8 +208,9 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	const double worseThanBest = 100.0 * (1.0 - (zOrderMs / normalMs));
 	cout << "The given order of the data was:" << endl
 			<< "\t" << betterThanWorst << "% better than the worst case (shuffled)" << endl
-			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;
+			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;*/
 
+	delete original;
 	delete plotFile;
 	plot(INSERT_ORDER_NAME);
 }

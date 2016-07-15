@@ -366,6 +366,8 @@ pair<bool, size_t> MultiDimBitset<DIM>::compareAlignedBlocks(const unsigned long
 template <unsigned int DIM>
 unsigned long MultiDimBitset<DIM>::interleaveBits(const unsigned long* fromStartBlock, size_t msbIndex, size_t nBits) {
 		assert (nBits >= DIM * (msbIndex + 1));
+		assert (nBits % DIM == 0);
+		assert (nBits / DIM > msbIndex);
 
 		// TODO use blockwise operation
 		unsigned long hcAddress;

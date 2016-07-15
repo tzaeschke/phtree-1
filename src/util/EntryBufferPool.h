@@ -49,6 +49,7 @@ void EntryBufferPool<DIM, WIDTH>::reset() {
 
 template <unsigned int DIM, unsigned int WIDTH>
 size_t EntryBufferPool<DIM, WIDTH>::prepareFullDeallocate() {
+	assert (headIndex_ == (-1u) || headIndex_ < capacity_);
 
 	// only disables the current items in the free list by flagging their index
 	// attention: this destroys the free list so reset() should be called afterwards!
@@ -78,7 +79,8 @@ EntryBuffer<DIM, WIDTH>* EntryBufferPool<DIM, WIDTH>::allocate() {
 
 	if (nInitialized_ < capacity_) {
 		// not all fields were initialized so add the next entry to the free list
-		pool_[nInitialized_].nextIndex_ = ++nInitialized_;
+		pool_[nInitialized_].nextIndex_ = nInitialized_ + 1;
+		++nInitialized_;
 	}
 
 	EntryBuffer<DIM,WIDTH>* alloc = NULL;
@@ -90,6 +92,8 @@ EntryBuffer<DIM, WIDTH>* EntryBufferPool<DIM, WIDTH>::allocate() {
 		} else {
 			headIndex_ = -1u;
 		}
+
+		alloc->nextIndex_ = 0;
 	}
 
 	return alloc;
