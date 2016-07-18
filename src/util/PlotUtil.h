@@ -145,11 +145,14 @@ void PlotUtil::plot(string gnuplotFileName) {
 	string dataPath = PLOT_DATA_PATH + gnuplotFileName + PLOT_DATA_EXTENSION;
 	// first sort the file
 	string sortCommand = "sort " + dataPath + " -o " + dataPath;
+	cout << "sorting plot file..." << flush;
 	system(sortCommand.c_str());
+	cout << " ok | plotting... " << flush;
 	// second plot the file
 	string plotPath = GNUPLOT_FILE_PATH + gnuplotFileName + GNUPLOT_FILE_EXTENSION;
 	string gnuplotCommand = "gnuplot -p '" + plotPath + "'";
 	system(gnuplotCommand.c_str());
+	cout << " ok" << endl;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -186,6 +189,7 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true);
 /*	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
 	cout << "shuffling... " << flush;
+
 	random_shuffle(original->begin(), original->end());
 	cout << "ok" << endl;
 	const double shuffledMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "shuffled", false);
@@ -291,7 +295,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 	const double insertMs = double(smallestInsertTime) / double(CLOCKS_PER_SEC);
 	(*plotFile) << run << "\t" << lable << "\t" << insertMs << endl;
-	cout << "Run nr. " << run << "(" << lable << "): " << insertMs << " ms" << endl;
+	cout << "Run nr. " << run << " (" << lable << "): " << insertMs << " ms" << endl;
 	return insertMs;
 }
 

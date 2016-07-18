@@ -38,7 +38,7 @@ public:
 	Node<DIM>* flushToSubtree(PHTree<DIM, WIDTH>& tree);
 
 private:
-	static const size_t capacity_ = 10;
+	static const size_t capacity_ = 25;
 
 	size_t nextIndex_;
 	size_t suffixBits_;
@@ -149,14 +149,41 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	// compare the new entry to all previously inserted entries
 	const unsigned int startIndexDim = WIDTH - (suffixBits_ / DIM);
 	for (unsigned other = 0; other < nextIndex_; ++other) {
-		// TODO no need to compare all values!
-		// TODO no need to compare to full values!
 		assert (getLcp(other, nextIndex_) == 0 && getLcp(nextIndex_, other) == 0);
 		assert (MultiDimBitset<DIM>::checkRangeUnset(buffer_[other].values_, DIM * WIDTH, suffixBits_));
+
+		bool foundLcp = false;
+		unsigned int lcp;
+		unsigned int highestLcp = 0;
+		// search in previous comparisons for: LCP(prev, this) != LCP(prev, other)
+		// in that case the current LCP(this, other) is the minimum of these two
+		// otherwise the LCP is at least max(LCP(prev, this))
+		for (unsigned prev = 0; prev < other && !foundLcp; ++prev) {
+			unsigned int prevLcp = getLcp(other, prev);
+			unsigned int thisLcp = getLcp(nextIndex_, prev);
+			if (prevLcp != thisLcp) {
+				foundLcp = true;
+				lcp = (thisLcp < prevLcp)? thisLcp : prevLcp;
+			} else if (prevLcp > highestLcp) {
+				highestLcp = prevLcp;
+			}
+		}
+
+		if (!foundLcp) {
+			const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
+				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
+			assert(!comp.first);
+			lcp = comp.second; // TODO only need to compare a small fraction and than do + highestLcp;
+		}
+
+#ifndef NDEBUG
+		// compare the two entire values for validation
 		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
 				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
-		assert(!comp.first);
-		setLcp(nextIndex_, other, comp.second);
+		assert(!comp.first && comp.second == lcp);
+#endif
+
+		setLcp(nextIndex_, other, lcp);
 	}
 
 	++nextIndex_;
