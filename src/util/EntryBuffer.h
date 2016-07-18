@@ -177,9 +177,11 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 	unsigned int rowNextMax[capacity_];
 	unsigned int rowNSuffixes[capacity_];
 	unsigned int rowNSubnodes[capacity_];
+	unsigned int rowNextValidOffset[capacity_];
 	Node<DIM>* rowNode[capacity_];
 	for (unsigned row = 0; row < nextIndex_; ++row) {
 		rowEmpty[row] = false;
+		rowNextValidOffset[row] = 1;
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!
 		rowNextMax[row] = -1u;
@@ -193,8 +195,9 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 		// calculate maximum and number of occurrences per row
 		// TODO no need to revisit rows that were not changed!
-		for (unsigned row = 0; row < nextIndex_; ++row) {
-			if (rowEmpty[row]) continue;
+		for (unsigned row = 0; row < nextIndex_; row += rowNextValidOffset[row]) {
+			if (rowEmpty[row]) {continue;}
+			assert (rowNextValidOffset[row] != 0);
 			hasMoreRows = row != 0;
 
 //			if (lastMaxRowMax == rowMax[row]) {
@@ -203,8 +206,8 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 				rowMax[row] = -1u; // TODO possible similar to: (rowNextMax[row] == (-1u))? -1u : rowNextMax[row] - 1;
 				rowNextMax[row] = -1u;
 
-				for (unsigned column = 0; column < nextIndex_; ++column) { // TODO how to save iterations?
-					if (rowEmpty[column] || row == column) continue;
+				for (unsigned column = 0; column < nextIndex_; column += rowNextValidOffset[column]) { // TODO how to save iterations?
+					if (rowEmpty[column] || row == column) {continue;}
 
 					const unsigned int currentLcp = getLcp(row, column);
 					if ((1 + currentLcp) <= (1 + rowNextMax[row])) {
@@ -261,7 +264,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 			for (unsigned col = 0; col < nextIndex_; ++col) {
 				cout << "\t";
-				if (rowEmpty[row] || rowEmpty[col]) {cout << "-";}
+				if (rowEmpty[row] || rowEmpty[col]) {cout << "x (+" << rowNextValidOffset[col] << ")";}
 				else if (getLcp(row, col) == (-1u)) {cout << "(-1)";}
 				else {
 					cout << getLcp(row, col);
@@ -278,8 +281,8 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 		assert (index < WIDTH);
 		// current suffix bits: buffer suffix bits - current longest prefix bits - HC address bits (one node)
 		const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax + 1);
-		for (unsigned row = 0; row < (nextIndex_ - 1) && hasMoreRows; ++row) {
-			if (rowEmpty[row] || maxRowMax != rowMax[row]) continue;
+		for (unsigned row = 0; row < nextIndex_ && hasMoreRows; row += rowNextValidOffset[row]) {
+			if (rowEmpty[row] || maxRowMax != rowMax[row]) {continue;}
 
 			setLcp(row, row, maxRowMax);
 			assert ((1 + rowMax[row]) > (1 + rowNextMax[row]));
@@ -299,9 +302,9 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 			}
 
 			// insert all entries within this row into the new sub node
-			for (unsigned column = row; column < nextIndex_; ++column) {
+			for (unsigned column = row; column < nextIndex_; column += rowNextValidOffset[column]) {
 				const unsigned int currentLcp = getLcp(row, column);
-				if (rowEmpty[column] || currentLcp != rowMax[row]) continue;
+				 if (rowEmpty[column] || currentLcp != rowMax[row]) {continue;} // TODO != maxRowMax?!
 
 				const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(buffer_[column].values_,index , DIM * WIDTH);
 				assert (!(currentNode->lookup(hcAddress, true).exists));
@@ -329,6 +332,20 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 				rowEmpty[column] |= (row != column);
 				rowNode[column] = currentNode;
+
+				assert (rowNextValidOffset[column] == 1 && !rowEmpty[0]);
+				if (row != column) {
+					// invalidate the current entry and skip it in future runs
+					unsigned int firstEmptyCol;
+					for (firstEmptyCol = column; rowEmpty[firstEmptyCol]; --firstEmptyCol);
+					rowNextValidOffset[firstEmptyCol + 1] = column - firstEmptyCol;
+					if (column + 1 < nextIndex_ && rowEmpty[column + 1]) {
+						//       _ x x x (x) x x x x _
+						// prev:   ----->    ------->
+						// new:    ----------------->
+						rowNextValidOffset[firstEmptyCol + 1] += rowNextValidOffset[column + 1];
+					}
+				}
 			}
 
 			setLcp(row, row, rowNextMax[row]); // TODO not needed?!
@@ -340,7 +357,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 	this->node_->insertAtAddress(this->nodeHcAddress, rowNode[0]);
 
 #ifndef NDEBUG
-	// Validate all copied entries (except for the first one which was only copied partially)
+	// Validate all entries (except for the first one which was only copied partially)
 	for (unsigned i = 1; i < nextIndex_; ++i) {
 		assert (rowEmpty[i]);
 		assert (tree.lookup(*(originals_[i])).first);

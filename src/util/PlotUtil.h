@@ -185,7 +185,6 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 
 	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true);
 /*	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
-
 	cout << "shuffling... " << flush;
 	random_shuffle(original->begin(), original->end());
 	cout << "ok" << endl;
@@ -233,9 +232,11 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 		unsigned int startInsertTime, insertTime;
 		if (bulk) {
+			CALLGRIND_START_INSTRUMENTATION;
 			startInsertTime = clock();
 			phtree->bulkInsert(*entries, *ids);
 			insertTime = clock() - startInsertTime;
+			CALLGRIND_STOP_INSTRUMENTATION;
 		} else {
 			startInsertTime = clock();
 			for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
