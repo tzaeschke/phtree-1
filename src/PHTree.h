@@ -20,6 +20,8 @@ template <unsigned int DIM>
 class SizeVisitor;
 template <unsigned int DIM, unsigned int WIDTH>
 class RangeQueryIterator;
+template <unsigned int DIM, unsigned int WIDTH>
+class InsertionThreadPool;
 
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree {
@@ -29,12 +31,16 @@ class PHTree {
 	friend std::ostream& operator<<(std::ostream& os, const PHTree<D, W>& tree);
 	template <unsigned int D, unsigned int W>
 	friend class DynamicNodeOperationsUtil;
+	template <unsigned int D, unsigned int W>
+	friend class InsertionThreadPool;
 public:
 	PHTree();
 	explicit PHTree(const PHTree<DIM, WIDTH>& other);
 	virtual ~PHTree();
 	void insert(const Entry<DIM, WIDTH>& e);
 	void insert(const std::vector<unsigned long>& values, int id);
+	void parallelInsert(const Entry<DIM,WIDTH>& entry);
+	void parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads);
 	void insertHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
 	void bulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids);
 	void bulkInsert(const std::vector<Entry<DIM,WIDTH>>& entries);
@@ -60,12 +66,12 @@ private:
 #include "util/DynamicNodeOperationsUtil.h"
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "util/NodeTypeUtil.h"
+#include "util/InsertionThreadPool.h"
 
 using namespace std;
 
 template <unsigned int DIM, unsigned int WIDTH>
 PHTree<DIM, WIDTH>::PHTree() {
-
 	const unsigned int blocksForFirstSuffix = 1 + ((WIDTH - 1) * DIM - 1) / (8 * sizeof (unsigned long));
 	root_ = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(0, 1, 1, blocksForFirstSuffix);
 }
@@ -93,6 +99,21 @@ void PHTree<DIM, WIDTH>::insert(const vector<unsigned long>& values, int id) {
 	const Entry<DIM, WIDTH> entry(values, id);
 	insert(entry);
 }
+
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::parallelInsert(const Entry<DIM,WIDTH>& entry) {
+	DynamicNodeOperationsUtil<DIM,WIDTH>::parallelInsert(entry, this);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads) {
+	assert (nThreads > 0);
+	InsertionThreadPool<DIM,WIDTH>* pool = new InsertionThreadPool<DIM,WIDTH>(nThreads - 1, values, ids, this);
+	pool->joinPool();
+	delete pool;
+}
+
 
 template <unsigned int DIM, unsigned int WIDTH>
 void PHTree<DIM, WIDTH>::bulkInsert(

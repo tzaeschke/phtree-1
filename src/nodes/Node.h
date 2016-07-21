@@ -8,10 +8,16 @@
 #ifndef SRC_NODE_H_
 #define SRC_NODE_H_
 
+#ifndef BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+	// requires upwards conversions of shared mutex
+#define BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+#endif
+
 #include "Entry.h"
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
 #include "util/MultiDimBitset.h"
+#include <boost/thread/shared_mutex.hpp>
 
 template <unsigned int DIM>
 class Visitor;
@@ -31,7 +37,11 @@ class Node {
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	virtual ~Node() {};
+	boost::shared_mutex rwLock;
+	bool removed;
+
+	Node();
+	virtual ~Node();
 	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) = 0;
 	virtual NodeIterator<DIM>* begin() const = 0;
 	virtual NodeIterator<DIM>* it(unsigned long hcAddress) const =0;
@@ -65,8 +75,19 @@ public:
 	// attention: linear checks! should be used for validation only
 	bool containsId(int id) const;
 	size_t getNStoredSuffixes() const;
-
 };
+
+using namespace std;
+
+template <unsigned int DIM>
+Node<DIM>::Node() : removed(false) {
+//	pthread_rwlock_init(&rwLock, NULL);
+}
+
+template <unsigned int DIM>
+Node<DIM>::~Node() {
+//	pthread_rwlock_destroy(&rwLock);
+}
 
 template <unsigned int DIM>
 NodeAddressContent<DIM> Node<DIM>::lookup(unsigned long address, bool resolveSuffixIndex) const {

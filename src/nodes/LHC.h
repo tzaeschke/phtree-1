@@ -499,7 +499,8 @@ Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 NodeIterator<DIM>* LHC<DIM, PREF_BLOCKS, N>::begin() const {
 	LHCIterator<DIM, PREF_BLOCKS, N>* it = new LHCIterator<DIM, PREF_BLOCKS, N>(*this);
-	it->setToBegin();
+	if (m == 0) it->setToEnd();
+	else it->setToBegin();
 	return it;
 }
 

@@ -20,6 +20,7 @@
 #define INSERT_SERIES_PLOT_NAME 			"phtree_insert_series"
 #define AXONS_DENDRITES_PLOT_NAME 			"phtree_axons_dendrites"
 #define INSERT_ORDER_NAME		 			"phtree_insert_order"
+#define PARALLEL_INSERT_NAME				"phtree_parallel_insert"
 
 #define PLOT_DATA_PATH "./plot/data/"
 #define PLOT_DATA_EXTENSION ".dat"
@@ -76,6 +77,9 @@ public:
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotInsertPerformanceDifferentOrder(std::string file, bool isFloat);
 
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotParallelInsertPerformance(std::string file, bool isFloat);
+
 private:
 	static void plot(std::string gnuplotFileName);
 	static void clearPlotFile(std::string dataFileName);
@@ -84,7 +88,7 @@ private:
 	static inline std::vector<std::vector<unsigned long>>* generateUniqueRandomEntriesList(size_t nUniqueEntries);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static double writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries,
-			ofstream* plotFile, size_t runNumber, std::string lable, bool bulk);
+			ofstream* plotFile, size_t runNumber, std::string lable, bool bulk, bool parallel, size_t nThreads);
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void writeAverageInsertTimeOfDimension(size_t runNumber, std::vector<std::vector<unsigned long>>* entries, bool bulk);
 };
@@ -96,6 +100,7 @@ private:
 #include <assert.h>
 #include <valgrind/callgrind.h>
 #include <cstdlib>
+#include <thread>
 
 #include "Entry.h"
 #include "PHTree.h"
@@ -183,7 +188,7 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
 
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true);
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true, false, 0);
 /*	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
 
 	cout << "shuffling... " << flush;
@@ -215,14 +220,43 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	plot(INSERT_ORDER_NAME);
 }
 
+
 template <unsigned int DIM, unsigned int WIDTH>
-double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable, bool bulk) {
+void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
+
+	vector<vector<unsigned long>>* original;
+	if (isFloat) {
+		original= FileInputUtil::
+			readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		original = FileInputUtil::readEntries<DIM>(file);
+	}
+
+	const double sequentialMs = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
+	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
+
+	const size_t availableThreads = thread::hardware_concurrency();
+	for (unsigned t = 1; t <= availableThreads; ++t) {
+		string lable = "parallel-" + to_string(t);
+		const double parallelMs = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, t + 1, lable, false, true, t);
+
+		const double efficiency = sequentialMs / parallelMs;
+		(*plotFile) << t << "\t" << efficiency << endl;
+	}
+
+	delete original;
+	delete plotFile;
+	plot(PARALLEL_INSERT_NAME);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entries, ofstream* plotFile, size_t run, string lable, bool bulk, bool parallel, size_t nThreads) {
 
 	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM,WIDTH>();
 	unsigned int smallestInsertTime = (-1u);
 	cout << "run with " << N_REPETITIONS << " repetitions: " << flush;
 	vector<int>* ids = new vector<int>();
-	for (unsigned iEntry = 0; iEntry < entries->size() && bulk; ++iEntry) {
+	for (unsigned iEntry = 0; iEntry < entries->size() && (bulk || parallel); ++iEntry) {
 		ids->push_back(iEntry);
 	}
 
@@ -235,6 +269,10 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		if (bulk) {
 			startInsertTime = clock();
 			phtree->bulkInsert(*entries, *ids);
+			insertTime = clock() - startInsertTime;
+		} else if (parallel) {
+			startInsertTime = clock();
+			phtree->parallelBulkInsert(*entries, *ids, nThreads);
 			insertTime = clock() - startInsertTime;
 		} else {
 			startInsertTime = clock();
@@ -289,7 +327,11 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 	delete phtree;
 
 	const double insertMs = double(smallestInsertTime) / double(CLOCKS_PER_SEC);
-	(*plotFile) << run << "\t" << lable << "\t" << insertMs << endl;
+
+	if (plotFile) {
+		(*plotFile) << run << "\t" << lable << "\t" << insertMs << endl;
+	}
+
 	cout << "Run nr. " << run << "(" << lable << "): " << insertMs << " ms" << endl;
 	return insertMs;
 }
