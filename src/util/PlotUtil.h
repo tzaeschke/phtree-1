@@ -37,7 +37,7 @@
 #define SQUARE_WIDTH_PERCENT {0.5};
 #define SELECTIVITY {0.1, 0.01, 0.001};
 
-#define N_REPETITIONS 10
+#define N_REPETITIONS 1
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
 #define N_RANDOM_ENTRIES_INSERT_SERIES 1000
 #define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
@@ -232,7 +232,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 		original = FileInputUtil::readEntries<DIM>(file);
 	}
 
-	const double sequentialMs = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
+	const double sequentialMs = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
 	const size_t availableThreads = thread::hardware_concurrency();

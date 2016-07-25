@@ -3,6 +3,11 @@
 #include <vector>
 #include <assert.h>
 
+#ifndef BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+	// requires upwards conversions of shared mutex
+#define BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+#endif
+
 #include "Entry.h"
 #include "PHTree.h"
 #include "util/PlotUtil.h"

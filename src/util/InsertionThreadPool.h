@@ -30,6 +30,8 @@ public:
 
 private:
 
+	std::atomic<unsigned int> i_;
+	mutex m;
 	size_t nThreads_;
 	std::vector<std::thread> threads_;
 	const std::vector<std::vector<unsigned long>>& values_;
@@ -50,7 +52,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t nThreads,
 		const vector<vector<unsigned long>>& values,
 		const vector<int>& ids, PHTree<DIM, WIDTH>* tree)
-		: values_(values), ids_(ids), tree_(tree) {
+		: i_(0), values_(values), ids_(ids), tree_(tree) {
+	assert (values.size() > 0);
 	// create the biggest possible root node so there is no need to synchronize access on the root
 	Node<DIM>* oldRoot = tree->root_;
 	assert (oldRoot->getNumberOfContents() == 0);
@@ -59,6 +62,7 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t nThreads,
 	delete oldRoot;
 
 	nThreads_ = nThreads + 1;
+	DynamicNodeOperationsUtil<DIM,WIDTH>::nThreads = nThreads_;
 	threads_.reserve(nThreads);
 	for (unsigned tCount = 0; tCount < nThreads; ++tCount) {
 		threads_.emplace_back(&InsertionThreadPool<DIM,WIDTH>::processNext, this, tCount);
@@ -73,6 +77,7 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 
 	// shrink the root node again
 	size_t rootContents = tree_->root_->getNumberOfContents();
+	assert (rootContents > 0);
 	Node<DIM>* oldRoot = tree_->root_;
 	Node<DIM>* newRoot = NodeTypeUtil<DIM>::copyIntoLargerNode(rootContents, oldRoot);
 	tree_->root_ = newRoot;
@@ -87,7 +92,19 @@ void InsertionThreadPool<DIM, WIDTH>::joinPool() {
 template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 	const size_t size = values_.size();
-	const size_t start = size * threadIndex / nThreads_;
+
+	size_t i = 0;
+	while (i < size) {
+		m.lock();
+		i = i_++;
+		m.unlock();
+		if (i < size) {
+			const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
+			DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
+		}
+	}
+
+/*	const size_t start = size * threadIndex / nThreads_;
 	const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
 
 	for (size_t i = start; i < end; ++i) {
@@ -98,7 +115,7 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 		// get the next valid work item
 		const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
 		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
-	}
+	}*/
 
 
 #ifdef PRINT

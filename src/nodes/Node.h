@@ -37,7 +37,7 @@ class Node {
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	boost::shared_mutex rwLock;
+	boost::upgrade_mutex rwLock;
 	bool removed;
 
 	Node();

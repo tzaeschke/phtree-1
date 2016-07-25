@@ -39,6 +39,7 @@ public:
 	static unsigned int nInsertSplitPrefix;
 	static unsigned int nFlushCountWithin;
 	static unsigned int nFlushCountAfter;
+	static unsigned int nThreads;
 
 	static void resetCounters();
 	static void insert(const Entry<DIM, WIDTH>& e, Node<DIM>* rootNode, PHTree<DIM, WIDTH>& tree);
@@ -68,8 +69,11 @@ private:
 	static inline bool optimisticWriteLock(Node<DIM>* currentNode, Node<DIM>* previousNode);
 	static inline void optimisticWriteUnlock(Node<DIM>* node);
 	static inline void optimisticWriteUnlock(Node<DIM>* currentNode, Node<DIM>* previousNode);
-	static inline bool readLock(Node<DIM>* currentNode);
-	static inline void readUnlock(Node<DIM>* currentNode);
+	static inline void readLockBlocking(Node<DIM>* node);
+	static inline bool readLock(Node<DIM>* node);
+	static inline void readUnlock(Node<DIM>* node);
+	static inline void readUnlock(Node<DIM>* child, Node<DIM>* parent);
+	static inline void readUnlock(Node<DIM>* child, Node<DIM>* current, Node<DIM>* parent);
 };
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -88,12 +92,15 @@ template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer = 0;
 template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixIntoBuffer = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nThreads = 0;
 
 #include <assert.h>
 #include <stdexcept>
 #include <cstdint>
 #include <set>
 #include <atomic>
+#include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "util/NodeTypeUtil.h"
@@ -386,231 +393,369 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 template <unsigned int DIM, unsigned int WIDTH>
 bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(Node<DIM>* node) {
 	assert (node);
+	assert (!node->removed);
+	assert (node->rwLock.state.shared_count > 0);
 
 	bool success = false;
-
-	if (!node->removed && node->rwLock.try_unlock_shared_and_lock_upgrade()) {
+	if (node->rwLock.try_unlock_shared_and_lock_upgrade()) {
 		// the thread now holds the only lock with upgrade privileges on the node
-		node->rwLock.unlock_upgrade_and_lock();
-		// now there are no other threads (reader / writer) allowed and present
-		success = true;
-	}
 
+		// otherwise: node->rwLock.unlock_upgrade_and_lock()
 
-/*	bool done = false;
-	while (!done) {
-		if (pthread_rwlock_trywrlock(&node->rwLock) == 0) {
-			// exclusive write lock on the node
-			done = true; success = true;
-		} else if (pthread_rwlock_tryrdlock(&node->rwLock) == 0) {
-			// there are currently only readers in the node so try again
-			pthread_rwlock_unlock(&node->rwLock);
+		if (node->rwLock.try_unlock_upgrade_and_lock()) {
+			// now there are no other threads (reader / writer) allowed and present
+			success = true;
+			assert (node->rwLock.state.exclusive);
+			assert (node->rwLock.state.shared_count == 0);
 		} else {
-			// there is another writer in the node
-			done = true;
+			node->rwLock.unlock_upgrade_and_lock_shared();
 		}
-	}*/
+	}
 
 	return success;
 }
 
-template <unsigned int DIM, unsigned int WIDTH>
-bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(Node<DIM>* currentNode, Node<DIM>* previousNode) {
+template<unsigned int DIM, unsigned int WIDTH>
+bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(
+		Node<DIM>* child, Node<DIM>* parent) {
 
-	if (optimisticWriteLock(previousNode)) {
-		if (optimisticWriteLock(currentNode)) {
+	if (optimisticWriteLock(parent)) {
+		if (optimisticWriteLock(child)) {
 			return true;
 		} else {
-			readUnlock(currentNode);
-			optimisticWriteUnlock(previousNode);
+			// downgrade the parent write lock to a shared lock again
+			parent->rwLock.unlock_and_lock_shared();
 		}
-	} else {
-		readUnlock(currentNode);
-		readUnlock(previousNode);
 	}
 
 	return false;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* currentNode, Node<DIM>* previousNode) {
-	// first unlock the child and than the parent
-	optimisticWriteUnlock(currentNode);
-	optimisticWriteUnlock(previousNode);
+void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* child, Node<DIM>* parent) {
+	optimisticWriteUnlock(child);
+	optimisticWriteUnlock(parent);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* node) {
-//	pthread_rwlock_unlock(&node->rwLock);
 	assert (node);
+	assert (!node->removed);
+	assert (node->rwLock.state.shared_count == 0 && node->rwLock.state.exclusive);
 	node->rwLock.unlock();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::readLockBlocking(Node<DIM>* node) {
+	return node->rwLock.lock_shared();
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
 bool DynamicNodeOperationsUtil<DIM, WIDTH>::readLock(Node<DIM>* node) {
-//	return pthread_rwlock_tryrdlock(&currentNode->rwLock) == 0;
 	assert (node);
-	return !node->removed && node->rwLock.try_lock_shared();
+	assert (!node->removed);
+	assert (node->rwLock.state.shared_count < nThreads);
+	return node->rwLock.try_lock_shared();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::readUnlock(Node<DIM>* node) {
-//	pthread_rwlock_unlock(&currentNode->rwLock);
 	assert (node);
+	assert (node->removed == false);
+	assert (node->rwLock.state.shared_count > 0);
+	assert (node->rwLock.state.shared_count <= nThreads);
 	node->rwLock.unlock_shared();
 }
 
-template<unsigned int DIM, unsigned int WIDTH>
-void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(
-		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
-	size_t lastHcAddress = 0;
-	size_t index = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::readUnlock(Node<DIM>* child, Node<DIM>* parent) {
+	readUnlock(child);
+	if (parent) readUnlock(parent);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::readUnlock(Node<DIM>* child, Node<DIM>* current, Node<DIM>* parent) {
+	readUnlock(child);
+	readUnlock(current);
+	if (parent) readUnlock(parent);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+
+	size_t lastHcAddress, index;
+	index = 0;
 	Node<DIM>* lastNode = NULL;
-	Node<DIM>* currentNode = tree.root_;
-	bool currentLocked = readLock(currentNode);
-	bool restart = !currentLocked;
+	Node<DIM>* currentNode = NULL;
 	NodeAddressContent<DIM> content;
+	bool restart = true;
 
 	while (index < WIDTH) {
-		while (restart) {
-			// spin until the root can be read
-			assert (!lastNode);
-			if (currentLocked) readUnlock(currentNode);
+		if (restart) {
+			if (currentNode) readUnlock(currentNode);
+			if (lastNode) readUnlock(lastNode);
+
 			index = 0;
 			lastHcAddress = 0;
 			lastNode = NULL;
 			currentNode = tree.root_;
-			currentLocked = readLock(currentNode);
-			restart = !currentLocked;
+			readLockBlocking(currentNode);
+			restart = false;
 		}
 
-		// current node is already locked!
-			const size_t currentIndex = index + currentNode->getPrefixLength();
-			const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(
-					entry.values_, currentIndex, WIDTH * DIM);
-			currentNode->lookup(hcAddress, content, true);
-			assert(!content.exists || content.address == hcAddress);
-			assert(!content.exists || !content.hasSpecialPointer);
+		const size_t currentIndex = index + currentNode->getPrefixLength();
+		const unsigned long hcAddress =
+				MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex, WIDTH * DIM);
+		// TODO create content once and populate after each iteration instead of creating a new one
+		currentNode->lookup(hcAddress, content, true);
+		assert(!content.exists || content.address == hcAddress);
+		assert(!content.exists || !content.hasSpecialPointer);
 
-			if (content.exists && content.hasSubnode) {
-				// since there is a subnode the last node is not needed any more
-				if (lastNode) {
-					readUnlock(lastNode);
-					lastNode = NULL;
+		if (content.exists && content.hasSubnode) {
+			// there is a subnode so the last node is not relevant any more
+			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
+
+			// node entry and subnode exist:
+			// validate prefix of subnode
+			// case 1 (entry contains prefix): recurse on subnode
+			// case 2 (otherwise): split prefix at difference into two subnodes
+
+			// need to get read access to the subnode
+			Node<DIM>* subnode = content.subnode;
+			if (readLock(subnode)) {
+				const size_t subnodePrefixLength = subnode->getPrefixLength();
+				bool prefixIncluded = true;
+				size_t differentBitAtPrefixIndex = -1;
+				if (subnodePrefixLength > 0) {
+					const pair<bool, size_t> comp =  MultiDimBitset<DIM>::compare(entry.values_, DIM * WIDTH,
+							currentIndex + 1, currentIndex + 1 + subnodePrefixLength,
+							subnode->getFixPrefixStartBlock(), DIM * subnodePrefixLength);
+					prefixIncluded = comp.first;
+					differentBitAtPrefixIndex = comp.second;
 				}
 
-				// acquire a read lock on the subnode
-				if (readLock(content.subnode)) {
-					// node entry and subnode exist:
-					// validate prefix of subnode
-					// case 1 (entry contains prefix): recurse on subnode
-					// case 2 (otherwise): split prefix at difference into two subnodes
-					const size_t subnodePrefixLength =
-							content.subnode->getPrefixLength();
-					bool prefixIncluded = true;
-					size_t differentBitAtPrefixIndex = -1;
-					if (subnodePrefixLength > 0) {
-						const pair<bool, size_t> comp =
-								MultiDimBitset<DIM>::compare(entry.values_,
-										DIM * WIDTH, currentIndex + 1,
-										currentIndex + 1 + subnodePrefixLength,
-										content.subnode->getFixPrefixStartBlock(),
-										DIM * subnodePrefixLength);
-						prefixIncluded = comp.first;
-						differentBitAtPrefixIndex = comp.second;
-					}
+				lastNode = currentNode;
+				currentNode = subnode;
 
-					if (prefixIncluded) {
-						// recurse on subnode
-#ifdef PRINT
+				if (prefixIncluded) {
+					// recurse on subnode
+					#ifdef PRINT
 						cout << "recurse -> ";
-#endif
-						// no more need to hold the lock on the current node
-						lastHcAddress = hcAddress;
-						lastNode = currentNode;
-						currentNode = content.subnode;
-						index = currentIndex + 1;
-					} else {
-						// split prefix of subnode [A | d | B] where d is the index of the first different bit
-						// create new node with prefix A and only leave prefix B in old subnode
-						if (optimisticWriteLock(content.subnode, currentNode)) {
-							splitSubnodePrefix(currentIndex,
-									differentBitAtPrefixIndex,
-									subnodePrefixLength, currentNode, content,
-									entry, tree);
-							// the subnode was deleted in the subroutine so there is no need to unlock it
-// TODO actually only need to unlock the current node if the subnode was deleted: optimisticWriteUnlock(currentNode);
-							content.subnode->removed = true;
-							optimisticWriteUnlock(content.subnode, currentNode);
-							break;
-						} else {
-							restart = true;
-							currentLocked = false;
-						}
-					}
-
+					#endif
+					lastHcAddress = hcAddress;
+					index = currentIndex + 1;
 				} else {
-					// could not acquire a read lock on the subnode so restart
-					restart = true;
-					assert (currentLocked);
-				}
-
-			} else if (content.exists && !content.hasSubnode) {
-				// node entry and suffix exist:
-				// convert suffix to new node with prefix (longest common) + insert
-				if (lastNode) {
-					// does not need the last node any more
-					readUnlock(lastNode);
-					lastNode = NULL;
-				}
-
-				if (optimisticWriteLock(currentNode)) {
-					createSubnodeWithExistingSuffix(currentIndex, currentNode,
-							content, entry, tree);
-					optimisticWriteUnlock(currentNode);
-					break;
-				} else {
-					restart = true;
-					assert (currentLocked);
-				}
-			} else if (lastNode) {
-				if (optimisticWriteLock(currentNode, lastNode)) {
-					// node entry does not exist:
-					// insert entry + suffix in a non-root node
-					Node<DIM>* adjustedNode = insertSuffix(currentIndex,
-							hcAddress, currentNode, entry, tree);
-					assert(adjustedNode);
-					if (adjustedNode != currentNode) {
-						// the subnode changed: store the new one and delete the old
-						lastNode->insertAtAddress(lastHcAddress, adjustedNode);
-						// need to unlock the last node
+					// split prefix of subnode [A | d | B] where d is the index of the first different bit
+					// create new node with prefix A and only leave prefix B in old subnode
+					if (optimisticWriteLock(currentNode, lastNode)) {
+						splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, lastNode, content, entry, tree);
+						optimisticWriteUnlock(currentNode, lastNode);
 						currentNode->removed = true;
-						//TODO delete currentNode;
+						delete currentNode;
+						break;
+					} else {
+						restart = true;
 					}
-
-					optimisticWriteUnlock(currentNode, lastNode);
-					break;
-				} else {
-					restart = true;
-					currentLocked = false;
-					lastNode = NULL;
 				}
 			} else {
-				if (optimisticWriteLock(currentNode)) {
-					// change insert the suffix in the root node
-					Node<DIM>* adjustedNode = insertSuffix(currentIndex,
-							hcAddress, currentNode, entry, tree);
-					assert(adjustedNode);
-					assert (adjustedNode == currentNode && "should not change the root node: allocate the biggest size initially");
-					optimisticWriteUnlock(currentNode);
-					break;
-				} else {
-					restart = true;
-					assert (currentLocked);
-				}
+				// did not get access to the subnode so restart
+				restart = true;
 			}
+
+
+		} else if (content.exists && !content.hasSubnode) {
+			// node entry and suffix exist:
+			// convert suffix to new node with prefix (longest common) + insert
+			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
+
+			if (optimisticWriteLock(currentNode)) {
+				createSubnodeWithExistingSuffix(currentIndex, currentNode, content, entry, tree);
+				optimisticWriteUnlock(currentNode);
+				break;
+			} else {
+				restart = true;
+			}
+		} else if (lastNode) {
+			// node entry does not exist:
+			// insert entry + suffix
+			if (optimisticWriteLock(currentNode, lastNode)) {
+				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+				assert(adjustedNode);
+				if (adjustedNode != currentNode) {
+					// the subnode changed: store the new one and delete the old
+					lastNode->insertAtAddress(lastHcAddress, adjustedNode);
+				}
+
+				optimisticWriteUnlock(currentNode, lastNode);
+				if (adjustedNode != currentNode) {
+					delete currentNode;
+				}
+				break;
+			} else {
+				restart = true;
+			}
+		} else {
+			// changing the root node
+			if (optimisticWriteLock(currentNode)) {
+				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+				assert(adjustedNode);
+				assert (adjustedNode == tree.root_);
+				optimisticWriteUnlock(currentNode);
+				break;
+			} else {
+				restart = true;
+			}
+		}
 	}
 }
+
+/*template<unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(
+		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+	size_t lastHcAddress, index;
+	index = 0;
+	Node<DIM>* lastNode;
+	Node<DIM>* currentNode;
+	bool restart = true;
+	NodeAddressContent<DIM> content;
+	assert (tree.root_);
+
+	while (index < WIDTH) {
+		if (restart) {
+			index = 0;
+			lastHcAddress = 0;
+			lastNode = NULL;
+			currentNode = tree.root_;
+			readLockBlocking(currentNode);
+			restart = false;
+		}
+
+		// locking order:
+		// read locks: always hold a read lock on the last and the current node
+		// write locks: never needs to change more than two nodes so upgrade read locks to write locks if necessary
+		assert(!currentNode->removed);
+		assert(currentNode->rwLock.state.shared_count > 0);
+		assert (currentNode->rwLock.state.shared_count <= nThreads);
+		assert(!lastNode || !lastNode->removed);
+		assert(!lastNode || lastNode->rwLock.state.shared_count > 0);
+		assert (!lastNode || lastNode->rwLock.state.shared_count <= nThreads);
+
+		const size_t currentIndex = index + currentNode->getPrefixLength();
+		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex, WIDTH * DIM);
+		currentNode->lookup(hcAddress, content, true);
+		assert(!content.exists || content.address == hcAddress);
+		assert(!content.exists || !content.hasSpecialPointer);
+
+		if (content.exists && content.hasSubnode) {
+			// ////////////////////// SUBNODE //////////////////////
+			Node<DIM>* subnode = content.subnode;
+			assert(subnode);
+			// since there is a subnode the last node is not needed any more
+//			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
+
+			// acquire a read lock on the subnode
+			if (readLock(subnode)) {
+				// node entry and subnode exist:
+				// validate prefix of subnode
+				// case 1 (entry contains prefix): recurse on subnode
+				// case 2 (otherwise): split prefix at difference into two subnodes
+				const size_t subnodePrefixLength = subnode->getPrefixLength();
+				bool prefixIncluded = true;
+				size_t differentBitAtPrefixIndex = -1;
+				if (subnodePrefixLength > 0) { // validate prefix
+					const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(entry.values_,
+							DIM * WIDTH, currentIndex + 1, currentIndex + 1 + subnodePrefixLength,
+							subnode->getFixPrefixStartBlock(), DIM * subnodePrefixLength);
+					prefixIncluded = comp.first;
+					differentBitAtPrefixIndex = comp.second;
+				}
+
+				if (prefixIncluded) {
+					// ooooooooooooooooooooooooo RECURSE ON SUBNODE ooooooooooooooooooooooooo
+					lastHcAddress = hcAddress;
+					Node<DIM>* lastNodeTmp = lastNode;
+					lastNode = currentNode; // pass on read locked current node
+					currentNode = subnode; // pass on read locked subnode
+					index = currentIndex + 1;
+					if (lastNodeTmp) { readUnlock(lastNodeTmp); }
+					// ooooooooooooooooooooooooo RECURSE ON SUBNODE ooooooooooooooooooooooooo
+				} else {
+					// ::::::::::::::::::::::: CHANGE SUBNODE :::::::::::::::::::::::
+					if (optimisticWriteLock(subnode, currentNode)) {
+						splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, currentNode, content, entry, tree);
+						optimisticWriteUnlock(subnode);
+						subnode->removed = true;
+						delete subnode;
+						optimisticWriteUnlock(currentNode);
+						if (lastNode) { readUnlock(lastNode); }
+						return;
+					} else {
+						// failed to get write locks on the current node and the subnode
+						restart = true;
+						readUnlock(subnode, currentNode, lastNode);
+					}
+
+					// ::::::::::::::::::::::: CHANGE SUBNODE :::::::::::::::::::::::
+				}
+			} else {
+				// could not acquire a read lock on the subnode so restart
+				restart = true;
+				readUnlock(currentNode, lastNode);
+			}
+			// ////////////////////// SUBNODE //////////////////////
+		} else if (content.exists && !content.hasSubnode) {
+			// xxxxxxxxxxxxxxxxxxxxx INSERT SUBNODE xxxxxxxxxxxxxxxxxxxxx
+			// node entry and suffix exist:
+			// convert suffix to new node with prefix (longest common) + insert
+			if (optimisticWriteLock(currentNode)) {
+				createSubnodeWithExistingSuffix(currentIndex, currentNode, content, entry, tree);
+				optimisticWriteUnlock(currentNode);
+				if (lastNode) { readUnlock(lastNode); lastNode = NULL;}
+				return;
+			} else {
+				// could not get a write lock on the current node
+				restart = true;
+				readUnlock(currentNode, lastNode);
+			}
+			// xxxxxxxxxxxxxxxxxxxxx INSERT SUBNODE xxxxxxxxxxxxxxxxxxxxx
+		} else if (lastNode) {
+			// ------------------------- INSERT SUFFIX -------------------------------
+			if (optimisticWriteLock(currentNode, lastNode)) {
+				// node entry does not exist:
+				// insert entry + suffix in a non-root node
+				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+				if (adjustedNode != currentNode) {
+					lastNode->insertAtAddress(lastHcAddress, adjustedNode);
+					optimisticWriteUnlock(currentNode);
+					currentNode->removed = true;
+					delete currentNode;
+					optimisticWriteUnlock(lastNode);
+				} else {
+					optimisticWriteUnlock(currentNode, lastNode);
+				}
+				return;
+			} else {
+				// both the current node and the last node were already unlocked
+				restart = true;
+				readUnlock(currentNode, lastNode);
+			}
+			// ------------------------- INSERT SUFFIX -------------------------------
+		} else {
+			// ------------------------- INSERT SUFFIX INTO ROOT -------------------------------
+			if (optimisticWriteLock(currentNode)) {
+				// insert the suffix in the root node
+				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+				assert(adjustedNode == currentNode && "should not change the root node: allocate the biggest size initially");
+				optimisticWriteUnlock(currentNode);
+				return;
+			} else {
+				restart = true;
+				readUnlock(currentNode);
+			}
+			// ------------------------- INSERT SUFFIX INTO ROOT -------------------------------
+		}
+	}
+}*/
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry,
@@ -660,18 +805,13 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entr
 			} else {
 				// split prefix of subnode [A | d | B] where d is the index of the first different bit
 				// create new node with prefix A and only leave prefix B in old subnode
-				splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength,
-						currentNode, content, entry, tree);
-
+				splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, currentNode, content, entry, tree);
 				break;
 			}
-
 		} else if (content.exists && !content.hasSubnode) {
 			// node entry and suffix exist:
 			// convert suffix to new node with prefix (longest common) + insert
-			createSubnodeWithExistingSuffix(currentIndex,
-					currentNode, content, entry, tree);
-
+			createSubnodeWithExistingSuffix(currentIndex, currentNode, content, entry, tree);
 			break;
 		} else {
 			// node entry does not exist:
