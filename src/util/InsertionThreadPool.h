@@ -19,15 +19,24 @@
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
 
+enum InsertionOrder {
+		sequential_entries,
+		range_per_thread,
+		sequential_ranges
+};
+
 template <unsigned int DIM, unsigned int WIDTH>
 class InsertionThreadPool {
 public:
+
 	InsertionThreadPool(size_t nThreads,
 			const std::vector<std::vector<unsigned long>>& values,
 			const std::vector<int>& ids, PHTree<DIM, WIDTH>* tree);
 	~InsertionThreadPool();
 	void joinPool();
 
+	const size_t fixRangeSize = 100;
+	static InsertionOrder order_;
 private:
 
 	std::atomic<unsigned int> i_;
@@ -47,6 +56,9 @@ private:
 #include "util/NodeTypeUtil.h"
 
 using namespace std;
+
+template <unsigned int DIM, unsigned int WIDTH>
+InsertionOrder InsertionThreadPool<DIM, WIDTH>::order_ = range_per_thread;
 
 template <unsigned int DIM, unsigned int WIDTH>
 InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t nThreads,
@@ -93,30 +105,47 @@ template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 	const size_t size = values_.size();
 
-	size_t i = 0;
-	while (i < size) {
-		m.lock();
-		i = i_++;
-		m.unlock();
-		if (i < size) {
+	switch (order_) {
+	case sequential_entries: {
+		size_t i = 0;
+		while (i < size) {
+			i = i_++;
+			if (i < size) {
+				const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
+				DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
+			}
+		}
+	}
+
+		break;
+	case range_per_thread: {
+		const size_t start = size * threadIndex / nThreads_;
+		const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
+		for (size_t i = start; i < end; ++i) {
+			// get the next valid work item
 			const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
 			DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
 		}
 	}
 
-/*	const size_t start = size * threadIndex / nThreads_;
-	const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
-
-	for (size_t i = start; i < end; ++i) {
-	#ifdef PRINT
-				cout << "thread (ID: " << threadIndex << ") inserting value " << i << ": " << flush;
-	#endif
-
-		// get the next valid work item
-		const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
-		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
-	}*/
-
+		break;
+	case sequential_ranges: {
+		size_t start, end;
+		start = 0;
+		while (start < size) {
+			const size_t blockIndex = i_++;
+			start = blockIndex * fixRangeSize;
+			end = min(start + fixRangeSize, size);
+			for (size_t i = start; i < end; ++i) {
+				// get the next valid work item
+				const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
+				DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
+			}
+		}
+	}
+		break;
+	default: throw "unknown order";
+	}
 
 #ifdef PRINT
 		cout << "thread (ID: " << threadIndex << ") finished" << endl;

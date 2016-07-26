@@ -8,9 +8,9 @@
 #ifndef SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_
 #define SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_
 
-#ifndef BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+#ifndef BOOST_THREAD_VERSION
 	// requires upwards conversions of shared mutex
-#define BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+#define BOOST_THREAD_VERSION 3
 #endif
 
 #include "nodes/NodeAddressContent.h"
@@ -65,10 +65,12 @@ private:
 	static inline void flushPool(PHTree<DIM, WIDTH>& tree,
 			EntryBufferPool<DIM,WIDTH>* pool);
 
+	static inline bool needToCopyNodeForSuffixInsertion(Node<DIM>* currentNode);
 	static inline bool optimisticWriteLock(Node<DIM>* node);
 	static inline bool optimisticWriteLock(Node<DIM>* currentNode, Node<DIM>* previousNode);
 	static inline void optimisticWriteUnlock(Node<DIM>* node);
 	static inline void optimisticWriteUnlock(Node<DIM>* currentNode, Node<DIM>* previousNode);
+	static inline void downgradeWriterToReader(Node<DIM>* node);
 	static inline void readLockBlocking(Node<DIM>* node);
 	static inline bool readLock(Node<DIM>* node);
 	static inline void readUnlock(Node<DIM>* node);
@@ -265,6 +267,11 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentI
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
+bool DynamicNodeOperationsUtil<DIM, WIDTH>::needToCopyNodeForSuffixInsertion(Node<DIM>* currentNode) {
+	return currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents();
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
@@ -399,20 +406,16 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(Node<DIM>* node)
 	bool success = false;
 	if (node->rwLock.try_unlock_shared_and_lock_upgrade()) {
 		// the thread now holds the only lock with upgrade privileges on the node
-
-		// otherwise: node->rwLock.unlock_upgrade_and_lock()
-
-		if (node->rwLock.try_unlock_upgrade_and_lock()) {
-			// now there are no other threads (reader / writer) allowed and present
-			success = true;
-			assert (node->rwLock.state.exclusive);
-			assert (node->rwLock.state.shared_count == 0);
-		} else {
-			node->rwLock.unlock_upgrade_and_lock_shared();
-		}
+		node->rwLock.unlock_upgrade_and_lock();
+		success = true;
 	}
 
 	return success;
+}
+
+template<unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::downgradeWriterToReader(Node<DIM>* node) {
+	node->rwLock.unlock_and_lock_shared();
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
@@ -424,7 +427,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(
 			return true;
 		} else {
 			// downgrade the parent write lock to a shared lock again
-			parent->rwLock.unlock_and_lock_shared();
+			downgradeWriterToReader(parent);
 		}
 	}
 
@@ -575,31 +578,27 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(const Entry<DIM, WIDT
 			} else {
 				restart = true;
 			}
-		} else if (lastNode) {
-			// node entry does not exist:
-			// insert entry + suffix
+		} else if (lastNode && needToCopyNodeForSuffixInsertion(currentNode)) {
+			// insert the suffix into a node that will be changed so needs to be reinserted into the parent
 			if (optimisticWriteLock(currentNode, lastNode)) {
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
-				assert(adjustedNode);
-				if (adjustedNode != currentNode) {
-					// the subnode changed: store the new one and delete the old
-					lastNode->insertAtAddress(lastHcAddress, adjustedNode);
-				}
-
+				assert (adjustedNode && (adjustedNode != currentNode));
+				lastNode->insertAtAddress(lastHcAddress, adjustedNode);
 				optimisticWriteUnlock(currentNode, lastNode);
-				if (adjustedNode != currentNode) {
-					delete currentNode;
-				}
+				currentNode->removed = true;
+				delete currentNode;
 				break;
 			} else {
 				restart = true;
 			}
 		} else {
-			// changing the root node
+			// inserting the suffix into a node that will not be changed
+			// therefore, the last node is not needed any more
+			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
+
 			if (optimisticWriteLock(currentNode)) {
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
-				assert(adjustedNode);
-				assert (adjustedNode == tree.root_);
+				assert (adjustedNode && (adjustedNode == currentNode));
 				optimisticWriteUnlock(currentNode);
 				break;
 			} else {

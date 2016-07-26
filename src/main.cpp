@@ -3,9 +3,9 @@
 #include <vector>
 #include <assert.h>
 
-#ifndef BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+#ifndef BOOST_THREAD_VERSION
 	// requires upwards conversions of shared mutex
-#define BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
+#define BOOST_THREAD_VERSION 3
 #endif
 
 #include "Entry.h"
@@ -305,6 +305,7 @@ int main(int argc, char* argv[]) {
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
 		PlotUtil::plotParallelInsertPerformance<6,64>("./axons.dat", true);
+//		PlotUtil::plotParallelInsertPerformance<3,32>("./benchmark_Java-extract_1M_3D_32bit.dat", false);
 //		PlotUtil::plotInsertPerformanceDifferentOrder<6, 64>("./axons.dat", true);
 //		PlotUtil::plotInsertPerformanceDifferentOrder<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat", false);
 //		PlotUtil::plotTimeSeriesOfInserts();

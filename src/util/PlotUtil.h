@@ -37,7 +37,7 @@
 #define SQUARE_WIDTH_PERCENT {0.5};
 #define SELECTIVITY {0.1, 0.01, 0.001};
 
-#define N_REPETITIONS 1
+#define N_REPETITIONS 10
 #define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
 #define N_RANDOM_ENTRIES_INSERT_SERIES 1000
 #define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
@@ -114,6 +114,7 @@ private:
 #include "util/RangeQueryUtil.h"
 #include "util/RandUtil.h"
 #include "util/DynamicNodeOperationsUtil.h"
+#include "util/InsertionThreadPool.h"
 
 using namespace std;
 
@@ -232,17 +233,22 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 		original = FileInputUtil::readEntries<DIM>(file);
 	}
 
-	const double sequentialMs = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
+	const double sequentialMs = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
-	const size_t availableThreads = thread::hardware_concurrency();
+	const size_t availableThreads = 2 * thread::hardware_concurrency();
+	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(0), static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
 	for (unsigned t = 1; t <= availableThreads; ++t) {
-		string lable = "parallel-" + to_string(t);
-		const double parallelMs = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, t + 1, lable, false, true, t);
-		const double parallelEfficiency = sequentialMs / parallelMs / double(t);
-		// Million Operations per second
-		const double throughput = double(original->size()) / (parallelMs / double(1000)) / double(1000000);
-		(*plotFile) << t << "\t" << parallelMs << "\t" << throughput << "\t" << parallelEfficiency << endl;
+		for (InsertionOrder o : orders) {
+			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
+			InsertionThreadPool<DIM,WIDTH>::order_ = o;
+			const double parallelMs = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, t + 1, lable, false, true, t);
+			// efficiency = Tseq / (T(p) * p)
+			const double parallelEfficiency = sequentialMs / parallelMs / double(t);
+			// throughput [Million Operations per second] = (N / 1M) / (T(p) [in sec])
+			const double throughput = double(original->size()) / (parallelMs / double(1000)) / double(1000000);
+			(*plotFile) << t << "\t" << parallelMs << "\t" << throughput << "\t" << parallelEfficiency << endl;
+		}
 	}
 
 	delete original;
