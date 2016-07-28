@@ -38,8 +38,8 @@ int mainSimpleExample() {
 	sta = RDTSC();
 	phtree->insert(e2);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
-	assert (phtree->lookup(e1).second == 1);
-	assert (phtree->lookup(e2).second == 2);
+	assert (phtree->lookup(e1).second == e1.getId());
+	assert (phtree->lookup(e2).second == e2.getId());
 	assert (!phtree->lookup(e3).first);
 	cout << *phtree;
 	visitor->reset();
@@ -49,9 +49,9 @@ int mainSimpleExample() {
 	sta = RDTSC();
 	phtree->insert(e3);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
-	assert (phtree->lookup(e1).second == 1);
-	assert (phtree->lookup(e2).second == 2);
-	assert (phtree->lookup(e3).second == 3);
+	assert (phtree->lookup(e1).second == e1.getId());
+	assert (phtree->lookup(e2).second == e2.getId());
+	assert (phtree->lookup(e3).second == e3.getId());
 	cout << *phtree;
 	visitor->reset();
 	phtree->accept(visitor);
@@ -60,10 +60,10 @@ int mainSimpleExample() {
 	sta = RDTSC();
 	phtree->insert(e4);
 	cout << "CPU cycles per insert: " << RDTSC() - sta << endl;
-	assert (phtree->lookup(e1).second == 1);
-	assert (phtree->lookup(e2).second == 2);
-	assert (phtree->lookup(e3).second == 3);
-	assert (phtree->lookup(e4).second == 4);
+	assert (phtree->lookup(e1).second == e1.getId());
+	assert (phtree->lookup(e2).second == e2.getId());
+	assert (phtree->lookup(e3).second == e3.getId());
+	assert (phtree->lookup(e4).second == e4.getId());
 	cout << *phtree;
 	visitor->reset();
 	phtree->accept(visitor);

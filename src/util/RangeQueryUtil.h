@@ -94,7 +94,7 @@ public:
 			bool foundEqualEntry = false;
 			while (it->hasNext() && !foundEqualEntry) {
 				Entry<DIM, WIDTH> entryInRange = it->next();
-				foundEqualEntry = id == entryInRange.id_;
+				foundEqualEntry = id == entryInRange.getId();
 			}
 
 			return foundEqualEntry;

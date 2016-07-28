@@ -25,10 +25,13 @@ class InsertionThreadPool;
 
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree {
-	template <unsigned int D>
-	friend class SizeVisitor;
+	// output operator
 	template <unsigned int D, unsigned int W>
 	friend std::ostream& operator<<(std::ostream& os, const PHTree<D, W>& tree);
+
+	// internal classes with private access
+	template <unsigned int D>
+	friend class SizeVisitor;
 	template <unsigned int D, unsigned int W>
 	friend class DynamicNodeOperationsUtil;
 	template <unsigned int D, unsigned int W>

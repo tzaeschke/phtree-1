@@ -13,6 +13,7 @@
 
 template <unsigned int DIM, unsigned int WIDTH>
 class Entry {
+	// comparison and output operators
 	template <unsigned int D, unsigned int W>
 	friend std::ostream& operator <<(std::ostream &out, const Entry<D, W> &entry);
 	template <unsigned int D, unsigned int W>
@@ -21,6 +22,16 @@ class Entry {
 	friend bool operator !=(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
 	template <unsigned int D, unsigned int W>
 	friend bool operator <(const Entry<D, W> &entry1, const Entry<D, W> &entry2);
+
+	// internal classes with private access
+	template <unsigned int D, unsigned int W>
+	friend class RangeQueryIterator;
+	template <unsigned int D, unsigned int W>
+	friend class SpatialSelectionOperationsUtil;
+	template <unsigned int D, unsigned int W>
+	friend class DynamicNodeOperationsUtil;
+	template <unsigned int D, unsigned int W>
+	friend class EntryBuffer;
 
 public:
 
@@ -31,7 +42,12 @@ public:
 
 	size_t getBitLength() const;
 	size_t getDimensions() const;
+	unsigned int getNumberOfBits() const;
+	int getId() const;
+	std::vector<unsigned long> getSpatialValue() const;;
 
+
+private:
 	int id_;
 	unsigned int nBits_;
 	unsigned long values_[1 + (DIM * WIDTH - 1) / (sizeof (unsigned long) * 8)];
@@ -78,6 +94,22 @@ size_t Entry<DIM, WIDTH>::getBitLength() const {
 template <unsigned int DIM, unsigned int WIDTH>
 size_t Entry<DIM, WIDTH>::getDimensions() const {
 	return DIM;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned int Entry<DIM, WIDTH>::getNumberOfBits() const {
+	return nBits_;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+int Entry<DIM, WIDTH>::getId() const {
+	return id_;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+vector<unsigned long> Entry<DIM, WIDTH>::getSpatialValue() const {
+	assert(nBits_ > 0);
+	return MultiDimBitset<DIM>::toLongs(values_, nBits_);
 }
 
 template <unsigned int D, unsigned int W>
