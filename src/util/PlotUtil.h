@@ -22,25 +22,25 @@
 #define INSERT_ORDER_NAME		 			"phtree_insert_order"
 #define PARALLEL_INSERT_NAME				"phtree_parallel_insert"
 
-#define PLOT_DATA_PATH "./plot/data/"
-#define PLOT_DATA_EXTENSION ".dat"
-#define GNUPLOT_FILE_PATH "./plot/"
-#define GNUPLOT_FILE_EXTENSION ".p"
+#define PLOT_DATA_PATH 			"./plot/data/"
+#define PLOT_DATA_EXTENSION 	".dat"
+#define GNUPLOT_FILE_PATH 		"./plot/"
+#define GNUPLOT_FILE_EXTENSION 	".p"
 
-#define BIT_LENGTH 	42
-#define ENTRY_DIM 	6
+#define N_REPETITIONS 			1
+#define BIT_LENGTH 				42
+#define ENTRY_DIM 				6
 #define ENTRY_DIM_INSERT_SERIES 3
 #define FLOAT_ACCURACY_DECIMALS 14
 
-#define INSERT_ENTRY_DIMS {2, 3, 4, 6, 8, 10};
-#define INSERT_ENTRY_NUMBERS {1000, 10000, 100000, 1000000};
-#define SQUARE_WIDTH_PERCENT {0.5};
-#define SELECTIVITY {0.1, 0.01, 0.001};
+#define INSERT_ENTRY_DIMS 		{2, 3, 4, 6, 8, 10};
+#define INSERT_ENTRY_NUMBERS 	{1000, 10000, 100000, 1000000};
+#define SQUARE_WIDTH_PERCENT 	{0.5};
+#define SELECTIVITY 			{0.1, 0.01, 0.001};
 
-#define N_REPETITIONS 10
-#define N_RANDOM_ENTRIES_AVERAGE_INSERT 500000
-#define N_RANDOM_ENTRIES_INSERT_SERIES 1000
-#define N_RANDOM_ENTRIES_RANGE_QUERY 1000000
+#define N_RANDOM_ENTRIES_AVERAGE_INSERT	500000
+#define N_RANDOM_ENTRIES_INSERT_SERIES 	1000
+#define N_RANDOM_ENTRIES_RANGE_QUERY 	1000000
 
 template <unsigned int DIM, unsigned int WIDTH>
 class Entry;
@@ -233,11 +233,12 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 		original = FileInputUtil::readEntries<DIM>(file);
 	}
 
-	const double sequentialMs = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
+	const double sequentialMs = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, 1, "sequential-baseline", false, false, 0);
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
-	const size_t availableThreads = 2 * thread::hardware_concurrency();
-	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(0), static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
+	CALLGRIND_START_INSTRUMENTATION;
+	const size_t availableThreads = thread::hardware_concurrency();
+	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(0)};//, static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
 	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
@@ -250,6 +251,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 			(*plotFile) << t << "\t" << parallelMs << "\t" << throughput << "\t" << parallelEfficiency << endl;
 		}
 	}
+	CALLGRIND_STOP_INSTRUMENTATION;
 
 	delete original;
 	delete plotFile;
@@ -316,6 +318,12 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		cout << "\t#flushes (clean up) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountAfter << endl;
 	} else {
 		cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << endl;
+	}
+
+	if (parallel) {
+		const unsigned long nRestarts = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestarts;
+		const double averageRestarts = double(nRestarts) / double(entries->size());
+		cout << "\t#restarts = " << nRestarts << " (" << averageRestarts << " times per entry)" << endl;
 	}
 
 	CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
@@ -680,7 +688,7 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom(bool bulk) {
 	for (size_t test = 0; test < dimTestsSize; test++) {
 		// resolve dynamic dimensions
 		switch (dimTests[test]) {
-		case 2: {
+		/*case 2: {
 			vector<vector<unsigned long>>* randomDimEntries =
 								generateUniqueRandomEntriesList<2, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<2, BIT_LENGTH>(test, randomDimEntries, bulk);
@@ -721,7 +729,7 @@ void PlotUtil::plotAverageInsertTimePerDimensionRandom(bool bulk) {
 								generateUniqueRandomEntriesList<10, BIT_LENGTH>(N_RANDOM_ENTRIES_AVERAGE_INSERT);
 						writeAverageInsertTimeOfDimension<10, BIT_LENGTH>(test, randomDimEntries, bulk);
 			break;
-		}
+		}*/
 		default:
 			throw std::runtime_error(
 					"the given dimensionality is currently not supported by boilerplate code");

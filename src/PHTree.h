@@ -90,7 +90,7 @@ void PHTree<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& e) {
 		cout << "inserting: " << e << endl;
 	#endif
 
-	DynamicNodeOperationsUtil<DIM, WIDTH>::insert(e, root_, *this);
+	DynamicNodeOperationsUtil<DIM, WIDTH>::insert(e, *this);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -135,7 +135,7 @@ void PHTree<DIM, WIDTH>::bulkInsert(
 
 template <unsigned int DIM, unsigned int WIDTH>
 void PHTree<DIM, WIDTH>::bulkInsert(const vector<Entry<DIM,WIDTH>>& entries) {
-	DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(entries, root_, *this);
+	DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(entries, *this);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

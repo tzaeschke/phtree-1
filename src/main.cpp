@@ -322,7 +322,6 @@ int main(int argc, char* argv[]) {
 	} else if (benchmark.compare(argv[1]) == 0) {
 		cout << "run a benchmark extracted from the Java implementation with 1M 3D 32-bit entries" << endl;
 		PlotUtil::plotAverageInsertTimePerDimension<3, 32>("./benchmark_Java-extract_1M_3D_32bit.dat", true);
-
 	} else if (axon.compare(argv[1]) == 0) {
 		vector<string> axonFiles;
 		axonFiles.push_back("./axons.dat");
