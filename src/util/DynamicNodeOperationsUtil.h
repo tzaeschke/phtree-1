@@ -39,8 +39,16 @@ public:
 	static unsigned int nInsertSplitPrefix;
 	static unsigned int nFlushCountWithin;
 	static unsigned int nFlushCountAfter;
+
 	static unsigned int nThreads;
-	static atomic<unsigned long> nRestarts;
+
+	static atomic<unsigned long> nRestartReadRecurse;
+	static atomic<unsigned long> nRestartWriteSplitPrefix;
+	static atomic<unsigned long> nRestartWriteFLushBuffer;
+	static atomic<unsigned long> nRestartInsertBuffer;
+	static atomic<unsigned long> nRestartWriteSwapSuffix;
+	static atomic<unsigned long> nRestartWriteInsertSuffixEnlarge;
+	static atomic<unsigned long> nRestartWriteInsertSuffix;
 
 	static void resetCounters();
 	static void insert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree);
@@ -95,8 +103,21 @@ template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixIntoBuffer = 0;
 template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nThreads = 0;
+
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestarts;
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReadRecurse;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSplitPrefix;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteFLushBuffer;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartInsertBuffer;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSwapSuffix;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffixEnlarge;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffix;
 
 #include <assert.h>
 #include <stdexcept>
@@ -129,7 +150,14 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters() {
 	nFlushCountWithin = 0;
 	nInsertSuffixBuffer = 0;
 	nInsertSuffixIntoBuffer = 0;
-	nRestarts = 0;
+
+	nRestartReadRecurse = 0;
+	nRestartWriteSplitPrefix = 0;
+	nRestartWriteFLushBuffer = 0;
+	nRestartInsertBuffer = 0;
+	nRestartWriteSwapSuffix = 0;
+	nRestartWriteInsertSuffixEnlarge = 0;
+	nRestartWriteInsertSuffix = 0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -831,13 +859,11 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 	Node<DIM>* currentNode = NULL;
 	NodeAddressContent<DIM> content;
 	bool restart = true;
-	--nRestarts;
 
 	while (index < WIDTH) {
 		if (restart) {
 			if (currentNode) { readUnlock(currentNode); }
 			if (lastNode) { readUnlock(lastNode); }
-			++nRestarts;
 			index = 0;
 			lastHcAddress = 0;
 			lastNode = NULL;
@@ -896,23 +922,29 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 						break;
 					} else {
 						restart = true;
+						++nRestartWriteSplitPrefix;
 					}
 				}
 			} else {
 				// did not get access to the subnode so restart
 				restart = true;
+				++nRestartReadRecurse;
 			}
 		} else if (content.exists && content.hasSpecialPointer) {
 			// a buffer was found that can be filled
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 			EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM,WIDTH>*>(content.specialPointer);
-			if (buffer->full() && optimisticWriteLock(currentNode)) {
-				if (buffer->full()) {
+			if (buffer->full()) {
+				if (optimisticWriteLock(currentNode)) {
+					assert (buffer->full());
 					// cleaning the old buffer and restart
 					flushSubtree(buffer, true);
+					downgradeWriterToReader(currentNode);
+					// continue with the current node
+				} else {
+					restart = true;
+					++nRestartWriteFLushBuffer;
 				}
-				downgradeWriterToReader(currentNode);
-				// continue with the current node
 			} else if (buffer->insert(entry)) {
 				// successfully inserted the entry into the buffer
 				readUnlock(currentNode);
@@ -920,6 +952,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			} else {
 				// failed to insert into the buffer so restart
 				restart = true;
+				++nRestartInsertBuffer;
 			}
 		} else if (content.exists && !content.hasSubnode) {
 			// instead of splitting the suffix a buffer is added
@@ -940,6 +973,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			} else {
 				pool.deallocate(buffer);
 				restart = true;
+				++nRestartWriteSwapSuffix;
 			}
 		} else if (lastNode && needToCopyNodeForSuffixInsertion(currentNode)) {
 			// insert the suffix into a node that will be changed so needs to be reinserted into the parent
@@ -953,6 +987,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				break;
 			} else {
 				restart = true;
+				++nRestartWriteInsertSuffixEnlarge;
 			}
 		} else {
 			// inserting the suffix into a node that will not be changed
@@ -966,6 +1001,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				break;
 			} else {
 				restart = true;
+				++nRestartWriteInsertSuffix;
 			}
 		}
 	}

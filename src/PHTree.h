@@ -107,7 +107,7 @@ void PHTree<DIM, WIDTH>::parallelInsert(const Entry<DIM,WIDTH>& entry) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads) {
+void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads = thread::hardware_concurrency()) {
 	assert (nThreads > 0);
 	InsertionThreadPool<DIM,WIDTH>* pool = new InsertionThreadPool<DIM,WIDTH>(nThreads - 1, values, ids, this);
 	pool->joinPool();

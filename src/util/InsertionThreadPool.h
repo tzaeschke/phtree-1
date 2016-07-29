@@ -50,6 +50,8 @@ public:
 	static InsertionOrder order_;
 	static InsertionApproach approach_;
 
+	static unsigned long nFlushPhases;
+
 private:
 
 	bool poolSyncRequired_;
@@ -84,6 +86,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 InsertionOrder InsertionThreadPool<DIM, WIDTH>::order_ = range_per_thread;
 template <unsigned int DIM, unsigned int WIDTH>
 InsertionApproach InsertionThreadPool<DIM, WIDTH>::approach_ = buffered_bulk;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long InsertionThreadPool<DIM, WIDTH>::nFlushPhases = 0;
 
 template <unsigned int DIM, unsigned int WIDTH>
 InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
@@ -152,9 +156,13 @@ void InsertionThreadPool<DIM, WIDTH>::handlePoolFlushSync(EntryBufferPool<DIM,WI
 	createBarriersMutex_.unlock();
 
 	assert (poolFlushEntrybarrier_);
-	poolFlushEntrybarrier_->wait();
+	bool responsibleForstate = poolFlushEntrybarrier_->wait();
 	pool->fullDeallocate();
-	poolSyncRequired_ = false;
+	if (responsibleForstate) {
+		++nFlushPhases;
+		poolSyncRequired_ = false;
+	}
+
 	if (lastFlush) { --nRemainingThreads_; }
 	poolFlushExitbarrier_->wait();
 }

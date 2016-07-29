@@ -181,8 +181,7 @@ bool EntryBuffer<DIM, WIDTH>::empty() const {
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	assert (suffixBits_ > 0 && suffixBits_ % DIM == 0);
-	if (flushing_) {return false;}
-
+	assert (!flushing_);
 	const size_t i = nextIndex_++;
 	if (i >= capacity_) { return false; }
 	// exclusively responsible for index i
@@ -190,9 +189,9 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	assert (0 < i && i < capacity_);
 	assert (!insertCompleted_[i]);
 	// copy ID and necessary bits into the local buffer
-	buffer_[i].id_ = entry.id_;
 	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[i].values_);
-
+	insertCompleted_[i] = true; // TODO place after duplication?
+	buffer_[i].id_ = entry.id_;
 	originals_[i] = &entry;
 
 	// compare the new entry to all previously inserted entries
@@ -210,7 +209,6 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 		setLcp(i, other, comp.second);
 	}
 
-	insertCompleted_[i] = true; // TODO place after duplication?
 	return true;
 }
 
@@ -238,7 +236,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 
 	for (unsigned row = 0; row < n; ++row) {
 		// spin until remaining insertions are done
-		while (!insertCompleted_[row]) {}
+		assert (insertCompleted_[row]);
 		rowEmpty[row] = false;
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!

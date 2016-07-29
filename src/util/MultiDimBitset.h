@@ -383,7 +383,7 @@ unsigned long MultiDimBitset<DIM>::interleaveBits(const unsigned long* fromStart
 		const size_t lower = lsbStartIndex % b_max;
 
 		if (startBlock == endBlock || lsbEndIndex % b_max == 0) {
-			const unsigned long maskForInterleaved = (1uL << DIM) - 1uL;
+			const unsigned long maskForInterleaved = (1uL << DIM) - 1uL; // TODO can be precalculated an reused
 			hcAddress = (block >> lower) & maskForInterleaved;
 		} else {
 			const size_t upper = lsbEndIndex % b_max;

@@ -115,6 +115,7 @@ EntryBuffer<DIM, WIDTH>* EntryBufferPool<DIM, WIDTH>::allocate() {
 	unique_lock<mutex> lk(singleOperationMutex_);
 	assert (assertClearedFreeList());
 
+	// no need to sync the following because only one thread can allocate!
 	if (nInitialized_ < capacity_) {
 		// not all fields were initialized so add the next entry to the free list
 		assert (pool_[nInitialized_].assertCleared());
