@@ -113,7 +113,7 @@ void EntryBufferPool<DIM, WIDTH>::fullDeallocate() {
 template <unsigned int DIM, unsigned int WIDTH>
 EntryBuffer<DIM, WIDTH>* EntryBufferPool<DIM, WIDTH>::allocate() {
 	unique_lock<mutex> lk(singleOperationMutex_);
-	assert (assertClearedFreeList());
+//	assert (assertClearedFreeList());
 
 	// no need to sync the following because only one thread can allocate!
 	if (nInitialized_ < capacity_) {
@@ -152,7 +152,7 @@ void EntryBufferPool<DIM, WIDTH>::deallocate(EntryBuffer<DIM, WIDTH>* buffer) {
 	assert (buffer->assertCleared());
 
 	unique_lock<mutex> lk(singleOperationMutex_);
-	assert (assertClearedFreeList());
+//	assert (assertClearedFreeList());
 
 	if (headIndex_ != (-1u)) {
 		buffer->nextIndex_ = headIndex_;

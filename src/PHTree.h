@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <vector>
+#include <thread>
 #include "Entry.h"
 
 template <unsigned int DIM>
@@ -40,7 +41,7 @@ public:
 	void insert(const Entry<DIM, WIDTH>& e);
 	void insert(const std::vector<unsigned long>& values, int id);
 	void parallelInsert(const Entry<DIM,WIDTH>& entry);
-	void parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads);
+	void parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads = std::thread::hardware_concurrency());
 	void insertHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
 	void bulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids);
 	void bulkInsert(const std::vector<Entry<DIM,WIDTH>>& entries);
@@ -107,7 +108,7 @@ void PHTree<DIM, WIDTH>::parallelInsert(const Entry<DIM,WIDTH>& entry) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads = thread::hardware_concurrency()) {
+void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads) {
 	assert (nThreads > 0);
 	InsertionThreadPool<DIM,WIDTH>* pool = new InsertionThreadPool<DIM,WIDTH>(nThreads - 1, values, ids, this);
 	pool->joinPool();

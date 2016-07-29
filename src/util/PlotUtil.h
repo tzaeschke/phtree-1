@@ -239,20 +239,23 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
 	CALLGRIND_START_INSTRUMENTATION;
-	const size_t availableThreads = 2 * thread::hardware_concurrency();
+	const size_t availableThreads = 3 * thread::hardware_concurrency();
 	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
-	for (unsigned t = 2; t <= availableThreads; ++t) {
+	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			InsertionThreadPool<DIM,WIDTH>::order_ = o;
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
 			const double parallelSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
-			lable = "parallel-bulk-" + to_string(t) + "-" + to_string(static_cast<int>(o));
-			writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, true, true, t);
+			string lableBulk = "parallel-bulk-" + to_string(t) + "-" + to_string(static_cast<int>(o));
+			const double parallelBulkSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
 			// efficiency = Tseq / (T(p) * p)
 			const double parallelEfficiency = sequentialSec / parallelSec / double(t);
+			const double parallelBulkEfficiency = sequentialSec / parallelBulkSec / double(t);
 			// throughput [Million Operations per second] = (N / 1M) / (T(p))
 			const double throughput = double(original->size()) / parallelSec / double(1000000);
-			(*plotFile) << t << "\t" << parallelSec << "\t" << throughput << "\t" << parallelEfficiency << endl;
+			const double throughputBulk = double(original->size()) / parallelBulkSec / double(1000000);
+			(*plotFile) << t << "\t" << lable << "\t" << parallelSec	<< "\t" << throughput << "\t" << parallelEfficiency << endl
+						<< t << "\t" << lableBulk << "\t" << parallelBulkSec << "\t" << throughputBulk << "\t" << parallelBulkEfficiency << endl;
 		}
 	}
 	CALLGRIND_STOP_INSTRUMENTATION;
@@ -267,7 +270,10 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 	PHTree<DIM, WIDTH>* phtree = new PHTree<DIM,WIDTH>();
 	unsigned int smallestInsertMicroSecs = (-1u);
-	cout << "run with " << N_REPETITIONS << " repetitions: " << flush;
+	cout << "Run nr. " << run << " (" << lable << "): ";
+	if (parallel) {cout << "parallel (" << nThreads << ") "; }
+	if (bulk) { cout << "bulk "; }
+	cout << "insertion performance | run with " << N_REPETITIONS << " repetitions: " << flush;
 	vector<int>* ids = new vector<int>();
 	for (unsigned iEntry = 0; iEntry < entries->size() && (bulk || parallel); ++iEntry) {
 		ids->push_back(iEntry);
@@ -330,7 +336,6 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		if (bulk) {
 			cout << "\t#flush phases = " << InsertionThreadPool<DIM, WIDTH>::nFlushPhases << endl;
 		}
-
 		const unsigned long nRestartReadRecurse = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReadRecurse;
 		const unsigned long nRestartWriteSplitPrefix = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSplitPrefix;
 		const unsigned long nRestartWriteFLushBuffer = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteFLushBuffer;
@@ -338,9 +343,9 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		const unsigned long nRestartWriteSwapSuffix = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSwapSuffix;
 		const unsigned long nRestartWriteInsertSuffixEnlarge = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffixEnlarge;
 		const unsigned long nRestartWriteInsertSuffix = DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffix;
-		const unsigned long nRestarts = nRestartReadRecurse + nRestartWriteSplitPrefix + nRestartWriteFLushBuffer
-				+ nRestartInsertBuffer + nRestartWriteSwapSuffix + nRestartWriteInsertSuffixEnlarge
-				+ nRestartWriteInsertSuffix;
+		const unsigned long nRestarts = nRestartReadRecurse + nRestartWriteSplitPrefix
+				+ nRestartWriteFLushBuffer + nRestartInsertBuffer + nRestartWriteSwapSuffix
+				+ nRestartWriteInsertSuffixEnlarge + nRestartWriteInsertSuffix;
 		const double averageRestarts = double(nRestarts) / double(entries->size());
 		cout << "\t#restarts = " << nRestarts << " (" << averageRestarts << " times per entry)" << endl;
 		cout << "\t\t#recurse (read): " << nRestartReadRecurse << endl;
@@ -373,7 +378,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		(*plotFile) << run << "\t" << lable << "\t" << insertSec << endl;
 	}
 
-	cout << "Run nr. " << run << " (" << lable << "): " << insertSec << " sec" << endl;
+	cout << "Run nr. " << run << " (" << lable << "): " << insertSec << " sec (minimum)" << endl;
 	return insertSec;
 }
 

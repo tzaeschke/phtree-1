@@ -481,8 +481,12 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 		addRow(index, hcAddress, true, false, reference);
 	}
 
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSubnode);
+#ifndef NDEBUG
+	NodeAddressContent<DIM> content = Node<DIM>::lookup(hcAddress, true);
+	assert (content.address == hcAddress);
+	assert (content.hasSubnode);
+	assert (content.subnode == subnode);
+#endif
 }
 
 

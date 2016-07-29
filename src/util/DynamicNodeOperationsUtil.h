@@ -922,13 +922,13 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 						break;
 					} else {
 						restart = true;
-						++nRestartWriteSplitPrefix;
+//						++nRestartWriteSplitPrefix;
 					}
 				}
 			} else {
 				// did not get access to the subnode so restart
 				restart = true;
-				++nRestartReadRecurse;
+//				++nRestartReadRecurse;
 			}
 		} else if (content.exists && content.hasSpecialPointer) {
 			// a buffer was found that can be filled
@@ -943,7 +943,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 					// continue with the current node
 				} else {
 					restart = true;
-					++nRestartWriteFLushBuffer;
+//					++nRestartWriteFLushBuffer;
 				}
 			} else if (buffer->insert(entry)) {
 				// successfully inserted the entry into the buffer
@@ -952,7 +952,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			} else {
 				// failed to insert into the buffer so restart
 				restart = true;
-				++nRestartInsertBuffer;
+//				++nRestartInsertBuffer;
 			}
 		} else if (content.exists && !content.hasSubnode) {
 			// instead of splitting the suffix a buffer is added
@@ -973,7 +973,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			} else {
 				pool.deallocate(buffer);
 				restart = true;
-				++nRestartWriteSwapSuffix;
+//				++nRestartWriteSwapSuffix;
 			}
 		} else if (lastNode && needToCopyNodeForSuffixInsertion(currentNode)) {
 			// insert the suffix into a node that will be changed so needs to be reinserted into the parent
@@ -987,7 +987,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				break;
 			} else {
 				restart = true;
-				++nRestartWriteInsertSuffixEnlarge;
+//				++nRestartWriteInsertSuffixEnlarge;
 			}
 		} else {
 			// inserting the suffix into a node that will not be changed
@@ -1001,7 +1001,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				break;
 			} else {
 				restart = true;
-				++nRestartWriteInsertSuffix;
+//				++nRestartWriteInsertSuffix;
 			}
 		}
 	}

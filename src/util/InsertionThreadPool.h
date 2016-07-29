@@ -60,8 +60,7 @@ private:
 	size_t currentBarrierSize;
 	std::atomic<size_t> nRemainingThreads_;
 	mutex createBarriersMutex_;
-	boost::barrier* poolFlushEntrybarrier_;
-	boost::barrier* poolFlushExitbarrier_;
+	boost::barrier* poolFlushBarrier_;
 	std::vector<std::thread> threads_;
 	const std::vector<std::vector<unsigned long>>& values_;
 	const std::vector<int>& ids_;
@@ -94,7 +93,7 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 		const vector<vector<unsigned long>>& values,
 		const vector<int>& ids, PHTree<DIM, WIDTH>* tree)
 		: poolSyncRequired_(false), i_(0), nThreads_(furtherThreads + 1), createBarriersMutex_(),
-		  poolFlushEntrybarrier_(NULL), poolFlushExitbarrier_(NULL), values_(values),
+		  poolFlushBarrier_(NULL), values_(values),
 		  ids_(ids), tree_(tree) {
 	assert (values.size() > 0);
 	// create the biggest possible root node so there is no need to synchronize access on the root
@@ -104,8 +103,7 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 	tree->root_ = newRoot;
 	delete oldRoot;
 
-	poolFlushEntrybarrier_ = new boost::barrier(nThreads_);
-	poolFlushExitbarrier_ = new boost::barrier(nThreads_);
+	poolFlushBarrier_ = new boost::barrier(nThreads_);
 	currentBarrierSize = nThreads_;
 
 	DynamicNodeOperationsUtil<DIM,WIDTH>::nThreads = nThreads_;
@@ -123,9 +121,7 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 	}
 
 	assert (nRemainingThreads_ == 0);
-
-	delete poolFlushEntrybarrier_;
-	delete poolFlushExitbarrier_;
+	delete poolFlushBarrier_;
 
 	// shrink the root node again
 	size_t rootContents = tree_->root_->getNumberOfContents();
@@ -146,25 +142,22 @@ void InsertionThreadPool<DIM, WIDTH>::handlePoolFlushSync(EntryBufferPool<DIM,WI
 	// decide who creates the barriers
 	createBarriersMutex_.lock(); // needs shared_lock?
 	if (currentBarrierSize != nRemainingThreads_) {
-		delete poolFlushEntrybarrier_;
-		poolFlushEntrybarrier_ = new boost::barrier(nRemainingThreads_);
-		delete poolFlushExitbarrier_;
-		poolFlushExitbarrier_ = new boost::barrier(nRemainingThreads_);
+		delete poolFlushBarrier_;
+		poolFlushBarrier_ = new boost::barrier(nRemainingThreads_);
 		const size_t nRemainingThreads = nRemainingThreads_;
 		currentBarrierSize = nRemainingThreads;
 	}
 	createBarriersMutex_.unlock();
 
-	assert (poolFlushEntrybarrier_);
-	bool responsibleForstate = poolFlushEntrybarrier_->wait();
+	const bool responsibleForState = poolFlushBarrier_->wait();
 	pool->fullDeallocate();
-	if (responsibleForstate) {
+	if (responsibleForState) {
 		++nFlushPhases;
 		poolSyncRequired_ = false;
 	}
 
 	if (lastFlush) { --nRemainingThreads_; }
-	poolFlushExitbarrier_->wait();
+	poolFlushBarrier_->wait();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
