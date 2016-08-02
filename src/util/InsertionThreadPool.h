@@ -58,7 +58,6 @@ private:
 	bool poolSyncRequired_;
 	std::atomic<unsigned int> i_;
 	size_t nThreads_;
-	size_t currentBarrierSize;
 	std::atomic<size_t> nRemainingThreads_;
 	boost::shared_mutex createBarriersMutex_;
 	boost::barrier* poolFlushBarrier_;
@@ -66,12 +65,13 @@ private:
 	const std::vector<std::vector<unsigned long>>& values_;
 	const std::vector<int>& ids_;
 	PHTree<DIM, WIDTH>* tree_;
+	EntryBufferPool<DIM, WIDTH>* pool_;
 
 	void processNext(size_t threadIndex);
-	inline void insertBySelectedStrategy(size_t entryIndex, EntryBufferPool<DIM,WIDTH>* pool);
+	inline void insertBySelectedStrategy(size_t entryIndex, size_t threadIndex);
 
-	inline void handlePoolFlushSync(EntryBufferPool<DIM,WIDTH>* pool, bool lastFlush);
-	inline void handleDoneBySelectedStrategy(EntryBufferPool<DIM,WIDTH>* pool);
+	inline void handlePoolFlushSync(size_t threadIndex, bool lastFlush);
+	inline void handleDoneBySelectedStrategy(size_t threadIndex);
 
 };
 
@@ -95,7 +95,7 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 		const vector<int>& ids, PHTree<DIM, WIDTH>* tree)
 		: poolSyncRequired_(false), i_(0), nThreads_(furtherThreads + 1), createBarriersMutex_(),
 		  poolFlushBarrier_(NULL), values_(values),
-		  ids_(ids), tree_(tree) {
+		  ids_(ids), tree_(tree), pool_(NULL) {
 	assert (values.size() > 0);
 	// create the biggest possible root node so there is no need to synchronize access on the root
 	Node<DIM>* oldRoot = tree->root_;
@@ -105,7 +105,7 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 	delete oldRoot;
 
 	poolFlushBarrier_ = new boost::barrier(nThreads_);
-	currentBarrierSize = nThreads_;
+	pool_ = new EntryBufferPool<DIM,WIDTH>(); // TODO only create if needed
 
 	DynamicNodeOperationsUtil<DIM,WIDTH>::nThreads = nThreads_;
 	nRemainingThreads_ = nThreads_;
@@ -123,6 +123,7 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 
 	assert (nRemainingThreads_ == 0);
 	delete poolFlushBarrier_;
+	delete pool_;
 
 	// shrink the root node again
 	size_t rootContents = tree_->root_->getNumberOfContents();
@@ -139,39 +140,42 @@ void InsertionThreadPool<DIM, WIDTH>::joinPool() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void InsertionThreadPool<DIM, WIDTH>::handlePoolFlushSync(EntryBufferPool<DIM,WIDTH>* pool, bool lastFlush) {
-	// decide who creates the barriers
-	boost::unique_lock<boost::shared_mutex> writeLock(createBarriersMutex_, boost::defer_lock);
-	while (currentBarrierSize != nRemainingThreads_) {
-		if (writeLock.try_lock()) {
-			if (currentBarrierSize != nRemainingThreads_) {
-				delete poolFlushBarrier_;
-				poolFlushBarrier_ = new boost::barrier(nRemainingThreads_);
-				const size_t nRemainingThreads = nRemainingThreads_;
-				currentBarrierSize = nRemainingThreads;
-			}
+void InsertionThreadPool<DIM, WIDTH>::handlePoolFlushSync(size_t threadIndex, bool lastFlush) {
 
-			writeLock.unlock();
-		}
+	// gather all threads
+	const bool responsibleForState = poolFlushBarrier_->wait();
+	if (responsibleForState) {
+		pool_->prepareFullDeallocate();
 	}
 
-	boost::shared_lock<boost::shared_mutex> readLock(createBarriersMutex_);
-	const bool responsibleForState = poolFlushBarrier_->wait();
-	pool->fullDeallocate();
+	// wait until the pool is prepared for the flush
+	poolFlushBarrier_->wait();
+	pool_->doFullDeallocatePart(threadIndex, nThreads_);
 	if (responsibleForState) {
 		++nFlushPhases;
 		poolSyncRequired_ = false;
 	}
 
 	if (lastFlush) { --nRemainingThreads_; }
+
+	// wait until every thread finished flushing its part
+	poolFlushBarrier_->wait();
+	if (responsibleForState) { // TODO maybe possible to skip this step
+		pool_->finishFullDeallocate();
+	}
+
+	// wait until the pool is ready to restart
 	poolFlushBarrier_->wait();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void InsertionThreadPool<DIM, WIDTH>::handleDoneBySelectedStrategy(EntryBufferPool<DIM,WIDTH>* pool) {
+void InsertionThreadPool<DIM, WIDTH>::handleDoneBySelectedStrategy(size_t threadIndex) {
 	switch (approach_) {
 	case buffered_bulk:
-		handlePoolFlushSync(pool, true);
+		handlePoolFlushSync(threadIndex, true);
+		while (nRemainingThreads_ > 0) {
+			handlePoolFlushSync(threadIndex, false);
+		}
 		break;
 	case optimistic_locking:
 		--nRemainingThreads_;
@@ -182,8 +186,8 @@ void InsertionThreadPool<DIM, WIDTH>::handleDoneBySelectedStrategy(EntryBufferPo
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t index, EntryBufferPool<DIM,WIDTH>* pool) {
-	const Entry<DIM, WIDTH> entry(values_[index], ids_[index]);
+void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex, size_t threadIndex) {
+	const Entry<DIM, WIDTH> entry(values_[entryIndex], ids_[entryIndex]);
 	switch (approach_) {
 	case optimistic_locking:
 		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
@@ -191,8 +195,8 @@ void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t index, Ent
 	case buffered_bulk:
 		bool success = false;
 		while (!success) {
-			if (poolSyncRequired_) { handlePoolFlushSync(pool, false); }
-			success = DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(entry, *tree_, *pool);
+			if (poolSyncRequired_) { handlePoolFlushSync(threadIndex, false); }
+			success = DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(entry, *tree_, *pool_);
 			if (!success) { poolSyncRequired_ = true; }
 		}
 		break;
@@ -202,10 +206,6 @@ void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t index, Ent
 template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 	const size_t size = values_.size();
-	EntryBufferPool<DIM, WIDTH>* pool = NULL;
-	if (approach_ == buffered_bulk) {
-		pool = new EntryBufferPool<DIM, WIDTH>();
-	}
 
 	switch (order_) {
 	case sequential_entries:
@@ -214,17 +214,18 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 			while (i < size) {
 				i = i_++;
 				if (i < size) {
-					insertBySelectedStrategy(i, pool);
+					insertBySelectedStrategy(i, threadIndex);
 				}
 			}
 		}
 		break;
 	case range_per_thread:
 		{
+			// TODO misses last entries for size mod thread != 0
 			const size_t start = size * threadIndex / nThreads_;
 			const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
 			for (size_t i = start; i < end; ++i) {
-				insertBySelectedStrategy(i, pool);
+				insertBySelectedStrategy(i, threadIndex);
 			}
 		}
 		break;
@@ -237,7 +238,7 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 				start = blockIndex * fixRangeSize;
 				end = min(start + fixRangeSize, size);
 				for (size_t i = start; i < end; ++i) {
-					insertBySelectedStrategy(i, pool);
+					insertBySelectedStrategy(i, threadIndex);
 				}
 			}
 		}
@@ -245,8 +246,7 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 	default: throw "unknown order";
 	}
 
-	handleDoneBySelectedStrategy(pool);
-	delete pool;
+	handleDoneBySelectedStrategy(threadIndex);
 #ifdef PRINT
 		cout << "thread (ID: " << threadIndex << ") finished" << endl;
 #endif

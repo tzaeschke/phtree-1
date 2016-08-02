@@ -27,7 +27,7 @@
 #define GNUPLOT_FILE_PATH 		"./plot/"
 #define GNUPLOT_FILE_EXTENSION 	".p"
 
-#define N_REPETITIONS 			10
+#define N_REPETITIONS 			1
 #define BIT_LENGTH 				42
 #define ENTRY_DIM 				6
 #define ENTRY_DIM_INSERT_SERIES 3

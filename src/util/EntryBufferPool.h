@@ -23,8 +23,14 @@ public:
 	EntryBuffer<DIM, WIDTH>* allocate();
 	// deallocate can be called by any number of threads at a time
 	void deallocate(EntryBuffer<DIM, WIDTH>* buffer);
-	// deallocates all contents assuming nobody can interfere (synchronized flush phase)
+
+	// sequentially comprises the steps: prepare, do partial work, finish
 	void fullDeallocate();
+
+	// full deallocation
+	void prepareFullDeallocate();
+	void doFullDeallocatePart(size_t part, size_t total);
+	void finishFullDeallocate();
 
 	static const size_t capacity_ = 1000;
 private:
@@ -70,8 +76,13 @@ bool EntryBufferPool<DIM, WIDTH>::assertClearedFreeList() {
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBufferPool<DIM, WIDTH>::fullDeallocate() {
-	bool locked = singleOperationMutex_.try_lock(); // TODO not needed!
-	assert (locked);
+	prepareFullDeallocate();
+	doFullDeallocatePart(0, 1);
+	finishFullDeallocate();
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void EntryBufferPool<DIM, WIDTH>::prepareFullDeallocate() {
 	assert (assertClearedFreeList());
 
 	// disables the current items in the free list by flagging their index
@@ -83,10 +94,19 @@ void EntryBufferPool<DIM, WIDTH>::fullDeallocate() {
 		pool_[nextIndex].nextIndex_ = -1u;
 		nextIndex = nextIndexTmp;
 	}
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void EntryBufferPool<DIM, WIDTH>::doFullDeallocatePart(size_t part, size_t total) {
+	assert (part < total);
+
+	const size_t chunkSize = 1 + nInitialized_ / total;
+	const size_t start = chunkSize * part;
+	const size_t end = min(nInitialized_, chunkSize * (1 + part));
 
 	// go through the pool backwards and deallocate all buffers where the
 	// assigned node can be locked
-	for (unsigned i = 0; i < nInitialized_; ++i) {
+	for (unsigned i = start; i < end; ++i) {
 		if (pool_[i].nextIndex_ != (-1u)) {
 			DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(&(pool_[i]), false);
 			assert (pool_[i].assertCleared());
@@ -95,10 +115,13 @@ void EntryBufferPool<DIM, WIDTH>::fullDeallocate() {
 			assert (pool_[i].assertCleared());
 		}
 	}
+}
 
+template <unsigned int DIM, unsigned int WIDTH>
+void EntryBufferPool<DIM, WIDTH>::finishFullDeallocate() {
 #ifndef NDEBUG
 	// Validate that all buffers are now empty
-	for (unsigned i = 0; i < capacity_; ++i) {
+	for (unsigned i = 0; i < nInitialized_; ++i) {
 		pool_[i].assertCleared();
 	}
 #endif
@@ -106,8 +129,6 @@ void EntryBufferPool<DIM, WIDTH>::fullDeallocate() {
 	nFree_ = capacity_;
 	headIndex_ = 0;
 	nInitialized_ = 0;
-
-	singleOperationMutex_.unlock();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
