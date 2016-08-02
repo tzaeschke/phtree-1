@@ -52,10 +52,8 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 	// find first filled address if the given one is not filled
 
-	bool exists = false;
-	bool hasSub = false;
-	bool directlyStored = false;
-	node_->lookupAddress(address, &exists, &currentIndex, &hasSub, &directlyStored);
+	bool exists;
+	node_->lookupAddress(address, &exists, &currentIndex);
 	if (exists) {
 		// found address so set it
 		this-> address_ = address;
@@ -64,17 +62,15 @@ void LHCIterator<DIM, PREF_BLOCKS, N>::setAddress(size_t address) {
 		this->address_ = 1 << DIM;
 	} else {
 		// did not find the address but it is in the range
-		node_->lookupIndex(currentIndex, &(this->address_), &hasSub, &directlyStored);
+		node_->lookupIndex(currentIndex, &(this->address_));
 	}
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHCIterator<DIM, PREF_BLOCKS, N>::setToBegin() {
 	this->currentIndex = 0;
-	bool hasSub;
-	bool directlyStored;
 	// TODO address lookup needed or done before comparison anyway?
-	node_->lookupIndex(0u, &(this->address_), &hasSub, &directlyStored);
+	node_->lookupIndex(0u, &(this->address_));
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -84,9 +80,7 @@ NodeIterator<DIM>& LHCIterator<DIM, PREF_BLOCKS, N>::operator++() {
 		currentIndex = node_->m - 1;
 		this->address_ = 1 << DIM;
 	} else {
-		bool hasSub = false;
-		bool directlyStored = false;
-		node_->lookupIndex(currentIndex, &(this->address_), &hasSub, &directlyStored);
+		node_->lookupIndex(currentIndex, &(this->address_));
 	}
 
 	return *this;
@@ -102,10 +96,8 @@ NodeAddressContent<DIM> LHCIterator<DIM, PREF_BLOCKS, N>::operator*() const {
 
 	NodeAddressContent<DIM> content;
 	content.exists = true;
-	bool isPointer, isSuffix;
-	node_->lookupIndex(currentIndex, &content.address, &isPointer, &isSuffix);
+	node_->lookupIndex(currentIndex, &content.address); // TODO double work? ++ and *?
 	node_->fillLookupContent(content,
-			isPointer, isSuffix,
 			node_->references_[currentIndex],
 			this->resolveSuffixIndexToPointer_);
 	return content;
