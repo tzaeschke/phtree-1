@@ -16,6 +16,7 @@
 #include <vector>
 #include <atomic>
 #include <boost/thread/barrier.hpp>
+#include <boost/thread/shared_mutex.hpp>
 
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
@@ -59,7 +60,7 @@ private:
 	size_t nThreads_;
 	size_t currentBarrierSize;
 	std::atomic<size_t> nRemainingThreads_;
-	mutex createBarriersMutex_;
+	boost::shared_mutex createBarriersMutex_;
 	boost::barrier* poolFlushBarrier_;
 	std::vector<std::thread> threads_;
 	const std::vector<std::vector<unsigned long>>& values_;
@@ -140,15 +141,21 @@ void InsertionThreadPool<DIM, WIDTH>::joinPool() {
 template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::handlePoolFlushSync(EntryBufferPool<DIM,WIDTH>* pool, bool lastFlush) {
 	// decide who creates the barriers
-	createBarriersMutex_.lock(); // needs shared_lock?
-	if (currentBarrierSize != nRemainingThreads_) {
-		delete poolFlushBarrier_;
-		poolFlushBarrier_ = new boost::barrier(nRemainingThreads_);
-		const size_t nRemainingThreads = nRemainingThreads_;
-		currentBarrierSize = nRemainingThreads;
-	}
-	createBarriersMutex_.unlock();
+	boost::unique_lock<boost::shared_mutex> writeLock(createBarriersMutex_, boost::defer_lock);
+	while (currentBarrierSize != nRemainingThreads_) {
+		if (writeLock.try_lock()) {
+			if (currentBarrierSize != nRemainingThreads_) {
+				delete poolFlushBarrier_;
+				poolFlushBarrier_ = new boost::barrier(nRemainingThreads_);
+				const size_t nRemainingThreads = nRemainingThreads_;
+				currentBarrierSize = nRemainingThreads;
+			}
 
+			writeLock.unlock();
+		}
+	}
+
+	boost::shared_lock<boost::shared_mutex> readLock(createBarriersMutex_);
 	const bool responsibleForState = poolFlushBarrier_->wait();
 	pool->fullDeallocate();
 	if (responsibleForState) {
