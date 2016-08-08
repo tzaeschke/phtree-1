@@ -68,10 +68,13 @@ public:
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
 
-	static void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer, bool deallocate);
+	static void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer, bool deallocate, bool lockRequired);
 private:
 
 	static inline bool needToCopyNodeForSuffixInsertion(Node<DIM>* currentNode);
+
+	static inline void upgradeWriteLock(Node<DIM>* node);
+	static inline bool optimisticWriteLockUpgradable(Node<DIM>* node);
 	static inline bool optimisticWriteLock(Node<DIM>* node);
 	static inline bool optimisticWriteLock(Node<DIM>* currentNode, Node<DIM>* previousNode);
 	static inline void optimisticWriteUnlock(Node<DIM>* node);
@@ -434,13 +437,23 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(Node<DIM>* node)
 	assert (node->rwLock.state.shared_count > 0);
 
 	bool success = false;
-	if (node->rwLock.try_unlock_shared_and_lock_upgrade()) {
+	if (optimisticWriteLockUpgradable(node)) {
 		// the thread now holds the only lock with upgrade privileges on the node
-		node->rwLock.unlock_upgrade_and_lock();
+		upgradeWriteLock(node);
 		success = true;
 	}
 
 	return success;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::upgradeWriteLock(Node<DIM>* node) {
+	node->rwLock.unlock_upgrade_and_lock();
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLockUpgradable(Node<DIM>* node) {
+	return node->rwLock.try_unlock_shared_and_lock_upgrade();
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
@@ -803,7 +816,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				cout << "insert into buffer (flush: " << needFlush << ")" << endl;
 #endif
 				if (needFlush) {
-					flushSubtree(buffer, true);
+					flushSubtree(buffer, true, false);
 					++nFlushCountWithin;
 				}
 
@@ -935,10 +948,10 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 			EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM,WIDTH>*>(content.specialPointer);
 			if (buffer->full()) {
-				if (optimisticWriteLock(currentNode)) {
+				if (optimisticWriteLockUpgradable(currentNode)) {
 					assert (buffer->full());
 					// cleaning the old buffer and restart
-					flushSubtree(buffer, true);
+					flushSubtree(buffer, true, true);
 					downgradeWriterToReader(currentNode);
 					// continue with the current node
 				} else {
@@ -980,6 +993,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (optimisticWriteLock(currentNode, lastNode)) {
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
 				assert(adjustedNode && (adjustedNode != currentNode));
+				// TODO only need upgradable mutex state up to here
 				lastNode->insertAtAddress(lastHcAddress, adjustedNode);
 				optimisticWriteUnlock(currentNode, lastNode);
 				currentNode->removed = true;
@@ -1011,10 +1025,18 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(
-		EntryBuffer<DIM, WIDTH>* buffer, bool deallocate) {
+		EntryBuffer<DIM, WIDTH>* buffer, bool deallocate, bool lockRequired) {
 	EntryBufferPool<DIM,WIDTH>* pool = buffer->getPool();
 	assert (pool);
-	buffer->flushToSubtree();
+	Node<DIM>* subtreeRoot = buffer->flushToSubtree();
+	TEntryBuffer<DIM>* tBuffer = static_cast<TEntryBuffer<DIM>*>(buffer);
+	pair<Node<DIM>*, unsigned long> nodeAndAddress = tBuffer->getNodeAndAddress();
+	Node<DIM>* bufferParent = nodeAndAddress.first;
+	if (lockRequired) {
+		upgradeWriteLock(bufferParent);
+	}
+	bufferParent->insertAtAddress(nodeAndAddress.second, subtreeRoot);
+
 	buffer->clear();
 	assert (buffer->assertCleared());
 	if (deallocate) {

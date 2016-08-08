@@ -108,7 +108,7 @@ void EntryBufferPool<DIM, WIDTH>::doFullDeallocatePart(size_t part, size_t total
 	// assigned node can be locked
 	for (unsigned i = start; i < end; ++i) {
 		if (pool_[i].nextIndex_ != (-1u)) {
-			DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(&(pool_[i]), false);
+			DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(&(pool_[i]), false, false);
 			assert (pool_[i].assertCleared());
 		} else {
 			pool_[i].nextIndex_ = 0; // TODO only needed for consistency in assertCleared()
