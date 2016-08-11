@@ -24,6 +24,7 @@ enum LockReason {
 	FlushBuffer,
 	SwapSuffix,
 	InsertSuffix,
+	InsertSuffixWithEnlarge,
 	BufferInsert,
 	NotLocked
 };

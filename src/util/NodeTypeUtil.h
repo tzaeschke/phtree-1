@@ -246,7 +246,7 @@ private:
 			case 8: return determineNodeType<8>(prefixBits, nDirectInserts);
 			case 9: return determineNodeType<9>(prefixBits, nDirectInserts);
 			case 10: return determineNodeType<10>(prefixBits, nDirectInserts);
-			default: throw runtime_error("Only supports up to 10 prefix blocks right now.");
+			default: throw runtime_error("Only supports up to 10 prefix blocks right now and not " + to_string(prefixBlocks) + ".");
 			}
 		}
 

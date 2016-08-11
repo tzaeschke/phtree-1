@@ -240,7 +240,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 
 	CALLGRIND_START_INSTRUMENTATION;
 	const size_t availableThreads = 3 * thread::hardware_concurrency();
-	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1)};//, static_cast<InsertionOrder>(2)};
+	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(0), static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
 	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			InsertionThreadPool<DIM,WIDTH>::order_ = o;
@@ -360,6 +360,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		cout << "\t\t\t#restarts because of buffer flush: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFlushBuffer << endl;
 		cout << "\t\t\t#restarts because of suffix swap: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonSwapSuffix << endl;
 		cout << "\t\t\t#restarts because of insert suffix: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertSuffix << endl;
+		cout << "\t\t\t#restarts because of insert suffix with enlarge: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertSuffixWithEnlarge << endl;
 		cout << "\t\t\t#restarts because of buffer insertion: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertInBuffer << endl;
 		cout << "\t\t\t#restarts because of full pool: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFullPool << endl;
 	}

@@ -54,6 +54,7 @@ public:
 	static atomic<unsigned long> nRestartReasonFlushBuffer;
 	static atomic<unsigned long> nRestartReasonSwapSuffix;
 	static atomic<unsigned long> nRestartReasonInsertSuffix;
+	static atomic<unsigned long> nRestartReasonInsertSuffixWithEnlarge;
 	static atomic<unsigned long> nRestartReasonInsertInBuffer;
 	static atomic<unsigned long> nRestartReasonFullPool;
 
@@ -135,6 +136,8 @@ atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonSwapS
 template <unsigned int DIM, unsigned int WIDTH>
 atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertSuffix;
 template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertSuffixWithEnlarge;
+template <unsigned int DIM, unsigned int WIDTH>
 atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertInBuffer;
 template <unsigned int DIM, unsigned int WIDTH>
 atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFullPool;
@@ -183,6 +186,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters() {
 	nRestartReasonFlushBuffer = 0;
 	nRestartReasonSwapSuffix = 0;
 	nRestartReasonInsertSuffix = 0;
+	nRestartReasonInsertSuffixWithEnlarge = 0;
 	nRestartReasonInsertInBuffer = 0;
 	nRestartReasonFullPool = 0;
 }
@@ -904,6 +908,9 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				case InsertSuffix:
 					nRestartReasonInsertSuffix++;
 					break;
+				case InsertSuffixWithEnlarge:
+					nRestartReasonInsertSuffixWithEnlarge++;
+					break;
 				case BufferInsert:
 					nRestartReasonInsertInBuffer++;
 				}
@@ -922,6 +929,9 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 					break;
 				case InsertSuffix:
 					nRestartReasonInsertSuffix++;
+					break;
+				case InsertSuffixWithEnlarge:
+					nRestartReasonInsertSuffixWithEnlarge++;
 					break;
 				case BufferInsert:
 					nRestartReasonInsertInBuffer++;
@@ -1006,6 +1016,9 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				case InsertSuffix:
 					nRestartReasonInsertSuffix++;
 					break;
+				case InsertSuffixWithEnlarge:
+					nRestartReasonInsertSuffixWithEnlarge++;
+					break;
 				case BufferInsert:
 					nRestartReasonInsertInBuffer++;
 				}
@@ -1071,8 +1084,8 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 		} else if (lastNode && needToCopyNodeForSuffixInsertion(currentNode)) {
 			// insert the suffix into a node that will be changed so needs to be reinserted into the parent
 			if (optimisticWriteLock(currentNode, lastNode)) {
-				currentNode->lockReason = InsertSuffix;
-				lastNode->lockReason = InsertSuffix;
+				currentNode->lockReason = InsertSuffixWithEnlarge;
+				lastNode->lockReason = InsertSuffixWithEnlarge;
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
 				assert(adjustedNode && (adjustedNode != currentNode));
 				lastNode->insertAtAddress(lastHcAddress, adjustedNode);
