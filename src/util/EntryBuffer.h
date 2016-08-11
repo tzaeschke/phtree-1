@@ -40,7 +40,7 @@ public:
 	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
 	Node<DIM>* flushToSubtree();
 	void flushToSubtreeSequential();
-	void joinFlushToSubtree();
+	bool joinFlushToSubtree();
 	void releaseJoinedThreads();
 	EntryBufferPool<DIM, WIDTH>* getPool();
 
@@ -61,7 +61,7 @@ private:
 	size_t nJoinedThreads;
 	size_t nThreads;
 	std::condition_variable joinFlush;
-	std::condition_variable flushDone;
+	std::condition_variable helpingDone_;
 	boost::barrier* startBarrier;
 	boost::barrier* middleBarrier;
 	boost::barrier* endBarrier;
@@ -80,7 +80,8 @@ private:
 	// - stores the lower matrix because LCP values of one row are stored together
 	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
 	Entry<DIM, WIDTH> buffer_[capacity_];
-	bool insertCompleted_[capacity_];
+	bool copyCompleted_[capacity_];
+	bool insertCompleted_[capacity_]; // TODO can be merged with copyCompleted
 
 	// TODO validation only:
 	const Entry<DIM, WIDTH>* originals_[capacity_];
@@ -89,7 +90,7 @@ private:
 	inline unsigned int getLcp(unsigned int row, unsigned int column) const;
 	void setPool(EntryBufferPool<DIM, WIDTH>* pool);
 
-	void parallelPoolFlush(bool isCoordinator);
+	bool parallelPoolFlush(bool isCoordinator);
 	void joinedThreadDone();
 	bool parallelPoolFlushIteration_prepare(size_t threadIndex, size_t nThreads);
 	void parallelPoolFlushIteration_print() const;
@@ -107,7 +108,7 @@ private:
 template <unsigned int DIM, unsigned int WIDTH>
 EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0),
 	suffixBits_(0), pool_(NULL), lcps_(), buffer_(), insertCompleted_(),
-	waitingThreads(false) {
+	copyCompleted_(), waitingThreads(false) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -120,6 +121,7 @@ Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>*
 	nextIndex_ = 1;
 	flushing_ = false;
 	assert (!insertCompleted_[0]);
+	copyCompleted_[0] = true;
 	insertCompleted_[0] = true;
 	return &(buffer_[0]);
 }
@@ -135,6 +137,7 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 	const size_t blocksPerEntry = 1 + (suffixBits_ - 1) / MultiDimBitset<DIM>::bitsPerBlock;
 	for (unsigned row = 0; row < n; ++row) {
 		insertCompleted_[row] = false;
+		copyCompleted_[row] = false;
 
 		for (unsigned column = 0; column <= row; ++column) {
 			setLcp(row, column, 0);
@@ -158,6 +161,7 @@ bool EntryBuffer<DIM, WIDTH>::assertCleared() const {
 	assert (!flushing_);
 	for (unsigned i = 0; i < capacity_; ++i) {
 		assert (!insertCompleted_[i]);
+		assert (!copyCompleted_[i]);
 
 		for (unsigned j = 0; j < capacity_; j++) {
 			assert (getLcp(i, j) == 0);
@@ -226,14 +230,14 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	assert (!insertCompleted_[i]);
 	// copy ID and necessary bits into the local buffer
 	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[i].values_);
-	insertCompleted_[i] = true; // TODO place after duplication?
+	copyCompleted_[i] = true;
 	buffer_[i].id_ = entry.id_;
 	originals_[i] = &entry;
 
 	// compare the new entry to all previously inserted entries
 	const unsigned int startIndexDim = WIDTH - (suffixBits_ / DIM);
 	for (unsigned other = 0; other < i; ++other) {
-		while (!insertCompleted_[other]) {}; // spin until the previous thread is done
+		while (!copyCompleted_[other]) {}; // spin until the previous thread is done
 		// TODO no need to compare all values!
 		// TODO no need to compare to full values!
 		assert (getLcp(other, i) == 0 && getLcp(i, other) == 0);
@@ -241,25 +245,22 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
 				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
 		assert(!comp.first);
-		assert (!flushing_);
+//		assert (!flushing_);
 		setLcp(i, other, comp.second);
 	}
 
+	insertCompleted_[i] = true;
 	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::joinFlushToSubtree() {
-	if (flushing_) {
-		parallelPoolFlush(false);
-		unique_lock<mutex> lock(m);
-		flushDone.wait(lock);
-	}
+bool EntryBuffer<DIM, WIDTH>::joinFlushToSubtree() {
+	return parallelPoolFlush(false);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::releaseJoinedThreads() {
-	flushDone.notify_all();
+	helpingDone_.notify_all();
 	waitingThreads = false;
 }
 
@@ -315,7 +316,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 	flushDone_ = false;
 	for (unsigned row = 0; row < n; ++row) {
 		// spin until remaining insertions are done
-		assert (insertCompleted_[row]);
+		while (!insertCompleted_[row]) {}
 		rowEmpty[row] = false;
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!
@@ -340,7 +341,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
+bool EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 
 	unique_lock<mutex> lock(m);
 	const size_t threadIndex = nJoinedThreads++;
@@ -351,11 +352,11 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 		middleBarrier = new boost::barrier(1);
 		endBarrier = new boost::barrier(1);
 		lock.unlock();
-	} else if (flushing_) {
+	} else if (!flushDone_) {
 		waitingThreads = true;
 		joinFlush.wait(lock);
 	} else {
-		return;
+		return false;
 	}
 
 	// synchronize through 3 barriers: while all threads are trapped between 2 barriers the third one can be updated
@@ -405,8 +406,16 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 		if (moreWork) {
 			parallelPoolFlushIteration_execute(threadIndex, nThreads);
 		}
+
 		endBarrier->wait();
 	}
+
+	if (!isCoordinator) {
+		lock.lock();
+		helpingDone_.wait(lock);
+	}
+
+	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
