@@ -52,17 +52,17 @@ private:
 	atomic<size_t> nextIndex_;
 	size_t suffixBits_;
 
-	bool waitingThreads;
+	atomic<bool> waitingThreads;
 	atomic<bool> flushing_;
 	size_t n;
 	size_t maxRowMax;
 	size_t nJoinedThreads;
 	size_t nThreads;
 	std::condition_variable joinFlush;
-	std::condition_variable joinedDone;
+	std::condition_variable flushDone;
 	boost::barrier* startBarrier;
 	boost::barrier* middleBarrier;
-	boost::barrier* exitBarrier;
+	boost::barrier* endBarrier;
 	std::mutex m;
 	EntryBufferPool<DIM, WIDTH>* pool_;
 
@@ -309,35 +309,76 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 
 	unique_lock<mutex> lock(m);
 	const size_t threadIndex = nJoinedThreads++;
-	if (!isCoordinator) {
+	if (isCoordinator) {
+		nThreads = nJoinedThreads;
+		startBarrier = new boost::barrier(nThreads);
+		middleBarrier = new boost::barrier(nThreads);
+		endBarrier = new boost::barrier(nThreads);
 		lock.unlock();
-	} else {
+	} else if (flushing_) {
+		waitingThreads = true;
 		joinFlush.wait(lock);
+	} else {
+		return;
 	}
 
+	// synchronize through 3 barriers: while all threads are trapped between 2 barriers the third one can be updated
+	//		newly joining threads
+	// -- start --
+	//		prepare the current iteration by calculating the assigned values
+	// -- middle --
+	//		execute the calculations by creating proper nodes per thread
+	// -- end --
+	static bool flushDone = false;
+	bool involveNewWorkers = false;
+	while (!flushDone) {
+		if (isCoordinator) {
+			flushDone = true;
+			if (involveNewWorkers) {
+				delete middleBarrier;
+				middleBarrier = new boost::barrier(nThreads);
+			}
+		}
 
-	bool moreWork = false;
-	do {
-		if (isCoordinator && nThreads < nJoinedThreads) {
+		startBarrier->wait();
+		const bool moreWork = parallelPoolFlushIteration_prepare(threadIndex, nThreads);
+		if (moreWork) {
+			flushDone = false;
+		}
+
+		if (isCoordinator && involveNewWorkers) {
+			delete endBarrier;
+			endBarrier = new boost::barrier(nThreads);
+		}
+
+		middleBarrier->wait();
+
+		if (isCoordinator) {
+			parallelPoolFlushIteration_print();
 			lock.lock();
-			barrier =
-			nThreads = nJoinedThreads;
-			joinFlush.notify_all();
+			involveNewWorkers = waitingThreads;
+			if (involveNewWorkers) {
+				nThreads = nJoinedThreads;
+				delete startBarrier;
+				startBarrier = new boost::barrier(nThreads);
+				joinFlush.notify_all();
+				waitingThreads = false;
+			}
 			lock.unlock();
 		}
 
-		const size_t currentThreads = nThreads;
-		join
-
-		moreWork = parallelPoolFlush
-	} while (moreWork);
-
+		if (moreWork) {
+			parallelPoolFlushIteration_execute(threadIndex, nThreads);
+		}
+		endBarrier->wait();
+	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIndex, size_t nThreads) {
-	bool hasMoreRows = false;
 
+
+	bool hasMoreRows = false;
 	// calculate maximum and number of occurrences per row
 	// TODO no need to revisit rows that were not changed!
 			for (unsigned row = 0; row < n; ++row) {
