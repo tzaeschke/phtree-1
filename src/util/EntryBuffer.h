@@ -39,6 +39,7 @@ public:
 	void updateNode(Node<DIM>* node);
 	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
 	Node<DIM>* flushToSubtree();
+	void flushToSubtreeSequential();
 	void joinFlushToSubtree();
 	void releaseJoinedThreads();
 	EntryBufferPool<DIM, WIDTH>* getPool();
@@ -54,8 +55,9 @@ private:
 
 	atomic<bool> waitingThreads;
 	atomic<bool> flushing_;
+	bool flushDone_;
 	size_t n;
-	size_t maxRowMax;
+	atomic<size_t> maxRowMax_;
 	size_t nJoinedThreads;
 	size_t nThreads;
 	std::condition_variable joinFlush;
@@ -103,7 +105,9 @@ private:
 #include "util/EntryBufferPool.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
-EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0), suffixBits_(0), pool_(NULL), lcps_(), buffer_(), insertCompleted_() {
+EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0),
+	suffixBits_(0), pool_(NULL), lcps_(), buffer_(), insertCompleted_(),
+	waitingThreads(false) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -139,14 +143,6 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 		for (unsigned block = 0; block < blocksPerEntry; ++block) {
 			buffer_[row].values_[block] = 0;
 		}
-	}
-
-	for (unsigned row = 0; row < n; ++row) {
-			assert (insertCompleted_[row]);
-			rowEmpty[row] = false;
-			rowNode[row] = NULL;
-			rowMax[row] = -1u;
-			rowNextMax[row] = -1u;
 	}
 
 	suffixBits_ = 0;
@@ -254,38 +250,77 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::joinFlushToSubtree() {
-
-	unique_lock<mutex> lock(m);
-
 	if (flushing_) {
 		parallelPoolFlush(false);
-		joinedDone.wait(lock);
+		unique_lock<mutex> lock(m);
+		flushDone.wait(lock);
 	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::releaseJoinedThreads() {
-	joinedDone.notify_all();
+	flushDone.notify_all();
+	waitingThreads = false;
 }
 
-template <unsigned int DIM, unsigned int WIDTH>
-Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
+template<unsigned int DIM, unsigned int WIDTH>
+void EntryBuffer<DIM, WIDTH>::flushToSubtreeSequential() {
+	assert(suffixBits_ > 0);
+	assert((this->node_->lookup(this->nodeHcAddress, true).exists) && (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
 
-	unique_lock<mutex> lock(m);
-
-	assert (suffixBits_ > 0);
-	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
-				&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
-
-	assert (!flushing_);
+	assert(!flushing_);
 	flushing_ = true;
 	const size_t currentIndex = nextIndex_;
 	const size_t capacity = capacity_;
 	n = min(currentIndex, capacity);
-	maxRowMax = 0;
-	assert (n > 0 && n <= capacity_);
-	nThreads = 0;
+	maxRowMax_ = -1uL;
+	assert(n > 0 && n <= capacity_);
+
+	for (unsigned row = 0; row < n; ++row) {
+		assert (insertCompleted_[row]);
+		rowEmpty[row] = false;
+		rowNode[row] = NULL;
+		rowMax[row] = -1u; // TODO not needed ?!
+		rowNextMax[row] = -1u;
+	}
+
+	while (parallelPoolFlushIteration_prepare(0, 1)) {
+		parallelPoolFlushIteration_print();
+		parallelPoolFlushIteration_execute(0, 1);
+	}
+
+	// insert the root node of the subtree into the parent
+	this->node_->insertAtAddress(this->nodeHcAddress, rowNode[0]);
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
+	assert (suffixBits_ > 0);
+	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
+				&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
+
+	unique_lock<mutex> lock(m);
+	assert (!flushing_);
+	flushing_ = true;
+	nJoinedThreads = 0;
 	lock.unlock();
+
+	const size_t currentIndex = nextIndex_;
+	const size_t capacity = capacity_;
+	n = min(currentIndex, capacity);
+	assert (n == capacity);
+	maxRowMax_ = -1uL;
+	assert (n > 0 && n <= capacity_);
+	nThreads = 1;
+	flushDone_ = false;
+	for (unsigned row = 0; row < n; ++row) {
+		// spin until remaining insertions are done
+		assert (insertCompleted_[row]);
+		rowEmpty[row] = false;
+		rowNode[row] = NULL;
+		rowMax[row] = -1u; // TODO not needed ?!
+		rowNextMax[row] = -1u;
+	}
 
 	parallelPoolFlush(true);
 
@@ -310,10 +345,11 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 	unique_lock<mutex> lock(m);
 	const size_t threadIndex = nJoinedThreads++;
 	if (isCoordinator) {
-		nThreads = nJoinedThreads;
-		startBarrier = new boost::barrier(nThreads);
-		middleBarrier = new boost::barrier(nThreads);
-		endBarrier = new boost::barrier(nThreads);
+		assert ((nThreads == nJoinedThreads) && (nThreads == 1));
+		// TODO do not create the barriers in each iteration but only when needed
+		startBarrier = new boost::barrier(1);
+		middleBarrier = new boost::barrier(1);
+		endBarrier = new boost::barrier(1);
 		lock.unlock();
 	} else if (flushing_) {
 		waitingThreads = true;
@@ -329,11 +365,10 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 	// -- middle --
 	//		execute the calculations by creating proper nodes per thread
 	// -- end --
-	static bool flushDone = false;
 	bool involveNewWorkers = false;
-	while (!flushDone) {
+	while (!flushDone_) {
 		if (isCoordinator) {
-			flushDone = true;
+			flushDone_ = true;
 			if (involveNewWorkers) {
 				delete middleBarrier;
 				middleBarrier = new boost::barrier(nThreads);
@@ -343,7 +378,7 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 		startBarrier->wait();
 		const bool moreWork = parallelPoolFlushIteration_prepare(threadIndex, nThreads);
 		if (moreWork) {
-			flushDone = false;
+			flushDone_ = false;
 		}
 
 		if (isCoordinator && involveNewWorkers) {
@@ -377,11 +412,16 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIndex, size_t nThreads) {
 
+	const size_t rowsPerThread = n / nThreads + 1;
+	const size_t startRow = threadIndex * rowsPerThread;
+	const size_t endRow = min ((threadIndex + 1) * rowsPerThread, n);
 
+	size_t globalMaxRowMax = maxRowMax_;
+	size_t localMaxRowMax = -1uL;
 	bool hasMoreRows = false;
 	// calculate maximum and number of occurrences per row
 	// TODO no need to revisit rows that were not changed!
-			for (unsigned row = 0; row < n; ++row) {
+			for (unsigned row = startRow; row < endRow; ++row) {
 				if (rowEmpty[row]) continue;
 				hasMoreRows = row != 0;
 
@@ -426,7 +466,15 @@ bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIn
 
 				assert ((1 + rowNextMax[row]) <= (1 + rowMax[row]));
 	//			assert (rowNSuffixes[row] + rowNSubnodes[row] <= (1uL << DIM));
-				if ((1 + rowMax[row]) > (1 + maxRowMax)) {maxRowMax = rowMax[row];}
+				if ((1 + rowMax[row]) > (1 + localMaxRowMax)) {localMaxRowMax = rowMax[row];}
+			}
+
+			if (hasMoreRows) {
+				assert (localMaxRowMax <= globalMaxRowMax);
+				while (!atomic_compare_exchange_strong(&maxRowMax_, &globalMaxRowMax, localMaxRowMax)) {
+					// the global value was changed so break if it was bigger than the local one
+					if (globalMaxRowMax > localMaxRowMax) break;
+				}
 			}
 
 			return hasMoreRows;
@@ -450,7 +498,7 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_print() const {
 					else if (getLcp(row, col) == (-1u)) {cout << "(-1)";}
 					else {
 						cout << getLcp(row, col);
-						if (getLcp(row, col) == maxRowMax) {cout << "*";}
+						if (getLcp(row, col) == maxRowMax_) {cout << "*";}
 					}
 				}
 				cout << endl;
@@ -461,16 +509,20 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_print() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_execute(size_t threadIndex, size_t nThreads) {
+
+	const size_t rowsPerThread = n / nThreads + 1;
+	const size_t startRow = threadIndex * rowsPerThread;
+	const size_t endRow = min ((threadIndex + 1) * rowsPerThread, n - 1);
+	const size_t maxRowMax = maxRowMax_;
+
 	const unsigned int basicMsbIndex = WIDTH - suffixBits_ / DIM;
-
-
 
 				// create a new node for each row that was not ruled out yet
 				const unsigned int index = basicMsbIndex + maxRowMax;
 				assert (index < WIDTH);
 				// current suffix bits: buffer suffix bits - current longest prefix bits - HC address bits (one node)
 				const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax + 1);
-				for (unsigned row = 0; row < (n - 1) && hasMoreRows; ++row) {
+				for (unsigned row = startRow; row < endRow; ++row) {
 					if (rowEmpty[row] || maxRowMax != rowMax[row]) continue;
 
 					setLcp(row, row, maxRowMax);

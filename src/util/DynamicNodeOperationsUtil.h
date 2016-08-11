@@ -68,7 +68,8 @@ public:
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
 
-	static void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer, bool deallocate);
+	static void flushSubtreeParallel(EntryBuffer<DIM, WIDTH>* buffer);
+	static void flushSubtreeSequential(EntryBuffer<DIM, WIDTH>* buffer);
 private:
 
 	static inline bool needToCopyNodeForSuffixInsertion(Node<DIM>* currentNode);
@@ -803,7 +804,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				cout << "insert into buffer (flush: " << needFlush << ")" << endl;
 #endif
 				if (needFlush) {
-					flushSubtree(buffer, true);
+					flushSubtreeSequential(buffer);
 					++nFlushCountWithin;
 				}
 
@@ -938,7 +939,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				if (optimisticWriteLock(currentNode)) {
 					assert (buffer->full());
 					// cleaning the old buffer and restart
-					flushSubtree(buffer, true);
+					flushSubtreeParallel(buffer);
 					downgradeWriterToReader(currentNode);
 				} else {
 					buffer->joinFlushToSubtree();
@@ -1009,22 +1010,23 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(
-		EntryBuffer<DIM, WIDTH>* buffer, bool deallocate) {
+void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtreeSequential(EntryBuffer<DIM, WIDTH>* buffer) {
+	EntryBufferPool<DIM,WIDTH>* pool = buffer->getPool();
+		assert (pool);
+		buffer->flushToSubtreeSequential();
+		buffer->clear();
+		assert (buffer->assertCleared());
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtreeParallel(EntryBuffer<DIM, WIDTH>* buffer) {
 	EntryBufferPool<DIM,WIDTH>* pool = buffer->getPool();
 	assert (pool);
 	buffer->flushToSubtree();
-
-	if (deallocate) {
-		buffer->releaseJoinedThreads();
-	}
-
+	buffer->releaseJoinedThreads();
 	buffer->clear();
 	assert (buffer->assertCleared());
-	if (deallocate) {
-		pool->deallocate(buffer);
-	}
-
+	pool->deallocate(buffer);
 }
 
 #endif /* SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_ */
