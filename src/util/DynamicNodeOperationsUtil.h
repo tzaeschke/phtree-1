@@ -50,6 +50,13 @@ public:
 	static atomic<unsigned long> nRestartWriteInsertSuffixEnlarge;
 	static atomic<unsigned long> nRestartWriteInsertSuffix;
 
+	static atomic<unsigned long> nRestartReasonSplitPrefix;
+	static atomic<unsigned long> nRestartReasonFlushBuffer;
+	static atomic<unsigned long> nRestartReasonSwapSuffix;
+	static atomic<unsigned long> nRestartReasonInsertSuffix;
+	static atomic<unsigned long> nRestartReasonInsertInBuffer;
+	static atomic<unsigned long> nRestartReasonFullPool;
+
 	static void resetCounters();
 	static void insert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree);
 	static void parallelInsert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree);
@@ -119,6 +126,19 @@ atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsert
 template <unsigned int DIM, unsigned int WIDTH>
 atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffix;
 
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonSplitPrefix;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFlushBuffer;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonSwapSuffix;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertSuffix;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertInBuffer;
+template <unsigned int DIM, unsigned int WIDTH>
+atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFullPool;
+
 #include <assert.h>
 #include <stdexcept>
 #include <cstdint>
@@ -158,6 +178,13 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters() {
 	nRestartWriteSwapSuffix = 0;
 	nRestartWriteInsertSuffixEnlarge = 0;
 	nRestartWriteInsertSuffix = 0;
+
+	nRestartReasonSplitPrefix = 0;
+	nRestartReasonFlushBuffer = 0;
+	nRestartReasonSwapSuffix = 0;
+	nRestartReasonInsertSuffix = 0;
+	nRestartReasonInsertInBuffer = 0;
+	nRestartReasonFullPool = 0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -862,8 +889,45 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 
 	while (index < WIDTH) {
 		if (restart) {
-			if (currentNode) { readUnlock(currentNode); }
-			if (lastNode) { readUnlock(lastNode); }
+			if (currentNode) {
+				// count the reason for the restart
+				switch (currentNode->lockReason) {
+				case  SplitPrefix:
+					nRestartReasonSplitPrefix++;
+					break;
+				case FlushBuffer:
+					nRestartReasonFlushBuffer++;
+					break;
+				case SwapSuffix:
+					nRestartReasonSwapSuffix++;
+					break;
+				case InsertSuffix:
+					nRestartReasonInsertSuffix++;
+					break;
+				case BufferInsert:
+					nRestartReasonInsertInBuffer++;
+				}
+				readUnlock(currentNode);
+			}
+			if (lastNode) {
+				switch (lastNode->lockReason) {
+				case  SplitPrefix:
+					nRestartReasonSplitPrefix++;
+					break;
+				case FlushBuffer:
+					nRestartReasonFlushBuffer++;
+					break;
+				case SwapSuffix:
+					nRestartReasonSwapSuffix++;
+					break;
+				case InsertSuffix:
+					nRestartReasonInsertSuffix++;
+					break;
+				case BufferInsert:
+					nRestartReasonInsertInBuffer++;
+				}
+				readUnlock(lastNode);
+			}
 			index = 0;
 			lastHcAddress = 0;
 			lastNode = NULL;
@@ -915,20 +979,39 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 					// split prefix of subnode [A | d | B] where d is the index of the first different bit
 					// create new node with prefix A and only leave prefix B in old subnode
 					if (optimisticWriteLock(currentNode, lastNode)) {
+						currentNode->lockReason = SplitPrefix;
+						lastNode->lockReason = SplitPrefix;
 						splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, lastNode, content, entry, tree);
+						lastNode->lockReason = NotLocked;
 						optimisticWriteUnlock(currentNode, lastNode);
 						currentNode->removed = true;
 						delete currentNode;
 						break;
 					} else {
 						restart = true;
-//						++nRestartWriteSplitPrefix;
+						++nRestartWriteSplitPrefix;
 					}
 				}
 			} else {
+				switch (subnode->lockReason) {
+				case SplitPrefix:
+					nRestartReasonSplitPrefix++;
+					break;
+				case FlushBuffer:
+					nRestartReasonFlushBuffer++;
+					break;
+				case SwapSuffix:
+					nRestartReasonSwapSuffix++;
+					break;
+				case InsertSuffix:
+					nRestartReasonInsertSuffix++;
+					break;
+				case BufferInsert:
+					nRestartReasonInsertInBuffer++;
+				}
 				// did not get access to the subnode so restart
 				restart = true;
-//				++nRestartReadRecurse;
+				++nRestartReadRecurse;
 			}
 		} else if (content.exists && content.hasSpecialPointer) {
 			// a buffer was found that can be filled
@@ -937,23 +1020,30 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (buffer->full()) {
 				if (optimisticWriteLock(currentNode)) {
 					assert (buffer->full());
+					currentNode->lockReason = FlushBuffer;
 					// cleaning the old buffer and restart
 					flushSubtree(buffer, true);
+					currentNode->lockReason = NotLocked;
 					downgradeWriterToReader(currentNode);
 					// continue with the current node
 				} else {
 					restart = true;
-//					++nRestartWriteFLushBuffer;
+					++nRestartWriteFLushBuffer;
 				}
-			} else if (buffer->insert(entry)) {
-				// successfully inserted the entry into the buffer
-				readUnlock(currentNode);
-				break;
 			} else {
-				// failed to insert into the buffer so restart
-				restart = true;
-//				++nRestartInsertBuffer;
+				currentNode->lockReason = BufferInsert;
+				if (buffer->insert(entry)) {
+					currentNode->lockReason = NotLocked;
+					// successfully inserted the entry into the buffer
+					readUnlock(currentNode);
+					break;
+				} else {
+					// failed to insert into the buffer so restart
+					restart = true;
+					++nRestartInsertBuffer;
+				}
 			}
+
 		} else if (content.exists && !content.hasSubnode) {
 			// instead of splitting the suffix a buffer is added
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
@@ -963,31 +1053,37 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				// unable to allocate another buffer!
 				// need to flush the pools first!
 				readUnlock(currentNode);
+				nRestartReasonFullPool++;
 				return false;
 			}
 
 			if (optimisticWriteLock(currentNode)) {
+				currentNode->lockReason = SwapSuffix;
 				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
+				currentNode->lockReason = NotLocked;
 				optimisticWriteUnlock(currentNode);
 				break;
 			} else {
 				pool.deallocate(buffer);
 				restart = true;
-//				++nRestartWriteSwapSuffix;
+				++nRestartWriteSwapSuffix;
 			}
 		} else if (lastNode && needToCopyNodeForSuffixInsertion(currentNode)) {
 			// insert the suffix into a node that will be changed so needs to be reinserted into the parent
 			if (optimisticWriteLock(currentNode, lastNode)) {
+				currentNode->lockReason = InsertSuffix;
+				lastNode->lockReason = InsertSuffix;
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
 				assert(adjustedNode && (adjustedNode != currentNode));
 				lastNode->insertAtAddress(lastHcAddress, adjustedNode);
+				lastNode->lockReason = NotLocked;
 				optimisticWriteUnlock(currentNode, lastNode);
 				currentNode->removed = true;
 				delete currentNode;
 				break;
 			} else {
 				restart = true;
-//				++nRestartWriteInsertSuffixEnlarge;
+				++nRestartWriteInsertSuffixEnlarge;
 			}
 		} else {
 			// inserting the suffix into a node that will not be changed
@@ -995,13 +1091,15 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 
 			if (optimisticWriteLock(currentNode)) {
+				currentNode->lockReason = InsertSuffix;
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
 				assert(adjustedNode && (adjustedNode == currentNode));
+				currentNode->lockReason = NotLocked;
 				optimisticWriteUnlock(currentNode);
 				break;
 			} else {
 				restart = true;
-//				++nRestartWriteInsertSuffix;
+				++nRestartWriteInsertSuffix;
 			}
 		}
 	}

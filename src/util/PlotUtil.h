@@ -235,17 +235,17 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	}
 
 	size_t runNr = 0;
-	const double sequentialSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), "sequential-baseline", false, false, 0);
+	const double sequentialSec = 1.0;// writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), "sequential-baseline", false, false, 0);
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
 	CALLGRIND_START_INSTRUMENTATION;
 	const size_t availableThreads = 3 * thread::hardware_concurrency();
-	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
+	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1)};//, static_cast<InsertionOrder>(2)};
 	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			InsertionThreadPool<DIM,WIDTH>::order_ = o;
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
-			const double parallelSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
+			const double parallelSec = 0.0;// writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
 			string lableBulk = "parallel-bulk-" + to_string(t) + "-" + to_string(static_cast<int>(o));
 			const double parallelBulkSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
 			// efficiency = Tseq / (T(p) * p)
@@ -355,6 +355,13 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		cout << "\t\t#swap suffix (write): " << nRestartWriteSwapSuffix << endl;
 		cout << "\t\t#insert suffix enlarge (write): " << nRestartWriteInsertSuffixEnlarge << endl;
 		cout << "\t\t#insert suffix (write): " << nRestartWriteInsertSuffix << endl;
+
+		cout << "\t\t\t#restarts because of split prefix: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonSplitPrefix << endl;
+		cout << "\t\t\t#restarts because of buffer flush: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFlushBuffer << endl;
+		cout << "\t\t\t#restarts because of suffix swap: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonSwapSuffix << endl;
+		cout << "\t\t\t#restarts because of insert suffix: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertSuffix << endl;
+		cout << "\t\t\t#restarts because of buffer insertion: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonInsertInBuffer << endl;
+		cout << "\t\t\t#restarts because of full pool: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReasonFullPool << endl;
 	}
 
 /*	CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();

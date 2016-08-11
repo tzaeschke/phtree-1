@@ -19,6 +19,15 @@
 #include "util/MultiDimBitset.h"
 #include <boost/thread/shared_mutex.hpp>
 
+enum LockReason {
+	SplitPrefix,
+	FlushBuffer,
+	SwapSuffix,
+	InsertSuffix,
+	BufferInsert,
+	NotLocked
+};
+
 template <unsigned int DIM>
 class Visitor;
 template <unsigned int DIM>
@@ -36,6 +45,9 @@ class Node {
 	friend class SizeVisitor<DIM>;
 	friend class PrefixSharingVisitor<DIM>;
 public:
+
+	//TODO remove:
+	LockReason lockReason;
 
 	boost::upgrade_mutex rwLock;
 	bool removed;
@@ -80,13 +92,11 @@ public:
 using namespace std;
 
 template <unsigned int DIM>
-Node<DIM>::Node() : removed(false) {
-//	pthread_rwlock_init(&rwLock, NULL);
+Node<DIM>::Node() : removed(false), lockReason(NotLocked) {
 }
 
 template <unsigned int DIM>
 Node<DIM>::~Node() {
-//	pthread_rwlock_destroy(&rwLock);
 }
 
 template <unsigned int DIM>
