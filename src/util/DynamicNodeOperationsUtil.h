@@ -940,11 +940,10 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 					// cleaning the old buffer and restart
 					flushSubtree(buffer, true);
 					downgradeWriterToReader(currentNode);
-					// continue with the current node
 				} else {
-					restart = true;
-//					++nRestartWriteFLushBuffer;
+					buffer->joinFlushToSubtree();
 				}
+				// continue with the current node which now has a subtree attached to it
 			} else if (buffer->insert(entry)) {
 				// successfully inserted the entry into the buffer
 				readUnlock(currentNode);
@@ -1015,6 +1014,11 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(
 	EntryBufferPool<DIM,WIDTH>* pool = buffer->getPool();
 	assert (pool);
 	buffer->flushToSubtree();
+
+	if (deallocate) {
+		buffer->releaseJoinedThreads();
+	}
+
 	buffer->clear();
 	assert (buffer->assertCleared());
 	if (deallocate) {
