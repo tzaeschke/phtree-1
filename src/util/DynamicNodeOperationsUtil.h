@@ -81,6 +81,7 @@ private:
 	static inline void optimisticWriteUnlock(Node<DIM>* node);
 	static inline void optimisticWriteUnlock(Node<DIM>* currentNode, Node<DIM>* previousNode);
 	static inline void downgradeWriterToReader(Node<DIM>* node);
+	static inline void downgradeUpgradableToReader(Node<DIM>* node);
 	static inline void readLockBlocking(Node<DIM>* node);
 	static inline bool readLock(Node<DIM>* node);
 	static inline void readUnlock(Node<DIM>* node);
@@ -460,6 +461,11 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLockUpgradable(Node<D
 template<unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::downgradeWriterToReader(Node<DIM>* node) {
 	node->rwLock.unlock_and_lock_shared();
+}
+
+template<unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::downgradeUpgradableToReader(Node<DIM>* node) {
+	node->rwLock.unlock_upgrade_and_lock_shared();
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
@@ -955,7 +961,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 					assert (buffer->full());
 					// cleaning the old buffer and restart
 					flushSubtreeParallel(buffer);
-					downgradeWriterToReader(currentNode);
+					downgradeUpgradableToReader(currentNode);
 				} else if (!buffer->joinFlushToSubtree()) {
 					// could not help in the joining procedure
 					restart = true;
@@ -1039,13 +1045,14 @@ template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtreeParallel(EntryBuffer<DIM, WIDTH>* buffer) {
 	EntryBufferPool<DIM,WIDTH>* pool = buffer->getPool();
 	assert (pool);
-	Node<DIM>* subtreeRoot = buffer->flushToSubtree();
-	TEntryBuffer<DIM>* tBuffer = static_cast<TEntryBuffer<DIM>*>(buffer);
-	pair<Node<DIM>*, unsigned long> nodeAndAddress = tBuffer->getNodeAndAddress();
-	Node<DIM>* bufferParent = nodeAndAddress.first;
-	upgradeWriteLock(bufferParent);
-	bufferParent->insertAtAddress(nodeAndAddress.second, subtreeRoot);
-	buffer->releaseJoinedThreads();
+	buffer->flushToSubtree();
+//	Node<DIM>* subtreeRoot = buffer->flushToSubtree();
+//	TEntryBuffer<DIM>* tBuffer = static_cast<TEntryBuffer<DIM>*>(buffer);
+//	pair<Node<DIM>*, unsigned long> nodeAndAddress = tBuffer->getNodeAndAddress();
+//	Node<DIM>* bufferParent = nodeAndAddress.first;
+// TODO no need to upgrade since only one edge is changed!	upgradeWriteLock(bufferParent);
+//	bufferParent->insertAtAddress(nodeAndAddress.second, subtreeRoot);
+//	buffer->releaseJoinedThreads();
 	buffer->clear();
 	assert (buffer->assertCleared());
 	pool->deallocate(buffer);
