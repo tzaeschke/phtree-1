@@ -235,7 +235,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	}
 
 	size_t runNr = 0;
-	const double sequentialSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), "sequential-baseline", false, false, 0);
+	const double sequentialSec = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), "sequential-baseline", false, false, 0);
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
 	CALLGRIND_START_INSTRUMENTATION;
@@ -247,7 +247,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
 			const double parallelSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
 			string lableBulk = "parallel-bulk-" + to_string(t) + "-" + to_string(static_cast<int>(o));
-			const double parallelBulkSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
+			const double parallelBulkSec = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
 			// efficiency = Tseq / (T(p) * p)
 			const double parallelEfficiency = sequentialSec / parallelSec / double(t);
 			const double parallelBulkEfficiency = sequentialSec / parallelBulkSec / double(t);

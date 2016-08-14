@@ -107,7 +107,7 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 	poolFlushBarrier_ = new boost::barrier(nThreads_);
 	pool_ = new EntryBufferPool<DIM,WIDTH>(); // TODO only create if needed
 
-	DynamicNodeOperationsUtil<DIM,WIDTH>::nThreads = nThreads_;
+	DynamicNodeOperationsUtil<DIM,WIDTH>::setNThreads(nThreads_);
 	nRemainingThreads_ = nThreads_;
 	threads_.reserve(furtherThreads);
 	for (unsigned tCount = 0; tCount < furtherThreads; ++tCount) {
@@ -124,6 +124,8 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 	assert (nRemainingThreads_ == 0);
 	delete poolFlushBarrier_;
 	delete pool_;
+
+	DynamicNodeOperationsUtil<DIM,WIDTH>::setDone();
 
 	// shrink the root node again
 	size_t rootContents = tree_->root_->getNumberOfContents();
@@ -190,13 +192,13 @@ void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex
 	const Entry<DIM, WIDTH> entry(values_[entryIndex], ids_[entryIndex]);
 	switch (approach_) {
 	case optimistic_locking:
-		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
+		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_, threadIndex);
 		break;
 	case buffered_bulk:
 		bool success = false;
 		while (!success) {
 			if (poolSyncRequired_) { handlePoolFlushSync(threadIndex, false); }
-			success = DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(entry, *tree_, *pool_);
+			success = DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(entry, *tree_, *pool_, threadIndex);
 			if (!success) { poolSyncRequired_ = true; }
 		}
 		break;
