@@ -895,7 +895,8 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 
 			// need to get read access to the subnode
 			Node<DIM>* subnode = content.subnode;
-			if (readLock(subnode) && !subnode->removed) {
+			readLockBlocking(subnode);
+			if (!subnode->removed) {
 				const size_t subnodePrefixLength = subnode->getPrefixLength();
 				bool prefixIncluded = true;
 				size_t differentBitAtPrefixIndex = -1;
@@ -934,6 +935,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			} else {
 				// did not get access to the subnode so restart
 				restart = true;
+				readUnlock(subnode);
 //				++nRestartReadRecurse;
 			}
 		} else if (content.exists && content.hasSpecialPointer) {
