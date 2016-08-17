@@ -30,12 +30,12 @@ public:
 	EntryBuffer();
 	~EntryBuffer() {};
 
-	bool insert(const Entry<DIM, WIDTH>& entry);
+	bool insert(const Entry<DIM, WIDTH>& entry, size_t threadId);
 	bool full() const;
 	bool empty() const;
 	size_t capacity() const;
 	void clear();
-	Entry<DIM, WIDTH>* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress);
+	Entry<DIM, WIDTH>* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress, size_t threadId);
 	void updateNode(Node<DIM>* node);
 	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
 	Node<DIM>* flushToSubtree();
@@ -48,54 +48,66 @@ public:
 
 private:
 
-	static const size_t capacity_ = 10;
+	static const size_t CAPACITY = 50;
+	static const size_t SEQUENTIAL_FLUSH_IF_ALONE_AFTER = 5;
 
+	// TODO reorder attributes!
+
+	// --------------------
+	// needed for insertion
+	// --------------------
+	bool aloneInInsertion;
 	atomic<size_t> nextIndex_;
 	size_t suffixBits_;
-
-	atomic<bool> waitingThreads;
-	atomic<bool> flushing_;
-	bool flushDone_;
-	size_t n;
-	atomic<size_t> maxRowMax_;
-	size_t nJoinedThreads;
-	size_t nThreads;
-	std::condition_variable joinFlush;
-	std::condition_variable helpingDone_;
-	boost::barrier* startBarrier;
-	boost::barrier* middleBarrier;
-	boost::barrier* endBarrier;
-	std::mutex m;
-	EntryBufferPool<DIM, WIDTH>* pool_;
-
-	bool rowEmpty[capacity_];
-	unsigned int rowMax[capacity_];
-	unsigned int rowNextMax[capacity_];
-	unsigned int rowNSuffixes[capacity_];
-	unsigned int rowNSubnodes[capacity_];
-	Node<DIM>* rowNode[capacity_];
-
+	size_t initiatorThreadId;
 	// - symmetric matrix: need to store n/2 (n+1) fields only
 	// - stores the diagonal too for easier access
 	// - stores the lower matrix because LCP values of one row are stored together
-	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
-	Entry<DIM, WIDTH> buffer_[capacity_];
-	bool copyCompleted_[capacity_];
-	bool insertCompleted_[capacity_]; // TODO can be merged with copyCompleted
+	unsigned int lcps_[CAPACITY * (CAPACITY + 1) / 2];
+	Entry<DIM, WIDTH> buffer_[CAPACITY];
+	bool copyCompleted_[CAPACITY];
+	bool insertCompleted_[CAPACITY]; // TODO can be merged with copyCompleted
+
+	// ---------------------
+	//  needed for flushing
+	// ---------------------
+	std::mutex m;
+	std::condition_variable nextRound;
+	std::condition_variable joinFlush;
+	std::atomic<size_t> globalThreads_;
+	std::atomic<size_t> maxRowMax_;
+	size_t activeThreads_;
+	size_t readyThreads_;
+	size_t nRows_;
+	bool lastFlushIteration;
+	bool evenRound;
+	bool flushing_;
+	bool recalculateRange;
+	EntryBufferPool<DIM, WIDTH>* pool_;
+	bool rowResponsibleForInsert[CAPACITY];
+	bool rowEmpty[CAPACITY];
+	unsigned int rowMax[CAPACITY];
+	unsigned int rowNextMax[CAPACITY];
+	unsigned int rowNSuffixes[CAPACITY];
+	unsigned int rowNSubnodes[CAPACITY];
+	Node<DIM>* rowNodeOdd[CAPACITY];
+	Node<DIM>* rowNodeEven[CAPACITY];
 
 	// TODO validation only:
-	const Entry<DIM, WIDTH>* originals_[capacity_];
+	const Entry<DIM, WIDTH>* originals_[CAPACITY];
 
 	inline void setLcp(unsigned int row, unsigned int column, unsigned int lcp);
 	inline unsigned int getLcp(unsigned int row, unsigned int column) const;
-	void setPool(EntryBufferPool<DIM, WIDTH>* pool);
+	inline void setRowNode(Node<DIM>* node, unsigned int row);
+	inline Node<DIM>* getRowNode(unsigned int row);
 
+	void setPool(EntryBufferPool<DIM, WIDTH>* pool);
 	bool parallelPoolFlush(bool isCoordinator);
 	void joinedThreadDone();
-	bool parallelPoolFlushIteration_prepare(size_t threadIndex, size_t nThreads);
+	bool parallelPoolFlushIteration_prepare(size_t startRow, size_t endRow);
 	void parallelPoolFlushIteration_print(size_t nThreads) const;
-	void parallelPoolFlushIteration_createNodes(size_t threadIndex, size_t nThreads);
-	void parallelPoolFlushIteration_insert(size_t threadIndex, size_t nThreads);
+	void parallelPoolFlushIteration_createNodes(size_t startRow, size_t endRow);
+	void parallelPoolFlushIteration_insert(size_t startRow, size_t endRow);
 
 	inline void insert(Node<DIM>* currentNode, size_t column, size_t index, size_t suffixBits, bool lock);
 };
@@ -111,11 +123,11 @@ private:
 template <unsigned int DIM, unsigned int WIDTH>
 EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0),
 	suffixBits_(0), pool_(NULL), lcps_(), buffer_(), insertCompleted_(),
-	copyCompleted_(), waitingThreads(false) {
+	copyCompleted_() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress) {
+Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress, size_t threadId) {
 	assert (0 < suffixLength && suffixLength <= (WIDTH - 1));
 	assert (!flushing_);
 	suffixBits_ = suffixLength * DIM;
@@ -123,6 +135,8 @@ Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>*
 	this->nodeHcAddress = hcAddress;
 	nextIndex_ = 1;
 	flushing_ = false;
+	aloneInInsertion = true;
+	initiatorThreadId = threadId;
 	assert (!insertCompleted_[0]);
 	copyCompleted_[0] = true;
 	insertCompleted_[0] = true;
@@ -134,7 +148,7 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 	assert (suffixBits_ > 0);
 
 	const size_t i = nextIndex_;
-	const size_t c = capacity_;
+	const size_t c = CAPACITY;
 	const size_t n = c; // TODO less work possible: min(i, c);
 	const size_t blocksPerEntry = 1 + (suffixBits_ - 1) / MultiDimBitset<DIM>::bitsPerBlock;
 	for (unsigned row = 0; row < n; ++row) {
@@ -154,6 +168,7 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 	nextIndex_ = 0;
 	this->node_ = NULL;
 	flushing_ = false;
+	globalThreads_ = 0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -161,11 +176,11 @@ bool EntryBuffer<DIM, WIDTH>::assertCleared() const {
 	assert (suffixBits_ == 0);
 	assert (nextIndex_ == 0);
 	assert (!flushing_);
-	for (unsigned i = 0; i < capacity_; ++i) {
+	for (unsigned i = 0; i < CAPACITY; ++i) {
 		assert (!insertCompleted_[i]);
 		assert (!copyCompleted_[i]);
 
-		for (unsigned j = 0; j < capacity_; j++) {
+		for (unsigned j = 0; j < CAPACITY; j++) {
 			assert (getLcp(i, j) == 0);
 		}
 	}
@@ -177,7 +192,7 @@ bool EntryBuffer<DIM, WIDTH>::assertCleared() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 inline void EntryBuffer<DIM, WIDTH>::setLcp(unsigned int row, unsigned int column, unsigned int lcp) {
-	assert (row < capacity_ && column < capacity_);
+	assert (row < CAPACITY && column < CAPACITY);
 	// only stores lower half of the symmetrical matrix
 	const unsigned int i = (row > column)? row : column;
 	const unsigned int j = (row > column)? column : row;
@@ -187,12 +202,32 @@ inline void EntryBuffer<DIM, WIDTH>::setLcp(unsigned int row, unsigned int colum
 
 template <unsigned int DIM, unsigned int WIDTH>
 inline unsigned int EntryBuffer<DIM, WIDTH>::getLcp(unsigned int row, unsigned int column) const {
-	assert (row < capacity_ && column < capacity_);
+	assert (row < CAPACITY && column < CAPACITY);
 	// only stores lower half of the symmetrical matrix
 	const unsigned int i = (row > column)? row : column;
 	const unsigned int j = (row > column)? column : row;
 	const unsigned int index = i * (i + 1) / 2 + j;
 	return lcps_[index];
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+inline void EntryBuffer<DIM, WIDTH>::setRowNode(Node<DIM>* node, unsigned int row) {
+	// always set the value to the next round
+	if (!evenRound) {
+		rowNodeEven[row] = node;
+	} else {
+		rowNodeOdd[row] = node;
+	}
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+inline Node<DIM>* EntryBuffer<DIM, WIDTH>::getRowNode(unsigned int row) {
+	// always get the value from the current round
+	if (evenRound) {
+		return rowNodeEven[row];
+	} else {
+		return rowNodeOdd[row];
+	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -207,12 +242,12 @@ void EntryBuffer<DIM, WIDTH>::setPool(EntryBufferPool<DIM,WIDTH>* pool) {
 
 template <unsigned int DIM, unsigned int WIDTH>
 size_t EntryBuffer<DIM, WIDTH>::capacity() const {
-	return capacity_;
+	return CAPACITY;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::full() const {
-	return nextIndex_ >= capacity_;
+	return nextIndex_ >= CAPACITY;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -221,14 +256,15 @@ bool EntryBuffer<DIM, WIDTH>::empty() const {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
+bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry, size_t threadId) {
 	assert (suffixBits_ > 0 && suffixBits_ % DIM == 0);
 	assert (!flushing_);
 	const size_t i = nextIndex_++;
-	if (i >= capacity_) { return false; }
+	if (i >= CAPACITY) { return false; }
 	// exclusively responsible for index i
+	if (threadId != initiatorThreadId) { aloneInInsertion = false; };
 
-	assert (0 < i && i < capacity_);
+	assert (0 < i && i < CAPACITY);
 	assert (!insertCompleted_[i]);
 	// copy ID and necessary bits into the local buffer
 	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[i].values_);
@@ -263,12 +299,10 @@ bool EntryBuffer<DIM, WIDTH>::joinFlushToSubtree() {
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::releaseJoinedThreads() {
 	// wait (spin) until all other threads have unregistered
-	while (nThreads > 1) {}
+	while (activeThreads_ > 1) {}
 	unique_lock<mutex> lock(m);
-	assert (nThreads == 1);
-	assert (flushDone_ && !flushing_);
-	helpingDone_.notify_all();
-	waitingThreads = false;
+	assert (activeThreads_ == 1);
+	assert (!flushing_);
 	joinFlush.notify_all();
 }
 
@@ -280,10 +314,10 @@ void EntryBuffer<DIM, WIDTH>::flushToSubtreeSequential() {
 	assert(!flushing_);
 	flushing_ = true;
 	const size_t currentIndex = nextIndex_;
-	const size_t capacity = capacity_;
-	n = min(currentIndex, capacity);
+	const size_t capacity = CAPACITY;
+	nRows_ = min(currentIndex, capacity);
 	maxRowMax_ = -1uL;
-	assert(n > 0 && n <= capacity_);
+	assert(nRows_ > 0 && nRows_ <= CAPACITY);
 
 	for (unsigned row = 0; row < n; ++row) {
 		assert (insertCompleted_[row]);
@@ -293,12 +327,12 @@ void EntryBuffer<DIM, WIDTH>::flushToSubtreeSequential() {
 		rowNextMax[row] = -1u;
 	}
 
-	while (parallelPoolFlushIteration_prepare(0, 1)) {
+	while (parallelPoolFlushIteration_prepare(0, nRows_)) {
 #ifdef PRINT
 		parallelPoolFlushIteration_print(1);
 #endif
-		parallelPoolFlushIteration_createNodes(0, 1);
-		parallelPoolFlushIteration_insert(0, 1);
+		parallelPoolFlushIteration_createNodes(0, nRows_);
+		parallelPoolFlushIteration_insert(0, nRows_);
 	}
 
 	// insert the root node of the subtree into the parent
@@ -314,44 +348,44 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 	unique_lock<mutex> lock(m);
 	assert (!flushing_);
 	flushing_ = true;
-	nJoinedThreads = 0;
+	evenRound = true;
+	lastFlushIteration = false;
+	activeThreads_ = 0;
 	lock.unlock();
 
 	const size_t currentIndex = nextIndex_;
-	const size_t capacity = capacity_;
-	n = min(currentIndex, capacity);
-	assert (n == capacity);
+	const size_t capacity = CAPACITY;
+	nRows_ = min(currentIndex, capacity);
+	assert (nRows_ == capacity);
 	maxRowMax_ = -1uL;
-	assert (n > 0 && n <= capacity_);
-	nThreads = 1;
-	flushDone_ = false;
-	for (unsigned row = 0; row < n; ++row) {
+	for (unsigned row = 0; row < nRows_; ++row) {
 		// spin until remaining insertions are done
 		while (!insertCompleted_[row]) {}
 		rowEmpty[row] = false;
-		rowNode[row] = NULL;
+		rowNodeEven[row] = NULL;
+		rowNodeOdd[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!
 		rowNextMax[row] = -1u;
 	}
 
 	parallelPoolFlush(true);
 
+	// flushing is done so insert the root of the subtree into the parent
+	Node<DIM>* subtreeRoot = getRowNode(0);
 	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
 			&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
-	this->node_->insertAtAddress(this->nodeHcAddress, rowNode[0]);
+	this->node_->insertAtAddress(this->nodeHcAddress, subtreeRoot);
 
 #ifndef NDEBUG
 	// Validate all copied entries (except for the first one which was only copied partially)
-	for (unsigned i = 0; i < n; ++i) {
+	for (unsigned i = 0; i < nRows_; ++i) {
 		assert (insertCompleted_[i]);
 		assert (i == 0 || rowEmpty[i]);
 	}
 #endif
 
 	releaseJoinedThreads();
-	endBarrier->wait(); // TODO not needed?
-
-	return rowNode[0];
+	return subtreeRoot;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -360,112 +394,75 @@ bool EntryBuffer<DIM, WIDTH>::parallelPoolFlush(bool isCoordinator) {
 	unique_lock<mutex> lock(m);
 	if (!flushing_) return false;
 
-	const size_t threadIndex = nJoinedThreads++;
+	const size_t threadIndex = globalThreads_++;
 	if (isCoordinator) {
-		nThreads = nJoinedThreads;
-		// TODO do not create the barriers in each iteration but only when needed
-		startBarrier = new boost::barrier(nThreads);
-		middleBarrier = new boost::barrier(nThreads);
-		endBarrier = new boost::barrier(nThreads);
-		joinFlush.notify_all();
+		lastFlushIteration = false;
+		recalculateRange = true;
 		lock.unlock();
 	} else {
-		waitingThreads = true;
 		joinFlush.wait(lock);
-		if (!flushing_) {return true;}
 		lock.unlock();
+		if (!flushing_) {return true;}
 	}
 
-	// synchronize through 3 barriers: while all threads are trapped between 2 barriers the third one can be updated
-	//		newly joining threads
-	// -- start --
-	//		prepare the current iteration by calculating the assigned values
-	// -- middle --
-	//		execute the calculations by creating proper nodes per thread
-	// -- end --
-	bool involveNewWorkers = false;
-	while (flushing_) {
+	size_t startRow, endRow;
+	while (true) {
+		assert ((readyThreads_ <= activeThreads_) && (activeThreads_ <= globalThreads_));
+
+		// prepare for new iteration
 		if (isCoordinator) {
-			flushDone_ = true;
-			if (involveNewWorkers) {
-				delete middleBarrier;
-				middleBarrier = new boost::barrier(nThreads);
-			}
-		}
-
-		startBarrier->wait(); // TODO do not wait in barriers if there is only one thread!
-		// 1/4 prepare the matrix values
-		const bool moreWork = parallelPoolFlushIteration_prepare(threadIndex, nThreads);
-		if (moreWork) {
-			flushDone_ = false;
-		}
-
-		if (isCoordinator && involveNewWorkers) {
-			delete endBarrier;
-			endBarrier = new boost::barrier(nThreads);
-		}
-
-#ifdef PRINT
-		middleBarrier->wait();
-		// 2/4 print the matrix values
-		if (isCoordinator && moreWork) { parallelPoolFlushIteration_print(nThreads); }
-#endif
-
-		middleBarrier->wait();
-		if (moreWork) {
-			// 3/4 create nodes according to the calculated values
-			parallelPoolFlushIteration_createNodes(threadIndex, nThreads);
-		}
-
-		middleBarrier->wait();
-		if (moreWork) {
-			// 4/4 insert further values into the nodes
-			parallelPoolFlushIteration_insert(threadIndex, nThreads);
-		}
-
-#ifndef NDEBUG
-		endBarrier->wait();
-		// Validate round
-		for (unsigned i = 0; i < n && isCoordinator; ++i) {
-			assert(!rowNode[i] || rowNode[i]->getNumberOfContents() >= 2);
-		}
-#endif
-
-		if (isCoordinator) {
-			lock.lock();
-			flushing_ = !flushDone_;
-			involveNewWorkers = waitingThreads;
-			if (involveNewWorkers) {
-				nThreads = nJoinedThreads;
-				delete startBarrier;
-				startBarrier = new boost::barrier(nThreads);
+			// check if new threads want to join the flush
+			if ((activeThreads_ != globalThreads_)) {
+				lock.lock();
+				activeThreads_ = globalThreads_;
+				recalculateRange = true;
 				joinFlush.notify_all();
-				waitingThreads = false;
+				lock.unlock();
 			}
+
+			// spin until all threads are ready for the next iteration
+			while (readyThreads_ < activeThreads_) { }
+			evenRound = !evenRound;
+			if (lastFlushIteration) {flushing_ = false;}
+			lastFlushIteration = !lastFlushIteration;
+			nextRound.notify_all();
+		} else {
+			lock.lock();
+			readyThreads_ += 1;
+			nextRound.wait(lock);
 			lock.unlock();
 		}
 
-		endBarrier->wait();
+		if (!flushing_) { break; }
+
+		// distribute the work on the matrix equally over all participating threads
+		if (recalculateRange) {
+			const size_t rowsPerThread = nRows_ / activeThreads_ + 1;
+			startRow = threadIndex * rowsPerThread;
+			endRow = min((threadIndex + 1) * rowsPerThread, nRows_);
+		}
+
+		// execute all flushing steps per iteration in parallel and globally mark if there is more work
+		if (parallelPoolFlushIteration_prepare(startRow, endRow)) {
+			parallelPoolFlushIteration_createNodes(startRow, endRow);
+			parallelPoolFlushIteration_insert(startRow, endRow);
+			lastFlushIteration = false;
+		}
 	}
 
 	if (!isCoordinator) {
 		lock.lock();
 		// count down threads
-		--nThreads;
-		helpingDone_.wait(lock);
+		activeThreads_ -= 1;
+		joinFlush.wait(lock);
 		lock.unlock();
-		endBarrier->wait();
 	}
 
 	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIndex, size_t nThreads) {
-
-	const size_t rowsPerThread = n / nThreads + 1;
-	const size_t startRow = threadIndex * rowsPerThread;
-	const size_t endRow = min ((threadIndex + 1) * rowsPerThread, n);
+bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t startRow, size_t endRow) {
 
 	size_t globalMaxRowMax = maxRowMax_;
 	size_t localMaxRowMax = -1uL;
@@ -475,6 +472,7 @@ bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIn
 	for (unsigned row = startRow; row < endRow; ++row) {
 		if (rowEmpty[row]) continue;
 		hasMoreRows = row != 0;
+		bool responsibleForRow = true;
 
 //		if (lastMaxRowMax == rowMax[row]) {
 		// the row needs to be updated as the maximum changed
@@ -482,7 +480,7 @@ bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIn
 		rowMax[row] = -1u; // TODO possible similar to: (rowNextMax[row] == (-1u))? -1u : rowNextMax[row] - 1;
 		rowNextMax[row] = -1u;
 
-		for (unsigned column = 0; column < n; ++column) { // TODO how to save iterations?
+		for (unsigned column = 0; column < nRows_; ++column) { // TODO how to save iterations?
 			if (rowEmpty[column] || row == column) continue;
 
 			const unsigned int currentLcp = getLcp(row, column);
@@ -497,14 +495,15 @@ bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIn
 				++rowNSuffixes[row];
 			} else if ((1 + currentLcp) > (1 + rowMax[row])) {
 				// found a higher LCP: store the new one
+				rowResponsibleForInsert[row] = column > row;
 				rowNextMax[row] = rowMax[row];
 				rowMax[row] = currentLcp;
 				rowNSuffixes[row] = 0;
 				rowNSubnodes[row] = 0;
-				if (rowNode[row])	{++rowNSubnodes[row];}
-				else 				{++rowNSuffixes[row];}
-				if (rowNode[column]){++rowNSubnodes[row];}
-				else 				{++rowNSuffixes[row];}
+				if (getRowNode(row))	{++rowNSubnodes[row];}
+				else 					{++rowNSuffixes[row];}
+				if (getRowNode(column)) {++rowNSubnodes[row];}
+				else 					{++rowNSuffixes[row];}
 			} else { // TODO probably more likely and less expensive than case above
 				assert ((1 + rowNextMax[row]) < (1 + currentLcp));
 				// the second highest value needs to be updated
@@ -515,11 +514,13 @@ bool EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_prepare(size_t threadIn
 		}
 	//			}
 
+		rowResponsibleForInsert[row] = responsibleForRow;
 		assert ((1 + rowNextMax[row]) <= (1 + rowMax[row]));
 		//			assert (rowNSuffixes[row] + rowNSubnodes[row] <= (1uL << DIM));
 		if ((1 + rowMax[row]) > (1 + localMaxRowMax)) {localMaxRowMax = rowMax[row];}
 	}
 
+	// set the maximum value of the matrix globally
 	if (hasMoreRows) {
 		while (!atomic_compare_exchange_strong(&maxRowMax_, &globalMaxRowMax, localMaxRowMax)) {
 			// the global value was changed so break if it was bigger than the local one
@@ -534,15 +535,15 @@ template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_print(size_t nThreads) const {
 	cout << nThreads << " thread(s) working on flush" << endl;
 	cout << "type\tmax\tnext\t#suff\t#node\t| i";
-	for (unsigned row = 0; row < n; ++row) { cout << "\t"  << row;}
+	for (unsigned row = 0; row < nRows_; ++row) { cout << "\t"  << row;}
 	cout << endl;
 	// print the current LCP matrix
-	for (unsigned row = 0; row < n; ++row) {
-		if (rowNode[row]) { cout << "(node)\t"; } else { cout << "(suff)\t"; }
+	for (unsigned int row = 0; row < nRows_; ++row) {
+		if (getRowNode(row)) { cout << "(node)\t"; } else { cout << "(suff)\t"; }
 		if (rowMax[row] == -1u) { cout << "-1\t"; } else { cout << rowMax[row] << "\t"; }
 		if (rowNextMax[row] == -1u) { cout << "-1\t"; } else {cout << rowNextMax[row] << "\t"; }
 		cout << rowNSuffixes[row] << "\t" << rowNSubnodes[row] << "\t| " << row;
-		for (unsigned col = 0; col < n; ++col) {
+		for (unsigned col = 0; col < nRows_; ++col) {
 			cout << "\t";
 			if (rowEmpty[row] || rowEmpty[col]) {cout << "-";}
 			else if (getLcp(row, col) == (-1u)) {cout << "(-1)";}
@@ -557,21 +558,16 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_print(size_t nThreads) 
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_createNodes(size_t threadIndex, size_t nThreads) {
-
-	const size_t rowsPerThread = n / nThreads + 1;
-	const size_t startRow = threadIndex * rowsPerThread;
-	const size_t endRow = min((threadIndex + 1) * rowsPerThread, n);
-	const size_t maxRowMax = maxRowMax_;
+void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_createNodes(size_t startRow, size_t endRow) {
 
 	// current suffix bits: buffer suffix bits - current longest prefix bits - HC address bits (one node)
-	const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax + 1);
+	const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax_ + 1);
 	const unsigned int basicMsbIndex = WIDTH - suffixBits_ / DIM;
 	const unsigned int index = basicMsbIndex + maxRowMax;
 
 	// create a new node for each row that was not ruled out yet and reinsert its current contents (either subnode or suffix)
 	for (unsigned row = startRow; row < endRow; ++row) {
-		if (rowEmpty[row] || maxRowMax != rowMax[row])
+		if (rowEmpty[row] || maxRowMax != rowMax[row] || !rowResponsibleForInsert[row])
 			continue;
 
 		assert((1 + rowMax[row]) > (1 + rowNextMax[row]));
@@ -593,7 +589,7 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_createNodes(size_t thre
 		// insert the previous value of the row into the new node
 		insert(currentNode, row, index, suffixBits, false);
 
-		rowNode[row] = currentNode;
+		setRowNode(currentNode, row);
 	}
 }
 
@@ -631,15 +627,9 @@ void EntryBuffer<DIM, WIDTH>::insert(Node<DIM>* currentNode, size_t column, size
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
-void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_insert(size_t threadIndex, size_t nThreads) {
-
-	// TODO find better scheme to distribute work of symmetric matrix
-	const size_t rowsPerThread = n / nThreads + 1;
-	const size_t startRow = threadIndex * rowsPerThread;
-	const size_t endRow = min((threadIndex + 1) * rowsPerThread, n - 1);
+void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_insert(size_t startRow, size_t endRow) {
 	const size_t maxRowMax = maxRowMax_;
 	const unsigned int basicMsbIndex = WIDTH - suffixBits_ / DIM;
-	const bool multiThread = nThreads > 1;
 
 	// create a new node for each row that was not ruled out yet
 	const unsigned int index = basicMsbIndex + maxRowMax;
@@ -660,7 +650,7 @@ void EntryBuffer<DIM, WIDTH>::parallelPoolFlushIteration_insert(size_t threadInd
 		}
 
 		// insert all entries within this row into the new sub node
-		for (unsigned column = row + 1; column < n && responsible; ++column) {
+		for (unsigned column = row + 1; column < nRows_ && responsible; ++column) {
 			const unsigned int currentLcp = getLcp(row, column);
 			assert (rowEmpty[column] || (currentLcp <= maxRowMax && currentLcp <= rowMax[column] && currentLcp <= rowMax[row]));
 			if (rowEmpty[column] || currentLcp != rowMax[row])
