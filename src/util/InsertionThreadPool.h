@@ -100,7 +100,8 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 	// create the biggest possible root node so there is no need to synchronize access on the root
 	Node<DIM>* oldRoot = tree->root_;
 	assert (oldRoot->getNumberOfContents() == 0);
-	Node<DIM>* newRoot = NodeTypeUtil<DIM>::copyIntoLargerNode(1uL << DIM, oldRoot);
+	const size_t rootSuffixBits = DIM * (WIDTH - 1);
+	Node<DIM>* newRoot = NodeTypeUtil<DIM>::template copyIntoLargerNode<WIDTH>(1uL << DIM, rootSuffixBits, oldRoot, true);
 	tree->root_ = newRoot;
 	delete oldRoot;
 
@@ -129,7 +130,8 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 	size_t rootContents = tree_->root_->getNumberOfContents();
 	assert (rootContents > 0);
 	Node<DIM>* oldRoot = tree_->root_;
-	Node<DIM>* newRoot = NodeTypeUtil<DIM>::copyIntoLargerNode(rootContents, oldRoot);
+	const size_t rootSuffixBits = DIM * (WIDTH - 1);
+	Node<DIM>* newRoot = NodeTypeUtil<DIM>::template copyIntoLargerNode<WIDTH>(rootContents, rootSuffixBits, oldRoot, false);
 	tree_->root_ = newRoot;
 	delete oldRoot;
 }

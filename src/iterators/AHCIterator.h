@@ -50,10 +50,13 @@ void AHCIterator<DIM, PREF_BLOCKS>::setAddress(size_t address) {
 		this->address_ = (1uL << DIM);
 	} else {
 		// find first filled address if the given one is not filled
-		bool filled, hasSub, isDirectlyStoredSuffix, isSpecial;
+		bool filled, hasSub, isDirectlyStoredSuffix, isSpecial, isSpinlock;
 		uintptr_t ref;
 		for (this->address_ = address; this->address_ < (1uL << DIM); this->address_++) {
-			node_->getRef(this->address_, &filled, &hasSub, &isDirectlyStoredSuffix, &isSpecial, &ref);
+			do {
+				node_->getRef(this->address_, &filled, &isSpinlock, &hasSub, &isDirectlyStoredSuffix, &isSpecial, &ref);
+			} while (isSpinlock);
+
 			if (filled) break;
 		}
 

@@ -11,7 +11,9 @@
 #include <cstdint>
 #include "nodes/LHC.h"
 #include "nodes/AHC.h"
+#include "nodes/PLHC.h"
 #include "nodes/SuffixStorage.h"
+#include "nodes/AtomicSuffixStorage.h"
 #include "util/TEntryBuffer.h"
 
 template <unsigned int DIM>
@@ -21,12 +23,15 @@ template <unsigned int DIM>
 class NodeTypeUtil {
 public:
 	template <unsigned int WIDTH>
-	static Node<DIM>* buildNodeWithSuffixes(size_t prefixBits, size_t nDirectInserts, size_t nSuffixes, unsigned int suffixBits) {
+	static Node<DIM>* buildNodeWithSuffixes(size_t prefixBits, size_t nDirectInserts,
+			size_t nSuffixes, unsigned int suffixBits, bool atomic) {
 		assert (nSuffixes <= nDirectInserts);
-		Node<DIM>* node = buildNode(prefixBits, nDirectInserts);
-		if (nSuffixes > 0 && suffixBits > 0 && !node->canStoreSuffixInternally(suffixBits)) {
+		Node<DIM>* node = buildNode(prefixBits, nDirectInserts, atomic);
+		if (atomic && !node->canStoreSuffixInternally(suffixBits)) {
+			attachAtomicSuffix<WIDTH>(node, suffixBits);
+		} else if (nSuffixes > 0 && suffixBits > 0 && !node->canStoreSuffixInternally(suffixBits)) {
 			const unsigned int suffixBlocks = 1 + (suffixBits - 1) / (8 * sizeof (unsigned long));
-			TSuffixStorage* storage = createSuffixStorage<WIDTH>(nSuffixes * suffixBlocks);
+			TSuffixStorage* storage = createSuffixStorage<WIDTH>(nSuffixes * suffixBlocks, atomic);
 			node->setSuffixStorage(storage);
 		}
 
@@ -34,10 +39,10 @@ public:
 	}
 
 	template <unsigned int WIDTH>
-	static void enlargeSuffixStorage(unsigned int suffixBlocks, Node<DIM>* node) {
+	static void enlargeSuffixStorage(unsigned int suffixBlocks, Node<DIM>* node, bool atomic) {
 		assert (suffixBlocks > 0);
 
-		TSuffixStorage* suffixes = createSuffixStorage<WIDTH>(suffixBlocks);
+		TSuffixStorage* suffixes = createSuffixStorage<WIDTH>(suffixBlocks, atomic);
 
 		// copy the old contents
 		const TSuffixStorage* oldStorage = node->getSuffixStorage();
@@ -51,8 +56,10 @@ public:
 	}
 
 	template <unsigned int WIDTH>
-	static void shrinkSuffixStorageIfPossible(Node<DIM>* node) {
+	static void shrinkSuffixStorageIfPossible(Node<DIM>* node, bool atomic) {
 		assert (node);
+		if (atomic) { return; }
+
 		const TSuffixStorage* oldStorage = node->getSuffixStorage();
 		if (oldStorage) {
 			const unsigned int filledSuffixBlocks = oldStorage->getNCurrentStorageBlocks();
@@ -62,7 +69,7 @@ public:
 			if (shrink) {
 				TSuffixStorage* shrinkedStorage = NULL;
 				if (!empty) {
-					shrinkedStorage = createSuffixStorage<WIDTH>(filledSuffixBlocks);
+					shrinkedStorage = createSuffixStorage<WIDTH>(filledSuffixBlocks, atomic);
 					shrinkedStorage->copyFrom(*oldStorage);
 					assert (shrinkedStorage->getNMaxStorageBlocks() < oldStorage->getNMaxStorageBlocks());
 				}
@@ -73,24 +80,26 @@ public:
 		}
 	}
 
-	static Node<DIM>* copyWithoutPrefix(size_t newPrefixBits, const Node<DIM>* nodeToCopy) {
+	template <unsigned int WIDTH>
+	static Node<DIM>* copyWithoutPrefix(size_t newPrefixBits, size_t newSuffixBits, const Node<DIM>* nodeToCopy, bool atomic) {
 		// TODO no need to duplicate suffix storage
 		size_t nDirectInsert = nodeToCopy->getNumberOfContents();
-		Node<DIM>* copy = buildNode(newPrefixBits, nDirectInsert);
-		copyContents(*nodeToCopy, *copy);
+		Node<DIM>* copy = buildNode(newPrefixBits, nDirectInsert, atomic);
+		copyContents<WIDTH>(*nodeToCopy, *copy, atomic, newSuffixBits, false);
 		return copy;
 	}
 
-	static Node<DIM>* copyIntoLargerNode(size_t newNContents, const Node<DIM>* nodeToCopy) {
+	template <unsigned int WIDTH>
+	static Node<DIM>* copyIntoLargerNode(size_t newNContents, size_t suffixBits, const Node<DIM>* nodeToCopy, bool atomic) {
 		// TODO make more efficient by not using iterators and a bulk insert
 		const size_t prefixLength = nodeToCopy->getPrefixLength();
-		Node<DIM>* copy = buildNode(prefixLength * DIM, newNContents);
+		Node<DIM>* copy = buildNode(prefixLength * DIM, newNContents, atomic);
 		if (prefixLength > 0) {
 			MultiDimBitset<DIM>::duplicateHighestBits(nodeToCopy->getFixPrefixStartBlock(),
 					prefixLength * DIM, prefixLength, copy->getPrefixStartBlock());
 		}
 
-		copyContents(*nodeToCopy, *copy);
+		copyContents<WIDTH>(*nodeToCopy, *copy, atomic, suffixBits, true);
 		return copy;
 	}
 
@@ -144,58 +153,77 @@ private:
 	}
 
 	template <unsigned int WIDTH>
-	inline static TSuffixStorage* createSuffixStorage(unsigned int suffixBlocks) {
+	inline static TSuffixStorage* createSuffixStorage(unsigned int suffixBlocks, bool atomic) {
 		assert (suffixBlocks > 0);
 		// a node has at most 2^DIM suffixes and one suffix is at most (WIDTH-1) bits long in each dimension
 		const unsigned int maxSuffixBits = (WIDTH - 1) * DIM;
 		const unsigned int maxBlocksPerSuffix = 1 + (maxSuffixBits - 1) / (8 * sizeof (unsigned long));
 		const unsigned int maxSuffixBlocks = maxBlocksPerSuffix * (1u << DIM);
-		assert (suffixBlocks <= maxSuffixBlocks);
+// TODO		assert (suffixBlocks <= maxSuffixBlocks);
 		const float suffixRatio = float(suffixBlocks) / float(maxSuffixBlocks);
-		assert (suffixRatio <= 1.0);
+// TODO		assert (suffixRatio <= 1.0);
 		TSuffixStorage* suffixes;
-		if (suffixBlocks < 6) {
-			switch (suffixBlocks) {
-			case 1: suffixes = new SuffixStorage<1>(); break;
-			case 2: suffixes = new SuffixStorage<2>(); break;
-			case 3: suffixes = new SuffixStorage<3>(); break;
-			case 4: suffixes = new SuffixStorage<4>(); break;
-			case 5: suffixes = new SuffixStorage<5>(); break;
-			default: throw runtime_error("Only supports up to 5 fixed suffix blocks right now.");
+
+		if (atomic) {
+			if (suffixRatio < 0.1) {
+				suffixes = new AtomicSuffixStorage<1 + 10 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.25) {
+				suffixes = new AtomicSuffixStorage<1 + 25 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.5) {
+				suffixes = new AtomicSuffixStorage<1 + 50 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.75) {
+				suffixes = new AtomicSuffixStorage<1 + 75 * maxSuffixBlocks / 100>();
+			} else {
+				suffixes = new AtomicSuffixStorage<maxSuffixBlocks>();
 			}
-		} else if (suffixBlocks < 8 ) {
-			suffixes = new SuffixStorage<7>();
-		} else if (suffixBlocks < 11) {
-			suffixes = new SuffixStorage<10>();
-		} else if (suffixRatio < 0.001) {
-			suffixes = new SuffixStorage<1 + maxSuffixBlocks / 1000>();
-		} else if (suffixRatio < 0.005) {
-			suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 1000>();
-		} else if (suffixRatio < 0.01) {
-			suffixes = new SuffixStorage<1 + maxSuffixBlocks / 100>();
-		} else if (suffixRatio < 0.05) {
-			suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 100>();
-		} else if (suffixRatio < 0.1) {
-			suffixes = new SuffixStorage<1 + 10 * maxSuffixBlocks / 100>();
-		} else if (suffixRatio < 0.25) {
-			suffixes = new SuffixStorage<1 + 25 * maxSuffixBlocks / 100>();
-		} else if (suffixRatio < 0.5) {
-			suffixes = new SuffixStorage<1 + 50 * maxSuffixBlocks / 100>();
-		} else if (suffixRatio < 0.75) {
-			suffixes = new SuffixStorage<1 + 75 * maxSuffixBlocks / 100>();
 		} else {
-			suffixes = new SuffixStorage<maxSuffixBlocks>();
+			if (suffixBlocks < 6) {
+				switch (suffixBlocks) {
+				case 1: suffixes = new SuffixStorage<1>(); break;
+				case 2: suffixes = new SuffixStorage<2>(); break;
+				case 3: suffixes = new SuffixStorage<3>(); break;
+				case 4: suffixes = new SuffixStorage<4>(); break;
+				case 5: suffixes = new SuffixStorage<5>(); break;
+				default: throw runtime_error("Only supports up to 5 fixed suffix blocks right now.");
+				}
+			} else if (suffixBlocks < 8 ) {
+				suffixes = new SuffixStorage<7>();
+			} else if (suffixBlocks < 11) {
+				suffixes = new SuffixStorage<10>();
+			} else if (suffixRatio < 0.001) {
+				suffixes = new SuffixStorage<1 + maxSuffixBlocks / 1000>();
+			} else if (suffixRatio < 0.005) {
+				suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 1000>();
+			} else if (suffixRatio < 0.01) {
+				suffixes = new SuffixStorage<1 + maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.05) {
+				suffixes = new SuffixStorage<1 + 5 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.1) {
+				suffixes = new SuffixStorage<1 + 10 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.25) {
+				suffixes = new SuffixStorage<1 + 25 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.5) {
+				suffixes = new SuffixStorage<1 + 50 * maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.75) {
+				suffixes = new SuffixStorage<1 + 75 * maxSuffixBlocks / 100>();
+			} else {
+				suffixes = new SuffixStorage<maxSuffixBlocks>();
+			}
 		}
 
 		return suffixes;
 	}
 
-	inline static void copyContents(const Node<DIM>& from, Node<DIM>& to) {
+	template <unsigned int WIDTH>
+	inline static void copyContents(const Node<DIM>& from, Node<DIM>& to, bool atomic, size_t suffixBits, bool hardCopySuffixes) {
 		// copy suffixes
 		assert (!to.getSuffixStorage());
-		to.copySuffixStorageFrom(from);
+		if (atomic && hardCopySuffixes) {
+			copyOrEnlargeAtomicSuffix<WIDTH>(&from, &to, suffixBits);
+		} else {
+			to.copySuffixStorageFrom(from);
+		}
 
-		// TODO make more efficient by not using iterators and a bulk insert
 		// copy node contents
 		NodeIterator<DIM>* it = from.begin();
 		it->disableResolvingSuffixIndex();
@@ -203,15 +231,24 @@ private:
 		for (; (*it) != *endIt; ++(*it)) {
 			NodeAddressContent<DIM> content = *(*it);
 			if (content.hasSubnode) {
-				to.insertAtAddress(content.address, content.subnode);
+				to.linearCopyFromOther(content.address, content.subnode);
 			} else if (content.hasSpecialPointer) {
-				to.insertAtAddress(content.address, content.specialPointer);
+				to.linearCopyFromOther(content.address, content.specialPointer);
 				TEntryBuffer<DIM>* buffer = reinterpret_cast<TEntryBuffer<DIM>*>(content.specialPointer);
 				buffer->updateNode(&to);
 			} else if (content.directlyStoredSuffix) {
-				to.insertAtAddress(content.address, content.suffix, content.id);
+				to.linearCopyFromOther(content.address, content.suffix, content.id);
 			} else {
-				to.insertAtAddress(content.address, content.suffixStartBlockIndex, content.id);
+				to.linearCopyFromOther(content.address, content.suffixStartBlockIndex, content.id);
+				if (atomic && hardCopySuffixes) {
+					// create a hard copy of the suffix
+					unsigned long* suffixStartBlock = from.getChangeableSuffixStorage()->getPointerFromIndex(content.suffixStartBlockIndex);
+					unsigned long* newSuffixStartBlock = to.getChangeableSuffixStorage()->getPointerFromIndex(content.suffixStartBlockIndex);
+					MultiDimBitset<DIM>::duplicateLowestBitsAligned(suffixStartBlock, suffixBits, newSuffixStartBlock);
+					const size_t blocksPerSuffix = 1 + (suffixBits - 1) / (8 * sizeof (unsigned long));
+					assert (content.suffixStartBlockIndex % blocksPerSuffix == 0);
+					to.getChangeableSuffixStorage()->setIndexUsed(content.suffixStartBlockIndex / blocksPerSuffix);
+				}
 			}
 		}
 
@@ -219,59 +256,104 @@ private:
 		delete endIt;
 	}
 
+	inline static Node<DIM>* buildNode(size_t prefixBits, size_t nDirectInserts, bool atomic) {
+		const size_t prefixBlocks = (prefixBits > 0)? 1 + ((prefixBits - 1) / (8 * sizeof (unsigned long))) : 0;
+		Node<DIM>* node;
+		switch (prefixBlocks) {
+		case 0: node = determineNodeType<0>(prefixBits, nDirectInserts, atomic); break;
+		case 1: node = determineNodeType<1>(prefixBits, nDirectInserts, atomic); break;
+		case 2: node = determineNodeType<2>(prefixBits, nDirectInserts, atomic); break;
+		case 3: node = determineNodeType<3>(prefixBits, nDirectInserts, atomic); break;
+		case 4: node = determineNodeType<4>(prefixBits, nDirectInserts, atomic); break;
+		case 5: node = determineNodeType<5>(prefixBits, nDirectInserts, atomic); break;
+		case 6: node = determineNodeType<6>(prefixBits, nDirectInserts, atomic); break;
+		default: throw runtime_error("Only supports up to 6 prefix blocks right now.");
+		}
+
+		return node;
+	}
+
+	template <unsigned int WIDTH>
+	inline static void attachAtomicSuffix(Node<DIM>* node, size_t suffixBits) {
+		assert (suffixBits > 0);
+		const size_t blocksPerSuffix = 1 + (suffixBits + 1) / (8 * sizeof (unsigned long));
+		const size_t maxContents = node->getMaximumNumberOfContents();
+		const size_t totalSuffixBlocks = blocksPerSuffix * maxContents;
+		const size_t maxBlocksPerSuffix = 1 + (DIM * (WIDTH - 1) - 1) / (8 * sizeof (unsigned long));
+		const size_t totalMaxSuffixBlocks = (1uL << DIM) * maxBlocksPerSuffix;
+		const size_t requiredBlocks = min(totalSuffixBlocks, totalMaxSuffixBlocks);
+		TSuffixStorage* atomicSuffixStorage = createSuffixStorage<WIDTH>(requiredBlocks, true);
+		node->setSuffixStorage(atomicSuffixStorage);
+	}
+
+	template <unsigned int WIDTH>
+	inline static void copyOrEnlargeAtomicSuffix(const Node<DIM>* from, Node<DIM>* to, size_t suffixBits) {
+		const TSuffixStorage* oldStorage = from->getSuffixStorage();
+		assert (!from->canStoreSuffixInternally(suffixBits) && !to->canStoreSuffixInternally(suffixBits));
+		if (oldStorage) {
+			const size_t blocksPerSuffix = 1 + (suffixBits + 1) / (8 * sizeof (unsigned long));
+			const size_t nBlocks = oldStorage->getNCurrentStorageBlocks();
+			const size_t nOldContents = from->getNumberOfContents();
+			assert (nBlocks % blocksPerSuffix == 0);
+			const size_t nOldContentsWithSuffix = nBlocks / blocksPerSuffix;
+			const size_t nOldContentsWithoutSuffix = nOldContents - nOldContentsWithSuffix;
+			assert (nOldContents <= from->getMaximumNumberOfContents());
+			const size_t nNewMaxContents = to->getMaximumNumberOfContents();
+			const size_t nMaxNewWithSuffix = nNewMaxContents - nOldContentsWithoutSuffix;
+			const size_t requiredBlocks = nMaxNewWithSuffix * blocksPerSuffix;
+			// TODO check if the old storage can be reused!
+			TSuffixStorage* atomicSuffixStorage = createSuffixStorage<WIDTH>(requiredBlocks, true);
+			to->setSuffixStorage(atomicSuffixStorage);
+		} else {
+			attachAtomicSuffix<WIDTH>(to, suffixBits);
+		}
+	}
+
 	template <unsigned int PREF_BLOCKS>
-	inline static Node<DIM>* determineNodeType(size_t prefixBits, size_t nDirectInserts) {
+	inline static Node<DIM>* determineNodeType(size_t prefixBits, size_t nDirectInserts, bool atomic) {
 		assert (nDirectInserts > 0);
 		const size_t prefixLength = prefixBits / DIM;
 		// TODO use threshold depending on which node is smaller
 		const double switchTypeAtLoadRatio = 0.75;
 		if (float(nDirectInserts) / (1uL << DIM) < switchTypeAtLoadRatio) {
-			return determineLhcSize<PREF_BLOCKS>(prefixLength, nDirectInserts);
+			return determineLhcSize<PREF_BLOCKS>(prefixLength, nDirectInserts, atomic);
 		} else {
 			return new AHC<DIM, PREF_BLOCKS>(prefixLength);
 		}
 	}
 
-	inline static Node<DIM>* buildNode(size_t prefixBits, size_t nDirectInserts) {
-			const size_t prefixBlocks = (prefixBits > 0)? 1 + ((prefixBits - 1) / (8 * sizeof (unsigned long))) : 0;
-			switch (prefixBlocks) {
-			case 0: return determineNodeType<0>(prefixBits, nDirectInserts);
-			case 1: return determineNodeType<1>(prefixBits, nDirectInserts);
-			case 2: return determineNodeType<2>(prefixBits, nDirectInserts);
-			case 3: return determineNodeType<3>(prefixBits, nDirectInserts);
-			case 4: return determineNodeType<4>(prefixBits, nDirectInserts);
-			case 5: return determineNodeType<5>(prefixBits, nDirectInserts);
-			case 6: return determineNodeType<6>(prefixBits, nDirectInserts);
-			case 7: return determineNodeType<7>(prefixBits, nDirectInserts);
-			case 8: return determineNodeType<8>(prefixBits, nDirectInserts);
-			case 9: return determineNodeType<9>(prefixBits, nDirectInserts);
-			case 10: return determineNodeType<10>(prefixBits, nDirectInserts);
-			default: throw runtime_error("Only supports up to 10 prefix blocks right now.");
-			}
-		}
-
 	template<unsigned int PREF_BLOCKS>
-	inline static Node<DIM>* determineLhcSize(size_t prefixLength,
-			size_t nDirectInserts) {
-
+	inline static Node<DIM>* determineLhcSize(size_t prefixLength, size_t nDirectInserts, bool atomic) {
 		assert(nDirectInserts > 0);
 		const float insertToRatio = float(nDirectInserts) / (1u << DIM);
 		assert(0 < insertToRatio && insertToRatio < 1);
 
-		if (nDirectInserts < 3) {
-			return new LHC<DIM, PREF_BLOCKS, 2>(prefixLength);
-		} else if (insertToRatio < 0.1) {
-			return new LHC<DIM, PREF_BLOCKS, 1 + 10 * (1 << DIM) / 100>(prefixLength);
-		} else if (insertToRatio < 0.2) {
-			return new LHC<DIM, PREF_BLOCKS, 1 + 20 * (1 << DIM) / 100>(prefixLength);
-		} else if (insertToRatio < 0.35) {
-			return new LHC<DIM, PREF_BLOCKS, 1 + 35 * (1 << DIM) / 100>(prefixLength);
-		} else if (insertToRatio < 0.5) {
-			return new LHC<DIM, PREF_BLOCKS, 1 + 50 * (1 << DIM) / 100>(prefixLength);
-		} else if (insertToRatio < 0.75) {
-			return new LHC<DIM, PREF_BLOCKS, 1 + 75 * (1 << DIM) / 100>(prefixLength);
+		if (atomic) {
+			if (nDirectInserts < 5) {
+				return new PLHC<DIM, PREF_BLOCKS, 4>(prefixLength);
+			} else if (insertToRatio < 0.25) {
+				return new PLHC<DIM, PREF_BLOCKS, 1 + 25 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.5) {
+				return new PLHC<DIM, PREF_BLOCKS, 1 + 50 * (1 << DIM) / 100>(prefixLength);
+			} else {
+				return new PLHC<DIM, PREF_BLOCKS, (1 << DIM)>(prefixLength);
+			}
 		} else {
-			return new LHC<DIM, PREF_BLOCKS, (1 << DIM)>(prefixLength);
+			if (nDirectInserts < 3) {
+				return new LHC<DIM, PREF_BLOCKS, 2>(prefixLength);
+			} else if (insertToRatio < 0.1) {
+				return new LHC<DIM, PREF_BLOCKS, 1 + 10 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.2) {
+				return new LHC<DIM, PREF_BLOCKS, 1 + 20 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.35) {
+				return new LHC<DIM, PREF_BLOCKS, 1 + 35 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.5) {
+				return new LHC<DIM, PREF_BLOCKS, 1 + 50 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.75) {
+				return new LHC<DIM, PREF_BLOCKS, 1 + 75 * (1 << DIM) / 100>(prefixLength);
+			} else {
+				return new LHC<DIM, PREF_BLOCKS, (1 << DIM)>(prefixLength);
+			}
 		}
 	}
 };

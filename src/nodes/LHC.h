@@ -35,14 +35,21 @@ public:
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const override;
-	void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
-	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
-	Node<DIM>* adjustSize() override;
-
-protected:
+	bool insertAtAddress(unsigned long hcAddress, uintptr_t pointer) override;
+	bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
+	bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
+	bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) override;
+	void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
+	void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) override;
+	void linearCopyFromOther(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	bool updateAddress(uintptr_t pointer, const NodeAddressContent<DIM>& prevContent) override;
+	bool updateAddress(const Node<DIM>* const subnode, const NodeAddressContent<DIM>& prevContent) override;
+	bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
 	string getName() const override;
+	NodeType getType() const override { return Linear; }
 
 private:
 	static const unsigned long fullBlock = -1;
@@ -81,6 +88,7 @@ private:
 #include "util/NodeTypeUtil.h"
 
 using namespace std;
+
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 LHC<DIM, PREF_BLOCKS, N>::LHC(size_t prefixLength) : TNode<DIM, PREF_BLOCKS>(prefixLength),
 	addresses_(), references_(), m(0) {
@@ -110,7 +118,7 @@ void LHC<DIM, PREF_BLOCKS, N>::recursiveDelete() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 string LHC<DIM,PREF_BLOCKS, N>::getName() const {
-	return "LHC";
+	return "LHC<" + to_string(DIM) + "," + to_string(PREF_BLOCKS) + "," + to_string(N) + ">";
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -312,7 +320,7 @@ void LHC<DIM, PREF_BLOCKS, N>::addRow(unsigned int index, unsigned long newHcAdd
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, uintptr_t pointer) {
+bool LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, uintptr_t pointer) {
 	assert (hcAddress < 1uL << DIM);
 	assert ((pointer & 3) == 0);
 	// format: [ pointer (62) | flags - 00 (2) ]
@@ -334,10 +342,11 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, uintptr_
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSpecialPointer);
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).specialPointer == pointer);
+	return true;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+bool LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
 	assert (hcAddress < 1uL << DIM);
 	assert (suffixStartBlockIndex < (1uL << 30));
 	// format: [ ID (32) | suffix index (30) | flags - 11 (2) ]
@@ -363,10 +372,11 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
 	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSubnode);
 	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).directlyStoredSuffix);
+	return true;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) {
+bool LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) {
 	assert (hcAddress < 1uL << DIM);
 	assert (suffix < (1uL << 30));
 	// format: [ ID (32) | suffix (30) | flags - 01 (2) ]
@@ -391,10 +401,11 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).directlyStoredSuffix);
 	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).suffix == suffix);
+	return true;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
+bool LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
 	assert (hcAddress < 1uL << DIM);
 	// format: [ subnode reference (62) | flags - 10 (2) ]
 
@@ -421,17 +432,59 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const No
 	assert (content.hasSubnode);
 	assert (content.subnode == subnode);
 #endif
+	return true;
 }
 
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) {
+	addRow(m, hcAddress, pointer);
+}
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
-Node<DIM>* LHC<DIM, PREF_BLOCKS, N>::adjustSize() {
-	// TODO put this method into insert method instead
-	if (m <= N) {
-		return this;
-	} else {
-		return NodeTypeUtil<DIM>::copyIntoLargerNode(N + 1, this);
-	}
+void LHC<DIM, PREF_BLOCKS, N>::linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+	const unsigned long upperId = id;
+	const unsigned long suffixStartBlockIndexExtended = (upperId << 32) | (suffixStartBlockIndex << 2) | 3;
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended);
+	addRow(m, hcAddress, reference);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) {
+	const unsigned long upperId = id;
+	const uintptr_t reference = reinterpret_cast<uintptr_t>((upperId << 32) | (suffix << 2) | 1);
+	addRow(m, hcAddress, reference);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::linearCopyFromOther(unsigned long hcAddress, const Node<DIM>* const subnode) {
+	const uintptr_t subRef = reinterpret_cast<uintptr_t>(subnode);
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(subRef | 2);
+	addRow(m, hcAddress, reference);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+bool LHC<DIM, PREF_BLOCKS, N>::updateAddress(uintptr_t pointer, const NodeAddressContent<DIM>& prevContent) {
+	return insertAtAddress(prevContent.address, pointer);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+bool LHC<DIM, PREF_BLOCKS, N>::updateAddress(const Node<DIM>* const subnode, const NodeAddressContent<DIM>& prevContent) {
+	return insertAtAddress(prevContent.address, subnode);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+bool LHC<DIM, PREF_BLOCKS, N>::updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) {
+	throw "atomic operations not supported";
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) {
+	throw "atomic operations not supported";
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) {
+	throw "atomic operations not supported";
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>

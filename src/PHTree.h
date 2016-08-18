@@ -74,7 +74,7 @@ using namespace std;
 template <unsigned int DIM, unsigned int WIDTH>
 PHTree<DIM, WIDTH>::PHTree() {
 	const unsigned int blocksForFirstSuffix = 1 + ((WIDTH - 1) * DIM - 1) / (8 * sizeof (unsigned long));
-	root_ = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(0, 1, 1, blocksForFirstSuffix);
+	root_ = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(0, 1, 1, blocksForFirstSuffix, true);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

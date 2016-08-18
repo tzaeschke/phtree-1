@@ -34,6 +34,8 @@ public:
 	explicit TNode(size_t prefixLength);
 	explicit TNode(TNode<DIM, PREF_BLOCKS>* other);
 	virtual ~TNode() {}
+
+	// functionality to pass on to concrete node implementations
 	virtual std::ostream& output(std::ostream& os, size_t depth, size_t index, size_t totalBitLength) override;
 	virtual NodeIterator<DIM>* begin() const = 0;
 	virtual NodeIterator<DIM>* it(unsigned long hcAddress) const =0;
@@ -44,33 +46,45 @@ public:
 	virtual size_t getNumberOfContents() const = 0;
 	virtual size_t getMaximumNumberOfContents() const = 0;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned long startSuffixBlock, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
-	virtual Node<DIM>* adjustSize() = 0;
+	virtual bool insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
+	virtual bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
+	virtual bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
+	virtual bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) =0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) = 0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual bool updateAddress(uintptr_t pointer, const NodeAddressContent<DIM>& prevContent) = 0;
+	virtual bool updateAddress(const Node<DIM>* const subnode, const NodeAddressContent<DIM>& prevContent) = 0;
+	virtual bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) = 0;
+	virtual void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) = 0;
+	virtual string getName() const =0;
+	virtual NodeType getType() const = 0;
 
+	// prefix handling
 	size_t getMaxPrefixLength() const override;
 	size_t getPrefixLength() const override;
 	unsigned long* getPrefixStartBlock() override;
 	const unsigned long* getFixPrefixStartBlock() const override;
-	bool canStoreSuffixInternally(size_t nSuffixBits) const override;
-	unsigned int canStoreSuffix(size_t nSuffixBits) const override;
-	void setSuffixStorage(TSuffixStorage* suffixStorage) override;
-	const TSuffixStorage* getSuffixStorage() const override;
-	std::pair<unsigned long*, unsigned int> reserveSuffixSpace(size_t nSuffixBits) override;
-	void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock) override;
-	void copySuffixStorageFrom(const Node<DIM>& other) override;
 
-	unsigned long* getSuffixStartBlockPointerFromIndex(unsigned int index) const;
+	// common suffix handling
+	const TSuffixStorage* getSuffixStorage() const override;
+	void setSuffixStorage(TSuffixStorage* suffixStorage) override;
+	void copySuffixStorageFrom(const Node<DIM>& other) override;
+	bool canStoreSuffixInternally(size_t nSuffixBits) const override;
+
+	std::pair<unsigned long*, unsigned int> reserveSuffixSpace(size_t nSuffixBits, bool atomic) override;
+	void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock, bool atomic) override;
+	unsigned int canStoreSuffix(size_t nSuffixBits) const override;
 protected:
 	size_t prefixBits_;
 	TSuffixStorage* suffixes_;
 	// TODO template block type
 	unsigned long prefix_[PREF_BLOCKS];
 
+	unsigned long* getSuffixStartBlockPointerFromIndex(unsigned int index) const;
 	TSuffixStorage* getChangeableSuffixStorage() const override;
-	virtual string getName() const =0;
 };
 
 #include <assert.h>
@@ -172,10 +186,10 @@ TSuffixStorage* TNode<DIM, PREF_BLOCKS>::getChangeableSuffixStorage() const {
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-std::pair<unsigned long*, unsigned int> TNode<DIM, PREF_BLOCKS>::reserveSuffixSpace(size_t nSuffixBits) {
+std::pair<unsigned long*, unsigned int> TNode<DIM, PREF_BLOCKS>::reserveSuffixSpace(size_t nSuffixBits, bool atomic) {
 	assert (suffixes_ && suffixes_->canStoreBits(nSuffixBits));
 	// assumes insertion order: reserve space -> fill suffix -> insert index
-	assert (this->getNStoredSuffixes() == suffixes_->getNStoredSuffixes(nSuffixBits));
+	assert (atomic || this->getNStoredSuffixes() == suffixes_->getNStoredSuffixes(nSuffixBits));
 	return suffixes_->reserveBits(nSuffixBits);
 }
 
@@ -187,34 +201,40 @@ unsigned long* TNode<DIM, PREF_BLOCKS>::getSuffixStartBlockPointerFromIndex(unsi
 
 template<unsigned int DIM, unsigned int PREF_BLOCKS>
 void TNode<DIM, PREF_BLOCKS>::freeSuffixSpace(size_t nSuffixBits,
-		unsigned long* suffixStartBlock) {
+		unsigned long* suffixStartBlock, bool atomic) {
 	assert(suffixes_ && !suffixes_->empty());
 
-	const unsigned int suffixStartBlockIndex = suffixes_->getIndexFromPointer(suffixStartBlock);
-	const unsigned int lastStartBlockIndex = suffixes_->overrideBlocksWithLast(nSuffixBits, suffixStartBlockIndex);
-	if (lastStartBlockIndex != 0) {
-		NodeIterator<DIM>* it = this->begin();
-		it->disableResolvingSuffixIndex();
-		NodeIterator<DIM>* endIt = this->end();
-		bool foundLastRef = false;
-		for (; (*it != *endIt) && !foundLastRef; ++(*it)) {
-			NodeAddressContent<DIM> content = (*(*it));
-			if (content.exists && !content.hasSubnode
-					&& content.suffixStartBlockIndex == lastStartBlockIndex) {
-				assert(!content.directlyStoredSuffix);
-				insertAtAddress(content.address, suffixStartBlockIndex, content.id);
-				foundLastRef = true;
-			}
-		}
-
-		assert(foundLastRef);
-		delete it;
-		delete endIt;
+	if (atomic) {
+		// parallel protocoll
+		suffixes_->clear(suffixStartBlock);
 	} else {
-		suffixes_->clearLast(nSuffixBits);
+		// sequential protocoll
+		const unsigned int suffixStartBlockIndex = suffixes_->getIndexFromPointer(suffixStartBlock);
+		const unsigned int lastStartBlockIndex = suffixes_->overrideBlocksWithLast(nSuffixBits, suffixStartBlockIndex);
+		if (lastStartBlockIndex != 0) {
+			NodeIterator<DIM>* it = this->begin();
+			it->disableResolvingSuffixIndex();
+			NodeIterator<DIM>* endIt = this->end();
+			bool foundLastRef = false;
+			for (; (*it != *endIt) && !foundLastRef; ++(*it)) {
+				NodeAddressContent<DIM> content = (*(*it));
+				if (content.exists && !content.hasSubnode
+						&& content.suffixStartBlockIndex == lastStartBlockIndex) {
+					assert(!content.directlyStoredSuffix);
+					insertAtAddress(content.address, suffixStartBlockIndex, content.id);
+					foundLastRef = true;
+				}
+			}
+
+			assert(foundLastRef);
+			delete it;
+			delete endIt;
+		} else {
+			suffixes_->clearLast(nSuffixBits);
+		}
 	}
 
-	assert (this->getNStoredSuffixes() == suffixes_->getNStoredSuffixes(nSuffixBits));
+	assert (atomic || this->getNStoredSuffixes() == suffixes_->getNStoredSuffixes(nSuffixBits));
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

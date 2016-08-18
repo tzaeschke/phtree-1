@@ -11,6 +11,7 @@
 #include <vector>
 #include <iostream>
 #include <cstdint>
+#include <atomic>
 #include "nodes/TNode.h"
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
@@ -38,18 +39,29 @@ public:
 	size_t getNumberOfContents() const override;
 	size_t getMaximumNumberOfContents() const override;
 	void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const override;
-	void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
-	void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
-	void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
-	Node<DIM>* adjustSize() override;
-
-protected:
+	bool insertAtAddress(unsigned long hcAddress, uintptr_t pointer) override;
+	bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
+	bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
+	bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) override;
+	void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
+	void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) override;
+	void linearCopyFromOther(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	bool updateAddress(uintptr_t pointer, const NodeAddressContent<DIM>& prevContent) override;
+	bool updateAddress(const Node<DIM>* const subnode, const NodeAddressContent<DIM>& prevContent) override;
+	bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
 	string getName() const override;
+	NodeType getType() const override { return Array; }
 
 private:
 
-	size_t nContents;
+	// Spinlock: [ 0...01 | 00 ] => special pointer, invalid reference
+	static const uintptr_t REF_SPINLOCK = 4;
+	static const uintptr_t REF_EMPTY = 0;
+
+	std::atomic<size_t> nContents;
 
 	// stores flags in 2 lowest bits per reference: isPointer | isSuffix
 	// 00 & reference == 0	- entry does not exist
@@ -57,11 +69,13 @@ private:
 	// 01 					- the entry directly stores a suffix and the ID
 	// 10 					- the entry holds a reference to a subnode
 	// 11 					- the entry holds the index of the suffix and the ID
-	std::uintptr_t references_[1 << DIM];
+	std::atomic<std::uintptr_t> references_[1 << DIM];
 	static const unsigned long refMask = (-1uL) << 2uL; // mask to remove the 2 flag bits
 
-	void inline getRef(unsigned long hcAddress, bool* exists, bool* hasSub,
+	inline void getRef(unsigned long hcAddress, bool* exists, bool* spinlock, bool* hasSub,
 			bool* directlyStoredSuffix, bool* isSpecial, std::uintptr_t* ref) const;
+	inline bool atomicUpdate(unsigned long hcAddress, uintptr_t oldRef, uintptr_t newRef);
+	inline uintptr_t reconstructReference(const NodeAddressContent<DIM>& prevContent) const;
 };
 
 #include <assert.h>
@@ -107,13 +121,13 @@ AHC<DIM, PREF_BLOCKS>::~AHC() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
-	bool hasSubnode = false;
-	bool filled = false;
-	bool isDirectlyStoredSuffix = false;
-	bool isSpecial = false;
+	bool hasSubnode, filled, isDirectlyStoredSuffix, isSpecial, isSpinlock;
 	uintptr_t ref = 0;
 	for (size_t i = 0; i < 1uL << DIM; ++i) {
-		getRef(i, &filled, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
+		do {
+			getRef(i, &filled, &isSpinlock, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
+		} while (isSpinlock);
+
 		assert (!isSpecial);
 		if (filled && hasSubnode) {
 			Node<DIM>* subnode = reinterpret_cast<Node<DIM>*>(ref);
@@ -128,11 +142,11 @@ void AHC<DIM, PREF_BLOCKS>::recursiveDelete() {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 string AHC<DIM,PREF_BLOCKS>::getName() const {
-	return "AHC";
+	return "AHC<" + to_string(DIM) + "," + to_string(PREF_BLOCKS) + ">";
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM,PREF_BLOCKS>::getRef(unsigned long hcAddress, bool* exists, bool* hasSub,
+void AHC<DIM,PREF_BLOCKS>::getRef(unsigned long hcAddress, bool* exists, bool* spinlock, bool* hasSub,
 		bool* directlyStoredSuffix, bool* isSpecial, std::uintptr_t* ref) const {
 	assert (hcAddress < 1 << DIM);
 	assert (exists && hasSub && ref);
@@ -147,6 +161,7 @@ void AHC<DIM,PREF_BLOCKS>::getRef(unsigned long hcAddress, bool* exists, bool* h
 	(*hasSub) = isPointer && !isSuffix;
 	(*directlyStoredSuffix) = !isPointer && isSuffix;
 	(*isSpecial) = !isSuffix && !isPointer && (reference != 0);
+	(*spinlock) = reference == REF_SPINLOCK;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
@@ -165,9 +180,11 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 
 	uintptr_t ref;
 	outContent.address = address;
-	getRef(address, &outContent.exists, &outContent.hasSubnode,
-			&outContent.directlyStoredSuffix, &outContent.hasSpecialPointer,
-			&ref);
+	bool isSpinlock;
+	do {
+		getRef(address, &outContent.exists, &isSpinlock, &outContent.hasSubnode,
+				&outContent.directlyStoredSuffix, &outContent.hasSpecialPointer, &ref);
+	} while (isSpinlock);
 
 	if (outContent.exists) {
 		if (outContent.hasSubnode) {
@@ -197,53 +214,29 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long  suffix, int id) {
+bool AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned long  suffix, int id) {
 	assert (hcAddress < 1ul << DIM);
 	assert (sizeof (unsigned long) == sizeof (uintptr_t));
 	assert (suffix < (1uL << (sizeof(int) * 8uL - 2uL)));
-
-	bool exists;
-	bool hasSubnode;
-	bool isDirectlyStoredSuffix;
-	bool isSpecial;
-	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
-
-	if (!exists) {
-		nContents++;
-		assert ((references_[hcAddress] & 3) == 0);
-	}
 
 	// layout: [ ID (32) | suffix bits (30) | flags (2)]
 	// 01 -> internally stored suffix
 	// need to shift the suffix in order to have enough space for the meta flags
 	const unsigned long extendedId = id;
 	const unsigned long suffixShifted = 1 | (suffix << 2) | (extendedId << 32);
-	references_[hcAddress] = reinterpret_cast<uintptr_t>(suffixShifted);
+	const uintptr_t newRef = reinterpret_cast<uintptr_t>(suffixShifted);
+	const bool success = atomicUpdate(hcAddress, REF_EMPTY, newRef);
+	if (success) {
+		++nContents;
+	}
 
-
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).id == id);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).directlyStoredSuffix);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).suffix == suffix);
+	return success;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+bool AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
 	assert (hcAddress < 1ul << DIM);
 	assert (suffixStartBlockIndex < (1uL << (8 * sizeof (int) - 2)));
-
-	bool exists;
-	bool hasSubnode;
-	bool isDirectlyStoredSuffix;
-	bool isSpecial;
-	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
-
-	if (!exists) {
-		nContents++;
-		assert ((references_[hcAddress] & 3) == 0);
-	}
 
 	const unsigned long suffixStartBlockIndexExtended = suffixStartBlockIndex;
 	const unsigned long extendedId = id;
@@ -251,69 +244,128 @@ void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, unsigned in
 	assert (((storedRef & 3) == 0) && "last 2 bits must not be set!");
 	// layout: [ ID (32) | suffix index (30) | flags (2)]
 	// 11 -> pointer to suffix
-	references_[hcAddress] = 3 | storedRef | (extendedId << 32);
-
-
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).id == id);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
-	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSubnode);
-	assert (!((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).directlyStoredSuffix);
-}
-
-template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
-	assert (hcAddress < 1ul << DIM);
-
-	bool exists;
-	bool hasSubnode;
-	bool isDirectlyStoredSuffix;
-	bool isSpecial;
-	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
-
-	if (!exists) {
-		nContents++;
-		assert ((references_[hcAddress] & 3) == 0);
+	const uintptr_t newRef = 3 | storedRef | (extendedId << 32);
+	const bool success = atomicUpdate(hcAddress, REF_EMPTY, newRef);
+	if (success) {
+		++nContents;
 	}
 
-	assert (((reinterpret_cast<uintptr_t>(subnode) & 3) == 0) && "last 2 bits must not be set!");
-	// 10 -> pointer to subnode
-	references_[hcAddress] = 2 | reinterpret_cast<uintptr_t>(subnode);
-
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSubnode);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).subnode == subnode);
+	return success;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-void AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, uintptr_t pointer) {
+bool AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
+	assert (hcAddress < 1ul << DIM);
+	assert (((reinterpret_cast<uintptr_t>(subnode) & 3) == 0) && "last 2 bits must not be set!");
+
+	// 10 -> pointer to subnode
+	const uintptr_t newRef =  2 | reinterpret_cast<uintptr_t>(subnode);
+	const bool success = atomicUpdate(hcAddress, REF_EMPTY, newRef);
+	if (success) {
+		++nContents;
+	}
+
+	return success;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) {
+	insertAtAddress(hcAddress, pointer);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+	insertAtAddress(hcAddress, suffixStartBlockIndex, id);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) {
+	insertAtAddress(hcAddress, suffix, id);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::linearCopyFromOther(unsigned long hcAddress, const Node<DIM>* const subnode) {
+	insertAtAddress(hcAddress, subnode);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool AHC<DIM, PREF_BLOCKS>::updateAddress(const Node<DIM>* const subnode, const NodeAddressContent<DIM>& prevContent) {
+	assert (((reinterpret_cast<uintptr_t>(subnode) & 3) == 0) && "last 2 bits must not be set!");
+
+	uintptr_t oldRef = reconstructReference(prevContent);
+	// 10 -> pointer to subnode
+	const uintptr_t newRef =  2 | reinterpret_cast<uintptr_t>(subnode);
+	return atomicUpdate(prevContent.address, oldRef, newRef);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool AHC<DIM, PREF_BLOCKS>::insertAtAddress(unsigned long hcAddress, uintptr_t pointer) {
 	assert (hcAddress < 1ul << DIM);
 	assert ((pointer & 3) == 0 && "last 2 bits must not be set!");
 	assert (pointer != 0 && "cannot store null pointers");
 
-	bool exists;
-	bool hasSubnode;
-	bool isDirectlyStoredSuffix;
-	bool isSpecial;
-	uintptr_t ref;
-	getRef(hcAddress, &exists, &hasSubnode, &isDirectlyStoredSuffix, &isSpecial, &ref);
-
-	if (!exists) {
-		nContents++;
+	uintptr_t oldRef = REF_EMPTY;
+	const bool success = atomic_compare_exchange_strong(&references_[hcAddress], &oldRef, pointer);
+	if (success) {
+		++nContents;
 	}
 
-	// 00 & pointer != 0 -> special pointer
-	references_[hcAddress] = pointer;
+	return success;
+}
 
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).address == hcAddress);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).hasSpecialPointer);
-	assert (((NodeAddressContent<DIM>)Node<DIM>::lookup(hcAddress, true)).specialPointer == pointer);
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool AHC<DIM, PREF_BLOCKS>::updateAddress(uintptr_t pointer, const NodeAddressContent<DIM>& prevContent) {
+	assert ((pointer & 3) == 0 && "last 2 bits must not be set!");
+	assert (pointer != 0 && "cannot store null pointers");
+	uintptr_t oldRef = reconstructReference(prevContent);
+	return atomicUpdate(prevContent.address, oldRef, pointer);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
-Node<DIM>* AHC<DIM, PREF_BLOCKS>::adjustSize() {
-	// TODO currently there is no need to switch from AHC to LHC because there is no delete function
-	return this;
+inline bool AHC<DIM, PREF_BLOCKS>::atomicUpdate(unsigned long hcAddress, uintptr_t oldRef, uintptr_t newRef) {
+	return atomic_compare_exchange_strong(&references_[hcAddress], &oldRef, newRef);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+inline uintptr_t AHC<DIM, PREF_BLOCKS>::reconstructReference(const NodeAddressContent<DIM>& prevContent) const {
+	assert (prevContent.exists);
+	uintptr_t ref;
+	if (prevContent.hasSpecialPointer) {
+		ref = prevContent.specialPointer;
+	} else if (prevContent.hasSubnode) {
+		const uintptr_t subRef = reinterpret_cast<uintptr_t>(prevContent.subnode);
+		ref = reinterpret_cast<uintptr_t>(subRef | 2);
+	} else if (prevContent.directlyStoredSuffix) {
+		const unsigned long upperId = prevContent.id;
+		ref = reinterpret_cast<uintptr_t>((upperId << 32) | (prevContent.suffix << 2) | 1);
+	} else {
+		const unsigned long upperId = prevContent.id;
+		const unsigned long index = this->getSuffixStorage()->getIndexFromPointer(prevContent.suffixStartBlock);
+		const unsigned long suffixStartBlockIndexExtended = (upperId << 32) | (index << 2) | 3;
+		ref = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended);
+	}
+
+	return ref;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool AHC<DIM, PREF_BLOCKS>::updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) {
+	uintptr_t oldPointer = reconstructReference(prevContent);
+	return atomicUpdate(prevContent.address, oldPointer, REF_SPINLOCK);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) {
+	const uintptr_t pointer = 2 | reinterpret_cast<uintptr_t>(subnode);
+	const bool success = atomicUpdate(hcAddress, REF_SPINLOCK, pointer);
+	assert (success);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) {
+	const bool success = atomicUpdate(hcAddress, REF_SPINLOCK, pointer);
+	assert (success);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

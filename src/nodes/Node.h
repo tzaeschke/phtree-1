@@ -29,6 +29,12 @@ template <unsigned int DIM, unsigned int WIDTH>
 class DynamicNodeOperationsUtil;
 class TSuffixStorage;
 
+enum NodeType {
+	Linear,
+	Array,
+	AtomicLinear
+};
+
 template <unsigned int DIM>
 class Node {
 	// TODO remove friends and use getters and setters
@@ -48,6 +54,7 @@ public:
 	virtual NodeIterator<DIM>* end() const = 0;
 	virtual void accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) =0;
 	virtual void recursiveDelete() = 0;
+	virtual bool full() const;
 	// gets the number of contents: #suffixes + #subnodes
 	virtual size_t getNumberOfContents() const = 0;
 	virtual size_t getMaximumNumberOfContents() const = 0;
@@ -56,19 +63,34 @@ public:
 	virtual unsigned long* getPrefixStartBlock() =0;
 	virtual const unsigned long* getFixPrefixStartBlock() const =0;
 	virtual void lookup(unsigned long address, NodeAddressContent<DIM>& outContent, bool resolveSuffixIndex) const = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
-	virtual void insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
-	virtual Node<DIM>* adjustSize() = 0;
+
+	virtual bool insertAtAddress(unsigned long hcAddress, uintptr_t pointer) =0;
+	virtual bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
+	virtual bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
+	virtual bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+
+	virtual void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) =0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) = 0;
+	virtual void linearCopyFromOther(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+
+	virtual bool updateAddress(uintptr_t pointer, const NodeAddressContent<DIM>& prevContent) = 0;
+	virtual bool updateAddress(const Node<DIM>* const subnode, const NodeAddressContent<DIM>& prevContent) = 0;
+	virtual bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) = 0;
+	bool updateAddressToSpinlock(unsigned hcAddress, Node<DIM>* subnode);
+	virtual void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) = 0;
+
+	virtual NodeType getType() const = 0;
+	virtual string getName() const =0;
 	virtual bool canStoreSuffixInternally(size_t nSuffixBits) const =0;
 	virtual unsigned int canStoreSuffix(size_t nSuffixBits) const =0;
 	virtual void setSuffixStorage(TSuffixStorage* suffixStorage) =0;
 	virtual const TSuffixStorage* getSuffixStorage() const =0;
 	virtual TSuffixStorage* getChangeableSuffixStorage() const =0;
 	// returns the storage address to write to and the index to store
-	virtual std::pair<unsigned long*, unsigned int> reserveSuffixSpace(size_t nSuffixBits) =0;
-	virtual void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock) =0;
+	virtual std::pair<unsigned long*, unsigned int> reserveSuffixSpace(size_t nSuffixBits, bool atomic) =0;
+	virtual void freeSuffixSpace(size_t nSuffixBits, unsigned long* suffixStartBlock, bool atomic) =0;
 	virtual void copySuffixStorageFrom(const Node<DIM>& other) =0;
 
 	NodeAddressContent<DIM> lookup(unsigned long address, bool resolveSuffixIndex) const;
@@ -90,10 +112,27 @@ Node<DIM>::~Node() {
 }
 
 template <unsigned int DIM>
+bool Node<DIM>::full() const {
+	return getNumberOfContents() == getMaximumNumberOfContents();
+}
+
+template <unsigned int DIM>
 NodeAddressContent<DIM> Node<DIM>::lookup(unsigned long address, bool resolveSuffixIndex) const {
 	NodeAddressContent<DIM> content;
 	this->lookup(address, content, resolveSuffixIndex);
 	return content;
+}
+
+
+template <unsigned int DIM>
+bool Node<DIM>::updateAddressToSpinlock(unsigned hcAddress, Node<DIM>* subnode) {
+	NodeAddressContent<DIM> content;
+	content.exists = true;
+	content.address = hcAddress;
+	content.hasSubnode = true;
+	content.hasSpecialPointer = false;
+	content.subnode = subnode;
+	return updateAddressToSpinlock(content);
 }
 
 template <unsigned int DIM>

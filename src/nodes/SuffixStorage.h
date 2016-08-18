@@ -25,14 +25,16 @@ public:
 	unsigned int overrideBlocksWithLast(size_t nBits, unsigned int overrideStartBlockIndex) override;
 	void copyFrom(const TSuffixStorage& other) override;
 	void clear() override;
+	void clear(unsigned long* startBlock) override;
 	void clearLast(size_t nBits) override;
 	unsigned int getNMaxStorageBlocks() const override;
 	unsigned int getNCurrentStorageBlocks() const override;
 	unsigned long getBlock(unsigned int index) const override;
 	bool empty() const override;
 	unsigned long* getPointerFromIndex(unsigned int index) const override;
-	unsigned int getIndexFromPointer(unsigned long* pointer) const override;
+	unsigned int getIndexFromPointer(const unsigned long* pointer) const override;
 	size_t getByteSize() const override;
+	void setIndexUsed(size_t index) override;
 
 private:
 	unsigned int currentBlock;
@@ -67,12 +69,22 @@ unsigned long SuffixStorage<SUFFIX_BLOCKS>::getBlock(unsigned int index) const {
 }
 
 template <unsigned int SUFFIX_BLOCKS>
+void SuffixStorage<SUFFIX_BLOCKS>::setIndexUsed(size_t index) {
+	throw "not supported";
+}
+
+template <unsigned int SUFFIX_BLOCKS>
+void SuffixStorage<SUFFIX_BLOCKS>::clear(unsigned long* startBlock) {
+	throw "not supported";
+}
+
+template <unsigned int SUFFIX_BLOCKS>
 unsigned long* SuffixStorage<SUFFIX_BLOCKS>::getPointerFromIndex(unsigned int index) const {
 	return const_cast<unsigned long*>(suffixBlocks + index);
 }
 
 template <unsigned int SUFFIX_BLOCKS>
-unsigned int SuffixStorage<SUFFIX_BLOCKS>::getIndexFromPointer(unsigned long* pointer) const {
+unsigned int SuffixStorage<SUFFIX_BLOCKS>::getIndexFromPointer(const unsigned long* pointer) const {
 	const size_t pointerRepr = (size_t)pointer;
 	const size_t startRepr = (size_t)suffixBlocks;
 	const size_t diff = pointerRepr - startRepr;

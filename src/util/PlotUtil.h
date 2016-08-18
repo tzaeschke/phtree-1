@@ -235,19 +235,19 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	}
 
 	size_t runNr = 0;
-	const double sequentialSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), "sequential-baseline", false, false, 0);
+	const double sequentialSec = 1.0;// writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), "sequential-baseline", false, false, 0);
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
 	CALLGRIND_START_INSTRUMENTATION;
 	const size_t availableThreads = 3 * thread::hardware_concurrency();
-	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1), static_cast<InsertionOrder>(2)};
+	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1)};//, static_cast<InsertionOrder>(2)};
 	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			InsertionThreadPool<DIM,WIDTH>::order_ = o;
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
 			const double parallelSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
 			string lableBulk = "parallel-bulk-" + to_string(t) + "-" + to_string(static_cast<int>(o));
-			const double parallelBulkSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
+			const double parallelBulkSec = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
 			// efficiency = Tseq / (T(p) * p)
 			const double parallelEfficiency = sequentialSec / parallelSec / double(t);
 			const double parallelBulkEfficiency = sequentialSec / parallelBulkSec / double(t);
@@ -283,7 +283,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 	for (unsigned repeat = 0; repeat < N_REPETITIONS; ++repeat) {
 		DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters();
 		InsertionThreadPool<DIM, WIDTH>::nFlushPhases = 0;
-		delete phtree;
+//		delete phtree;
 		phtree = new PHTree<DIM,WIDTH>();
 
 		begin = chrono::steady_clock::now();
@@ -370,7 +370,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 	delete sizeVisitor;
 	delete prefixVisitor;
 	delete suffixVisitor; */
-	delete phtree;
+// TODO	delete phtree;
 
 	const double insertSec = double(smallestInsertMicroSecs) / 1000000.0;
 

@@ -24,14 +24,18 @@ public:
 	virtual std::pair<unsigned long*, unsigned int> reserveBits(size_t nBits) =0;
 	virtual void copyFrom(const TSuffixStorage& other) =0;
 	virtual void clear() =0;
+	virtual void clear(unsigned long* startBlock) =0;
 	virtual void clearLast(size_t nBits) =0;
 	virtual unsigned int getNMaxStorageBlocks() const =0;
 	virtual unsigned int getNCurrentStorageBlocks() const =0;
 	virtual unsigned long getBlock(unsigned int index) const =0;
 	virtual bool empty() const =0;
 	virtual unsigned long* getPointerFromIndex(unsigned int index) const =0;
-	virtual unsigned int getIndexFromPointer(unsigned long* pointer) const =0;
+	virtual unsigned int getIndexFromPointer(const unsigned long* pointer) const =0;
 	virtual size_t getByteSize() const =0;
+
+	virtual void setIndexUsed(size_t index) =0;
+
 
 	size_t getNStoredSuffixes(size_t suffixBits) const;
 };

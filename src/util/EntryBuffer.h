@@ -340,7 +340,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 			const unsigned int nEntries = rowNSuffixes[row] + rowNSubnodes[row];
 			assert (nEntries <= (1uL << DIM));
 			Node<DIM>* currentNode = NodeTypeUtil<DIM>::
-					template buildNodeWithSuffixes<WIDTH>(prefixBits, nEntries, rowNSuffixes[row], suffixBits);
+					template buildNodeWithSuffixes<WIDTH>(prefixBits, nEntries, rowNSuffixes[row], suffixBits, true);
 			if (prefixBits > 0) {
 				const unsigned int currentBits = suffixBits + DIM + prefixBits;
 				assert (currentBits <= suffixBits_);
@@ -370,7 +370,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 						currentNode->insertAtAddress(hcAddress, suffix, buffer_[column].id_);
 					} else {
 						assert (currentNode->canStoreSuffix(suffixBits) == 0);
-						const pair<unsigned long*, unsigned int> suffixStartBlock = currentNode->reserveSuffixSpace(suffixBits);
+						const pair<unsigned long*, unsigned int> suffixStartBlock = currentNode->reserveSuffixSpace(suffixBits, true);
 						currentNode->insertAtAddress(hcAddress, suffixStartBlock.second, buffer_[column].id_);
 						MultiDimBitset<DIM>::duplicateLowestBitsAligned(buffer_[column].values_, suffixBits, suffixStartBlock.first);
 						assert(currentNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
