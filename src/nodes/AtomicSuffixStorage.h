@@ -42,10 +42,10 @@ private:
 	typedef unsigned char byte;
 	static const byte FULLY_OCCUPIED = ~0;
 	static const size_t N_BITS_PER_OCCUPIED_BLOCK = 8 * sizeof (byte);
-	static const size_t N_OCCUPIED_BLOCKS = 1 + (SUFFIX_BLOCKS - 1) / N_BITS_PER_OCCUPIED_BLOCK;
+	const size_t N_OCCUPIED_BLOCKS = 1 + (SUFFIX_BLOCKS - 1) / N_BITS_PER_OCCUPIED_BLOCK;
 
 	unsigned int nBlocksPerSuffix_;
-	std::atomic<byte> occupiedBlocks_[N_OCCUPIED_BLOCKS];
+	std::atomic<byte> occupiedBlocks_[1 + (SUFFIX_BLOCKS - 1) / N_BITS_PER_OCCUPIED_BLOCK];
 	unsigned long suffixBlocks_[SUFFIX_BLOCKS];
 
 	size_t indexOfFreeBlock(byte occupiedBlock) const;
@@ -149,7 +149,7 @@ template <unsigned int SUFFIX_BLOCKS>
 void AtomicSuffixStorage<SUFFIX_BLOCKS>::clear(unsigned long* startBlock) {
 
 	assert (nBlocksPerSuffix_ != 0);
-	size_t index = getIndexFromPointer(startBlock) / nBlocksPerSuffix_;
+	const size_t index = getIndexFromPointer(startBlock) / nBlocksPerSuffix_;
 	const size_t occupiedBlockIndex = index / N_BITS_PER_OCCUPIED_BLOCK;
 	const size_t occupiedBlockBitIndex = index % N_BITS_PER_OCCUPIED_BLOCK;
 

@@ -394,7 +394,10 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 
 	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
 			&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
-	this->node_->insertAtAddress(this->nodeHcAddress, rowNode[0]);
+	NodeAddressContent<DIM> prevContent;
+	NodeAddressContent<DIM>::fillSpecialPointer(this->nodeHcAddress, reinterpret_cast<uintptr_t>(this), prevContent);
+	const bool success = this->node_->updateAddress(rowNode[0], prevContent);
+	assert (success);
 
 #ifndef NDEBUG
 	// Validate all copied entries (except for the first one which was only copied partially)

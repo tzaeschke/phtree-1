@@ -15,6 +15,8 @@
 
 #include <atomic>
 #include "nodes/NodeAddressContent.h"
+#include "util/DeletedNodes.h"
+#include "util/EntryTreeMap.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
 class Entry;
@@ -54,7 +56,8 @@ public:
 	static void insert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree);
 	static void parallelInsert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree);
 	static void bulkInsert(const std::vector<Entry<DIM, WIDTH>>& entries, PHTree<DIM, WIDTH>& tree);
-	static bool parallelBulkInsert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree, EntryBufferPool<DIM, WIDTH>& pool);
+	static bool parallelBulkInsert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree,
+			EntryBufferPool<DIM, WIDTH>& pool, DeletedNodes<DIM>& deletedNodes, EntryTreeMap<DIM,WIDTH>& entryTreeMap);
 
 	static bool createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
@@ -77,11 +80,13 @@ private:
 	static inline void optimisticWriteUnlock(Node<DIM>* node);
 	static inline void optimisticWriteUnlock(Node<DIM>* currentNode, Node<DIM>* previousNode);
 	static inline void downgradeWriterToReader(Node<DIM>* node);
+	static inline void downgradeUpgradableToReader(Node<DIM>* node);
 	static inline void readLockBlocking(Node<DIM>* node);
 	static inline bool readLock(Node<DIM>* node);
 	static inline void readUnlock(Node<DIM>* node);
 	static inline void readUnlock(Node<DIM>* child, Node<DIM>* parent);
 	static inline void readUnlock(Node<DIM>* child, Node<DIM>* current, Node<DIM>* parent);
+	static inline bool tryUpgradable(Node<DIM>* node);
 	static inline bool tryWriteLockWithoutRead(Node<DIM>* node);
 };
 
@@ -480,6 +485,18 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::downgradeWriterToReader(Node<DIM>* n
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::downgradeUpgradableToReader(Node<DIM>* node) {
+	assert (!node->removed);
+	node->rwLock.unlock_upgrade_and_lock_shared();
+}
+
+template<unsigned int DIM, unsigned int WIDTH>
+bool DynamicNodeOperationsUtil<DIM, WIDTH>::tryUpgradable(Node<DIM>* node) {
+	assert (!node->removed);
+	return node->rwLock.try_unlock_shared_and_lock_upgrade();
+}
+
+template<unsigned int DIM, unsigned int WIDTH>
 bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(
 		Node<DIM>* child, Node<DIM>* parent) {
 
@@ -504,7 +521,6 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* chi
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* node) {
 	assert (node);
-//	assert (!node->removed);
 	assert (node->rwLock.state.shared_count == 0 && node->rwLock.state.exclusive);
 	node->rwLock.unlock();
 }
@@ -896,27 +912,37 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 template<unsigned int DIM, unsigned int WIDTH>
 bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree,
-		EntryBufferPool<DIM, WIDTH>& pool) {
+		EntryBufferPool<DIM, WIDTH>& pool, DeletedNodes<DIM>& deletedNodes,
+		EntryTreeMap<DIM,WIDTH>& entryTreeMap) {
 
+#ifdef PRINT
+		cout << entry.id_ << ": " << flush;
+#endif
+
+	entryTreeMap.compareForStart(entry);
 	size_t lastHcAddress, index;
 	index = 0;
 	Node<DIM>* lastNode = NULL;
 	Node<DIM>* currentNode = NULL;
+	Node<DIM>* highestNode;
 	NodeAddressContent<DIM> content;
 	bool restart = true;
 
 	while (index < WIDTH) {
-		if (restart) {
+		while (restart) {
 			if (currentNode) { readUnlock(currentNode); }
 			if (lastNode) { readUnlock(lastNode); }
 			index = 0;
 			lastHcAddress = 0;
 			lastNode = NULL;
-			currentNode = tree.root_;
+			entryTreeMap.getNextUndeletedNode(&highestNode, &index);
+			currentNode = (highestNode)? highestNode : tree.root_;
 			readLockBlocking(currentNode);
-			restart = false;
+			restart = currentNode->removed;
 		}
 
+		assert (!lastNode || !lastNode->removed);
+		assert (!currentNode->removed);
 		const size_t currentIndex = index + currentNode->getPrefixLength();
 		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(entry.values_, currentIndex, WIDTH * DIM);
 		// TODO create content once and populate after each iteration instead of creating a new one
@@ -934,7 +960,8 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 
 			// need to get read access to the subnode
 			Node<DIM>* subnode = content.subnode;
-			if (readLock(subnode)) {
+			readLockBlocking(subnode);
+			if (!subnode->removed) {
 				const size_t subnodePrefixLength = subnode->getPrefixLength();
 				bool prefixIncluded = true;
 				size_t differentBitAtPrefixIndex = -1;
@@ -952,19 +979,26 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				if (prefixIncluded) {
 					// recurse on subnode
 #ifdef PRINT
-					cout << "recurse -> ";
+					cout << "recurse (" << index << "-" << currentIndex << ") -> " << flush;
 #endif
 					lastHcAddress = hcAddress;
 					index = currentIndex + 1;
+					entryTreeMap.put(index, currentNode);
 				} else {
 					// split prefix of subnode [A | d | B] where d is the index of the first different bit
 					// create new node with prefix A and only leave prefix B in old subnode
-					if (optimisticWriteLock(currentNode, lastNode)) {
-						splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, lastNode, content, entry, tree);
-						optimisticWriteUnlock(currentNode, lastNode);
-						currentNode->removed = true;
-						delete currentNode;
-						break;
+					if (optimisticWriteLock(currentNode)) {
+						if (splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, lastNode, content, entry, tree)) {
+							deletedNodes.add(currentNode);
+							optimisticWriteUnlock(currentNode);
+							readUnlock(lastNode);
+							break;
+						} else {
+							optimisticWriteUnlock(currentNode);
+							currentNode = NULL;
+							restart = true;
+//							++nRestartWriteSplitPrefix;
+						}
 					} else {
 						restart = true;
 //						++nRestartWriteSplitPrefix;
@@ -973,6 +1007,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			} else {
 				// did not get access to the subnode so restart
 				restart = true;
+				readUnlock(subnode);
 //				++nRestartReadRecurse;
 			}
 		} else if (content.exists && content.hasSpecialPointer) {
@@ -980,18 +1015,22 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 			EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM,WIDTH>*>(content.specialPointer);
 			if (buffer->full()) {
-				if (optimisticWriteLock(currentNode)) {
+				// TODO no need to get a write lock! upgradable is enough
+				if (tryUpgradable(currentNode)) {
 					assert (buffer->full());
 					// cleaning the old buffer and restart
 					flushSubtree(buffer, true);
-					downgradeWriterToReader(currentNode);
+					downgradeUpgradableToReader(currentNode);
 					// continue with the current node
 				} else {
-					restart = true;
+					restart = true; // TOOO not needed??
 //					++nRestartWriteFLushBuffer;
 				}
 			} else if (buffer->insert(entry)) {
 				// successfully inserted the entry into the buffer
+#ifdef PRINT
+					cout << "inserted into buffer" << endl;
+#endif
 				readUnlock(currentNode);
 				break;
 			} else {
@@ -1011,38 +1050,45 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				return false;
 			}
 
-			if (optimisticWriteLock(currentNode)) {
-				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
-				optimisticWriteUnlock(currentNode);
+			if (swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree)) {
+				readUnlock(currentNode);
 				break;
 			} else {
 				pool.deallocate(buffer);
 				restart = true;
 //				++nRestartWriteSwapSuffix;
 			}
-		} else if (lastNode && needToCopyNodeForSuffixInsertion(currentNode)) {
-			// insert the suffix into a node that will be changed so needs to be reinserted into the parent
-			if (optimisticWriteLock(currentNode, lastNode)) {
-				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
-				assert(adjustedNode && (adjustedNode != currentNode));
-				lastNode->insertAtAddress(lastHcAddress, adjustedNode);
-				optimisticWriteUnlock(currentNode, lastNode);
-				currentNode->removed = true;
-				delete currentNode;
-				break;
-			} else {
+		} else if (needToCopyNodeForSuffixInsertion(currentNode)) {
+			if (!lastNode) {
+				// the entry node changed so need to back up to a previous node
+				entryTreeMap.enforcePreviousNode();
 				restart = true;
-//				++nRestartWriteInsertSuffixEnlarge;
+			} else {
+				// has a valid parent so try to lock the edge to the child
+				bool edgeLocked = lastNode->updateAddressToSpinlock(lastHcAddress, currentNode);
+				if (edgeLocked && optimisticWriteLock(currentNode)) {
+					Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+					assert (adjustedNode && (adjustedNode != currentNode));
+					lastNode->updateAddressFromSpinlock(lastHcAddress, adjustedNode);
+					deletedNodes.add(currentNode);
+					optimisticWriteUnlock(currentNode);
+					readUnlock(lastNode);
+					break;
+				} else {
+					if (edgeLocked) { lastNode->updateAddressFromSpinlock(lastHcAddress, currentNode); }
+					restart = true;
+//					++nRestartWriteInsertSuffixEnlarge;
+				}
 			}
 		} else {
 			// inserting the suffix into a node that will not be changed
 			// therefore, the last node is not needed any more
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 
-			if (optimisticWriteLock(currentNode)) {
-				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
-				assert(adjustedNode && (adjustedNode == currentNode));
-				optimisticWriteUnlock(currentNode);
+			Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+			if (adjustedNode) {
+				assert (adjustedNode == currentNode);
+				readUnlock(currentNode);
 				break;
 			} else {
 				restart = true;

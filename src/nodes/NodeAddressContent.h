@@ -32,6 +32,15 @@ struct NodeAddressContent {
 		assert (exists && !hasSubnode);
 		return (directlyStoredSuffix)? &suffix : suffixStartBlock;
 	}
+
+	static void fillSpecialPointer(unsigned long hcAddress, uintptr_t specialPointer, NodeAddressContent<DIM>& content) {
+		content.exists = true;
+		content.hasSubnode = false;
+		content.directlyStoredSuffix = false;
+		content.hasSpecialPointer = true;
+		content.address = hcAddress;
+		content.specialPointer = specialPointer;
+	}
 };
 
 

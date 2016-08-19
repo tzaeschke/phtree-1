@@ -17,6 +17,8 @@
 #include <atomic>
 #include <boost/thread/barrier.hpp>
 #include <boost/thread/shared_mutex.hpp>
+#include "util/DeletedNodes.h"
+#include "util/EntryTreeMap.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
 class PHTree;
@@ -55,13 +57,15 @@ public:
 
 private:
 
-	bool poolSyncRequired_;
+	bool syncPhaseRequired_;
 	std::atomic<unsigned int> i_;
 	size_t nThreads_;
 	std::atomic<size_t> nRemainingThreads_;
 	boost::shared_mutex createBarriersMutex_;
 	boost::barrier* poolFlushBarrier_;
 	std::vector<std::thread> threads_;
+	std::vector<DeletedNodes<DIM>> deletedNodes_;
+	std::vector<EntryTreeMap<DIM,WIDTH>> entryMaps_;
 	const std::vector<std::vector<unsigned long>>& values_;
 	const std::vector<int>& ids_;
 	PHTree<DIM, WIDTH>* tree_;
@@ -93,8 +97,8 @@ template <unsigned int DIM, unsigned int WIDTH>
 InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 		const vector<vector<unsigned long>>& values,
 		const vector<int>& ids, PHTree<DIM, WIDTH>* tree)
-		: poolSyncRequired_(false), i_(0), nThreads_(furtherThreads + 1), createBarriersMutex_(),
-		  poolFlushBarrier_(NULL), values_(values),
+		: syncPhaseRequired_(false), i_(0), nThreads_(furtherThreads + 1), createBarriersMutex_(),
+		  poolFlushBarrier_(NULL), deletedNodes_(furtherThreads + 1), entryMaps_(furtherThreads + 1), values_(values),
 		  ids_(ids), tree_(tree), pool_(NULL) {
 	assert (values.size() > 0);
 	// create the biggest possible root node so there is no need to synchronize access on the root
@@ -152,10 +156,14 @@ void InsertionThreadPool<DIM, WIDTH>::handlePoolFlushSync(size_t threadIndex, bo
 
 	// wait until the pool is prepared for the flush
 	poolFlushBarrier_->wait();
+
 	pool_->doFullDeallocatePart(threadIndex, nThreads_);
+	deletedNodes_[threadIndex].deleteAll();
+	entryMaps_[threadIndex].clearMap();
+
 	if (responsibleForState) {
 		++nFlushPhases;
-		poolSyncRequired_ = false;
+		syncPhaseRequired_ = false;
 	}
 
 	if (lastFlush) { --nRemainingThreads_; }
@@ -189,17 +197,21 @@ void InsertionThreadPool<DIM, WIDTH>::handleDoneBySelectedStrategy(size_t thread
 
 template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex, size_t threadIndex) {
-	const Entry<DIM, WIDTH> entry(values_[entryIndex], ids_[entryIndex]);
+	const Entry<DIM, WIDTH>* entry = entryMaps_[threadIndex].createEntry(values_[entryIndex], ids_[entryIndex]);
 	switch (approach_) {
 	case optimistic_locking:
-		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
+		DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(*entry, *tree_);
 		break;
 	case buffered_bulk:
 		bool success = false;
 		while (!success) {
-			if (poolSyncRequired_) { handlePoolFlushSync(threadIndex, false); }
-			success = DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(entry, *tree_, *pool_);
-			if (!success) { poolSyncRequired_ = true; }
+			if (deletedNodes_[threadIndex].full()) {syncPhaseRequired_ = true; }
+			if (syncPhaseRequired_) { handlePoolFlushSync(threadIndex, false); }
+			success = DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
+					*entry, *tree_, *pool_,
+					deletedNodes_[threadIndex],
+					entryMaps_[threadIndex]);
+			if (!success) { syncPhaseRequired_ = true; }
 		}
 		break;
 	}

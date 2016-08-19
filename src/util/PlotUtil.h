@@ -241,13 +241,13 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	CALLGRIND_START_INSTRUMENTATION;
 	const size_t availableThreads = 3 * thread::hardware_concurrency();
 	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1)};//, static_cast<InsertionOrder>(2)};
-	for (unsigned t = 1; t <= availableThreads; ++t) {
+	for (unsigned t = 2; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			InsertionThreadPool<DIM,WIDTH>::order_ = o;
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
-			const double parallelSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
+			const double parallelSec = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lable, false, true, t);
 			string lableBulk = "parallel-bulk-" + to_string(t) + "-" + to_string(static_cast<int>(o));
-			const double parallelBulkSec = 1.0;//writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
+			const double parallelBulkSec = writeInsertPerformanceOrder<DIM,WIDTH>(original, NULL, (++runNr), lableBulk, true, true, t);
 			// efficiency = Tseq / (T(p) * p)
 			const double parallelEfficiency = sequentialSec / parallelSec / double(t);
 			const double parallelBulkEfficiency = sequentialSec / parallelBulkSec / double(t);
