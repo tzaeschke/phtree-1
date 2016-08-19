@@ -75,6 +75,9 @@ public:
 private:
 
 	static inline bool needToCopyNodeForSuffixInsertion(Node<DIM>* currentNode);
+
+	static inline void upgradeWriteLock(Node<DIM>* node);
+	static inline bool optimisticWriteLockUpgradable(Node<DIM>* node);
 	static inline bool optimisticWriteLock(Node<DIM>* node);
 	static inline bool optimisticWriteLock(Node<DIM>* currentNode, Node<DIM>* previousNode);
 	static inline void optimisticWriteUnlock(Node<DIM>* node);
@@ -469,13 +472,23 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(Node<DIM>* node)
 	assert (node->rwLock.state.shared_count > 0);
 
 	bool success = false;
-	if (node->rwLock.try_unlock_shared_and_lock_upgrade()) {
+	if (optimisticWriteLockUpgradable(node)) {
 		// the thread now holds the only lock with upgrade privileges on the node
-		node->rwLock.unlock_upgrade_and_lock();
+		upgradeWriteLock(node);
 		success = true;
 	}
 
 	return success;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void DynamicNodeOperationsUtil<DIM, WIDTH>::upgradeWriteLock(Node<DIM>* node) {
+	node->rwLock.unlock_upgrade_and_lock();
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLockUpgradable(Node<DIM>* node) {
+	return node->rwLock.try_unlock_shared_and_lock_upgrade();
 }
 
 template<unsigned int DIM, unsigned int WIDTH>
@@ -1015,7 +1028,6 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 			EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM,WIDTH>*>(content.specialPointer);
 			if (buffer->full()) {
-				// TODO no need to get a write lock! upgradable is enough
 				if (tryUpgradable(currentNode)) {
 					assert (buffer->full());
 					// cleaning the old buffer and restart

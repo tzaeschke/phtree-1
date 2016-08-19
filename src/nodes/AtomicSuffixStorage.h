@@ -188,7 +188,7 @@ pair<unsigned long*, unsigned int> AtomicSuffixStorage<SUFFIX_BLOCKS>::reserveBi
 		nBlocksPerSuffix_ = 1 + (nBits - 1) / (8 * sizeof (unsigned long));
 	}
 
-	size_t occupiedBlockIndex = 0;
+	size_t occupiedBlockIndex = 0; // TODO randomize initial block to better distribute
 	byte currentOccupiedBlock = occupiedBlocks_[0];
 	byte newOccupiedBlock;
 	unsigned int startBlockIndex;

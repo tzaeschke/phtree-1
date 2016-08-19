@@ -53,7 +53,8 @@ private:
 	// - stores the lower matrix because LCP values of one row are stored together
 	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
 	Entry<DIM, WIDTH> buffer_[capacity_];
-	bool insertCompleted_[capacity_];
+	bool copyCompleted_[capacity_];
+	bool insertCompleted_[capacity_]; // TODO can be merged with copyCompleted
 
 	// TODO validation only:
 	const Entry<DIM, WIDTH>* originals_[capacity_];
@@ -71,7 +72,7 @@ private:
 #include "util/EntryBufferPool.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
-EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0), suffixBits_(0), pool_(NULL), lcps_(), buffer_(), insertCompleted_() {
+EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0), suffixBits_(0), pool_(NULL), lcps_(), buffer_(), copyCompleted_(), insertCompleted_() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -84,6 +85,7 @@ Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>*
 	nextIndex_ = 1;
 	flushing_ = false;
 	assert (!insertCompleted_[0]);
+	copyCompleted_[0] = true;
 	insertCompleted_[0] = true;
 	return &(buffer_[0]);
 }
@@ -99,6 +101,7 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 	const size_t blocksPerEntry = 1 + (suffixBits_ - 1) / MultiDimBitset<DIM>::bitsPerBlock;
 	for (unsigned row = 0; row < n; ++row) {
 		insertCompleted_[row] = false;
+		copyCompleted_[row] = false;
 
 		for (unsigned column = 0; column <= row; ++column) {
 			setLcp(row, column, 0);
@@ -122,6 +125,7 @@ bool EntryBuffer<DIM, WIDTH>::assertCleared() const {
 	assert (!flushing_);
 	for (unsigned i = 0; i < capacity_; ++i) {
 		assert (!insertCompleted_[i]);
+		assert (!copyCompleted_[i]);
 
 		for (unsigned j = 0; j < capacity_; j++) {
 			assert (getLcp(i, j) == 0);
@@ -190,14 +194,14 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	assert (!insertCompleted_[i]);
 	// copy ID and necessary bits into the local buffer
 	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[i].values_);
-	insertCompleted_[i] = true; // TODO place after duplication?
+	copyCompleted_[i] = true;
 	buffer_[i].id_ = entry.id_;
 	originals_[i] = &entry;
 
 	// compare the new entry to all previously inserted entries
 	const unsigned int startIndexDim = WIDTH - (suffixBits_ / DIM);
 	for (unsigned other = 0; other < i; ++other) {
-		while (!insertCompleted_[other]) {}; // spin until the previous thread is done
+		while (!copyCompleted_[other]) {}; // spin until the previous thread is done
 		// TODO no need to compare all values!
 		// TODO no need to compare to full values!
 		assert (getLcp(other, i) == 0 && getLcp(i, other) == 0);
@@ -205,10 +209,11 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
 				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
 		assert(!comp.first);
-		assert (!flushing_);
+//		assert (!flushing_);
 		setLcp(i, other, comp.second);
 	}
 
+	insertCompleted_[i] = true;
 	return true;
 }
 
@@ -236,7 +241,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 
 	for (unsigned row = 0; row < n; ++row) {
 		// spin until remaining insertions are done
-		assert (insertCompleted_[row]);
+		while (!insertCompleted_[row]) {}
 		rowEmpty[row] = false;
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!
