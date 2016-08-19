@@ -241,7 +241,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	CALLGRIND_START_INSTRUMENTATION;
 	const size_t availableThreads = 3 * thread::hardware_concurrency();
 	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1)};//, static_cast<InsertionOrder>(2)};
-	for (unsigned t = 2; t <= availableThreads; ++t) {
+	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {
 			InsertionThreadPool<DIM,WIDTH>::order_ = o;
 			string lable = "parallel-" + to_string(t) + "-" + to_string(static_cast<int>(o));
@@ -283,7 +283,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 	for (unsigned repeat = 0; repeat < N_REPETITIONS; ++repeat) {
 		DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters();
 		InsertionThreadPool<DIM, WIDTH>::nFlushPhases = 0;
-//		delete phtree;
+		delete phtree;
 		phtree = new PHTree<DIM,WIDTH>();
 
 		begin = chrono::steady_clock::now();
@@ -357,20 +357,21 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 		cout << "\t\t#insert suffix (write): " << nRestartWriteInsertSuffix << endl;
 	}
 
-/*	CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
+	CountNodeTypesVisitor<DIM>* typesVisitor = new CountNodeTypesVisitor<DIM>();
 	SizeVisitor<DIM>* sizeVisitor = new SizeVisitor<DIM>();
-	PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
+//	PrefixSharingVisitor<DIM>* prefixVisitor = new PrefixSharingVisitor<DIM>();
 	SuffixVisitor<DIM>* suffixVisitor = new SuffixVisitor<DIM>();
 	phtree->accept(typesVisitor);
 	phtree->accept(sizeVisitor);
-	phtree->accept(prefixVisitor);
+//	phtree->accept(prefixVisitor);
 	phtree->accept(suffixVisitor);
-	cout << *typesVisitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
+//	cout << *typesVisitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
+	cout << *typesVisitor << *sizeVisitor << *suffixVisitor << endl;
 	delete typesVisitor;
 	delete sizeVisitor;
-	delete prefixVisitor;
-	delete suffixVisitor; */
-// TODO	delete phtree;
+//	delete prefixVisitor;
+	delete suffixVisitor;
+	delete phtree;
 
 	const double insertSec = double(smallestInsertMicroSecs) / 1000000.0;
 

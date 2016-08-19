@@ -48,6 +48,8 @@ public:
 	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
 	string getName() const override;
 	NodeType getType() const override { return AtomicLinear; }
+	void setParent(Node<DIM>* parent) override;
+	Node<DIM>* getParent() override;
 
 private:
 	static const unsigned long fullBlock = -1;
@@ -75,6 +77,7 @@ private:
 	// number of actually filled rows: 0 <= m <= N
 	unsigned int mSorted;
 	std::atomic<unsigned int> mUnsorted;
+	Node<DIM>* parent_;
 
 	bool update(size_t hcAddress, uintptr_t oldReference, uintptr_t newReference);
 	bool updateSorted(size_t sortedIndex, uintptr_t oldReference, uintptr_t newReference);								// OK
@@ -122,12 +125,37 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void PLHC<DIM, PREF_BLOCKS, N>::recursiveDelete() {
 	// The PLHC node is supposed to work as an intermediate node and should not be contained in the final version of a tree.
 	// Therefore, there is no need to recursively delete.
-	throw runtime_error("recursive delete unsupported");
+//	throw runtime_error("recursive delete unsupported");
+
+	NodeIterator<DIM>* it = begin();
+	NodeIterator<DIM>* endIt = end();
+	for (; (*it) != (*endIt); ++(*it)) {
+		NodeAddressContent<DIM> content = *(*it);
+		assert (!content.hasSpecialPointer);
+		if (content.hasSubnode) {
+			content.subnode->recursiveDelete();
+		}
+	}
+
+	delete it;
+	delete endIt;
+	if (this->suffixes_) { delete this->suffixes_; }
+	delete this;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 string PLHC<DIM,PREF_BLOCKS,N>::getName() const {
 	return "PLHC<" + to_string(DIM) + "," + to_string(PREF_BLOCKS) + "," + to_string(N) + ">";
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void PLHC<DIM,PREF_BLOCKS, N>::setParent(Node<DIM>* parent) {
+	parent_ = parent;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+Node<DIM>* PLHC<DIM,PREF_BLOCKS, N>::getParent() {
+	return parent_;
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
@@ -582,7 +610,7 @@ size_t PLHC<DIM, PREF_BLOCKS, N>::getMaximumNumberOfContents() const {
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void PLHC<DIM, PREF_BLOCKS, N>::accept(Visitor<DIM>* visitor, size_t depth, unsigned int index) {
-// TODO	visitor->visit(this, depth, index);
+	visitor->visit(this, depth, index);
 	TNode<DIM, PREF_BLOCKS>::accept(visitor, depth, index);
 }
 

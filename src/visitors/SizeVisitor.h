@@ -26,6 +26,8 @@ public:
 	void visitSub(PHTree<DIM, WIDTH>* tree);
 	template <unsigned int PREF_BLOCKS, unsigned int N>
 	void visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth);
+	template <unsigned int PREF_BLOCKS, unsigned int N>
+	void visitSub(PLHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth);
 	template <unsigned int PREF_BLOCKS>
 	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth);
 	virtual void reset() override;
@@ -55,6 +57,7 @@ protected:
 private:
 	unsigned long totalLHCByteSize;
 	unsigned long totalAHCByteSize;
+	unsigned long totalPLHCByteSize;
 	unsigned long totalTreeByteSize;
 	unsigned long totalLeafByteSize;
 
@@ -94,6 +97,19 @@ void SizeVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int dep
 }
 
 template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS, unsigned int N>
+void SizeVisitor<DIM>::visitSub(PLHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth) {
+	totalPLHCByteSize += this->template superSize<PREF_BLOCKS>(node);
+	totalPLHCByteSize += sizeof (node->mSorted);
+	totalPLHCByteSize += sizeof (node->mUnsorted);
+	totalPLHCByteSize += sizeof (node->orderedAddresses_);
+	totalPLHCByteSize += sizeof (node->unorderedAddresses_);
+	totalPLHCByteSize += sizeof (node->orderedReferences_);
+	totalPLHCByteSize += sizeof (node->unorderedReferences_);
+	totalPLHCByteSize += sizeof (node->parent_);
+}
+
+template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS>
 void SizeVisitor<DIM>::visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth) {
 	totalAHCByteSize += this->template superSize<PREF_BLOCKS>(node);
@@ -121,6 +137,7 @@ void SizeVisitor<DIM>::reset() {
 	totalAHCByteSize = 0;
 	totalTreeByteSize = 0;
 	totalLeafByteSize = 0;
+	totalPLHCByteSize = 0;
 }
 
 template <unsigned int DIM>

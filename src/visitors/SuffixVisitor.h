@@ -28,6 +28,8 @@ public:
 	void visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index);
 	template <unsigned int PREF_BLOCKS>
 	void visitSub(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth, unsigned int index);
+	template <unsigned int PREF_BLOCKS, unsigned int N>
+	void visitSub(PLHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index);
 	virtual void reset() override;
 
 	unsigned long getPrefixSharedBits() const;
@@ -74,6 +76,12 @@ void SuffixVisitor<DIM>::visitSub(PHTree<DIM, WIDTH>* tree) {
 template <unsigned int DIM>
 template <unsigned int PREF_BLOCKS, unsigned int N>
 void SuffixVisitor<DIM>::visitSub(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index) {
+	this->template visitGeneral<PREF_BLOCKS>(node, index);
+}
+
+template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS, unsigned int N>
+void SuffixVisitor<DIM>::visitSub(PLHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index) {
 	this->template visitGeneral<PREF_BLOCKS>(node, index);
 }
 

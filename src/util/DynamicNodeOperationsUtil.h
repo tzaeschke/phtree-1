@@ -66,7 +66,7 @@ public:
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree);
 	static Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
-			const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
+			const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree, bool enlargeAllowed);
 	static bool splitSubnodePrefix(size_t currentIndex, size_t newPrefixLength, size_t oldPrefixLength,
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
@@ -255,6 +255,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 		NodeTypeUtil<DIM>::template shrinkSuffixStorageIfPossible<WIDTH>(currentNode, true);
 	}
 
+	subnode->setParent(currentNode);
 	// finally make the changes visible by atomically swapping out the spinlock
 	currentNode->updateAddressFromSpinlock(content.address, subnode);
 
@@ -325,7 +326,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::needToCopyNodeForSuffixInsertion(Nod
 template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
-		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree, bool enlargeAllowed) {
 #ifdef PRINT
 	cout << "inserting suffix";
 #endif
@@ -334,6 +335,8 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	Node<DIM>* adjustedNode = currentNode;
 	const size_t suffixBits = DIM * (WIDTH - (currentIndex + 1));
 	if (currentNode->full()) {
+		if (!enlargeAllowed) { return NULL; }
+
 		// need to adjust the node to insert another entry
 		++nInsertSuffixEnlarge;
 		adjustedNode = NodeTypeUtil<DIM>::template copyIntoLargerNode<WIDTH>(currentNode->getMaximumNumberOfContents() + 1, suffixBits, currentNode, true);
@@ -353,6 +356,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	} else {
 		unsigned int newTotalSuffixBlocks = adjustedNode->canStoreSuffix(suffixBits);
 		if (newTotalSuffixBlocks != 0) {
+			if (!enlargeAllowed) { return NULL; }
 			NodeTypeUtil<DIM>::template enlargeSuffixStorage<WIDTH>(newTotalSuffixBlocks, adjustedNode, true);
 			assert (adjustedNode->canStoreSuffix(suffixBits) == 0);
 #ifdef PRINT
@@ -420,8 +424,8 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
 
 	// insert remaining entry bits as suffix in the new subnode
-	success = insertSuffix(currentIndex + 1 + newPrefixLength, newSubnodeEntryHCAddress, newSubnode, entry, tree);
-	assert (success);
+	Node<DIM>* adjustedNode = insertSuffix(currentIndex + 1 + newPrefixLength, newSubnodeEntryHCAddress, newSubnode, entry, tree, false);
+	assert (adjustedNode == newSubnode);
 
 	// move A part of the old prefix to the new subnode and remove [A | d] from the old prefix
 	if (newPrefixLength > 0) {
@@ -440,10 +444,11 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 				oldPrefixLength * DIM, newPrefixLength + 1, oldSubnodeCopy->getPrefixStartBlock());
 	}
 
+	newSubnode->setParent(currentNode);
+	oldSubnodeCopy->setParent(newSubnode);
 	// replace the old subnode with the copy
 	success = newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnodeCopy);
 	assert (success);
-
 
 //	assert (currentNode->lookup(content.address, true).hasSubnode);
 //	assert (currentNode->lookup(content.address, true).subnode == newSubnode);
@@ -686,7 +691,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(const Entry<DIM, WIDT
 			// TODO need to use the last content
 			bool edgeLocked = lastNode->updateAddressToSpinlock(lastHcAddress, currentNode);
 			if (edgeLocked && optimisticWriteLock(currentNode)) {
-				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree, true);
 				assert (adjustedNode && (adjustedNode != currentNode));
 				lastNode->updateAddressFromSpinlock(lastHcAddress, adjustedNode);
 				currentNode->removed = true;
@@ -702,7 +707,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(const Entry<DIM, WIDT
 			// therefore, the last node is not needed any more
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 
-			Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+			Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree, false);
 			if (adjustedNode) {
 				assert (adjustedNode == currentNode);
 				readUnlock(currentNode);
@@ -774,7 +779,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entr
 			// node entry does not exist:
 			// insert entry + suffix
 			Node<DIM>* adjustedNode = insertSuffix(currentIndex,
-					hcAddress, currentNode, entry, tree);
+					hcAddress, currentNode, entry, tree, true);
 			assert(adjustedNode);
 			if (adjustedNode != currentNode && lastNode) {
 				// the subnode changed: store the new one and delete the old
@@ -897,7 +902,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				// node entry does not exist:
 				// insert entry + suffix
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress,
-						currentNode, entry, tree);
+						currentNode, entry, tree, true);
 				assert(adjustedNode);
 				if (adjustedNode != currentNode && lastNode) {
 					// the subnode changed: store the new one and delete the old
@@ -1029,9 +1034,12 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM,WIDTH>*>(content.specialPointer);
 			if (buffer->full()) {
 				if (tryUpgradable(currentNode)) {
-					assert (buffer->full());
-					// cleaning the old buffer and restart
-					flushSubtree(buffer, true);
+					if (buffer->full()) {
+						assert (buffer->full());
+						// cleaning the old buffer and restart
+						flushSubtree(buffer, true);
+					}
+
 					downgradeUpgradableToReader(currentNode);
 					// continue with the current node
 				} else {
@@ -1079,7 +1087,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 				// has a valid parent so try to lock the edge to the child
 				bool edgeLocked = lastNode->updateAddressToSpinlock(lastHcAddress, currentNode);
 				if (edgeLocked && optimisticWriteLock(currentNode)) {
-					Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+					Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree, true);
 					assert (adjustedNode && (adjustedNode != currentNode));
 					lastNode->updateAddressFromSpinlock(lastHcAddress, adjustedNode);
 					deletedNodes.add(currentNode);
@@ -1097,12 +1105,13 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			// therefore, the last node is not needed any more
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 
-			Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
+			Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree, false);
 			if (adjustedNode) {
 				assert (adjustedNode == currentNode);
 				readUnlock(currentNode);
 				break;
 			} else {
+				// TODO entryTreeMap.enforcePreviousNode(); ???
 				restart = true;
 //				++nRestartWriteInsertSuffix;
 			}

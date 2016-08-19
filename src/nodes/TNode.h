@@ -61,6 +61,8 @@ public:
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) = 0;
 	virtual string getName() const =0;
 	virtual NodeType getType() const = 0;
+	virtual void setParent(Node<DIM>* parent) override;
+	virtual Node<DIM>* getParent() override;
 
 	// prefix handling
 	size_t getMaxPrefixLength() const override;
@@ -128,6 +130,17 @@ unsigned long* TNode<DIM, PREF_BLOCKS>::getPrefixStartBlock() {
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 const unsigned long* TNode<DIM, PREF_BLOCKS>::getFixPrefixStartBlock() const {
 	return prefix_;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+Node<DIM>* TNode<DIM, PREF_BLOCKS>::getParent() {
+	// normal nodes do not store the parent
+	return NULL;
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void TNode<DIM, PREF_BLOCKS>::setParent(Node<DIM>* parent) {
+	// normal nodes do not store the parent
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

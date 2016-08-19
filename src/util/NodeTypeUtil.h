@@ -218,8 +218,9 @@ private:
 	inline static void copyContents(const Node<DIM>& from, Node<DIM>& to, bool atomic, size_t suffixBits, bool hardCopySuffixes) {
 		// copy suffixes
 		assert (!to.getSuffixStorage());
+		bool needToDeleteFromStorage = false;
 		if (atomic && hardCopySuffixes) {
-			copyOrEnlargeAtomicSuffix<WIDTH>(&from, &to, suffixBits);
+			needToDeleteFromStorage = copyOrEnlargeAtomicSuffix<WIDTH>(&from, &to, suffixBits);
 		} else {
 			to.copySuffixStorageFrom(from);
 		}
@@ -232,6 +233,7 @@ private:
 			NodeAddressContent<DIM> content = *(*it);
 			if (content.hasSubnode) {
 				to.linearCopyFromOther(content.address, content.subnode);
+				content.subnode->setParent(&to);
 			} else if (content.hasSpecialPointer) {
 				to.linearCopyFromOther(content.address, content.specialPointer);
 				TEntryBuffer<DIM>* buffer = reinterpret_cast<TEntryBuffer<DIM>*>(content.specialPointer);
@@ -250,6 +252,11 @@ private:
 					to.getChangeableSuffixStorage()->setIndexUsed(content.suffixStartBlockIndex / blocksPerSuffix);
 				}
 			}
+		}
+
+		if (needToDeleteFromStorage) {
+			TSuffixStorage* oldStorage = from.getChangeableSuffixStorage();
+			if (oldStorage) {delete oldStorage;}
 		}
 
 		delete it;
@@ -287,7 +294,7 @@ private:
 	}
 
 	template <unsigned int WIDTH>
-	inline static void copyOrEnlargeAtomicSuffix(const Node<DIM>* from, Node<DIM>* to, size_t suffixBits) {
+	inline static bool copyOrEnlargeAtomicSuffix(const Node<DIM>* from, Node<DIM>* to, size_t suffixBits) {
 		const TSuffixStorage* oldStorage = from->getSuffixStorage();
 		assert (!from->canStoreSuffixInternally(suffixBits) && !to->canStoreSuffixInternally(suffixBits));
 		if (oldStorage) {
@@ -307,6 +314,8 @@ private:
 		} else {
 			attachAtomicSuffix<WIDTH>(to, suffixBits);
 		}
+
+		return true;
 	}
 
 	template <unsigned int PREF_BLOCKS>

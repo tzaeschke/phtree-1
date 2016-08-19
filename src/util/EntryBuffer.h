@@ -364,6 +364,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 				if (rowNode[column]) {
 					// insert the subnode
 					currentNode->insertAtAddress(hcAddress, rowNode[column]);
+					rowNode[column]->setParent(currentNode);
 					 // TODO double???					setLcp(row, column, rowNextMax[row]);
 				} else {
 					// insert the suffix
@@ -399,6 +400,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 
 	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
 			&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
+	rowNode[0]->setParent(this->node_);
 	NodeAddressContent<DIM> prevContent;
 	NodeAddressContent<DIM>::fillSpecialPointer(this->nodeHcAddress, reinterpret_cast<uintptr_t>(this), prevContent);
 	const bool success = this->node_->updateAddress(rowNode[0], prevContent);

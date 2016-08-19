@@ -13,6 +13,9 @@
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 class LHC;
 
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+class PLHC;
+
 template <unsigned int DIM, unsigned int PREF_BLOCKS>
 class AHC;
 
@@ -31,6 +34,8 @@ public:
 	void visit(AHC<DIM, PREF_BLOCKS>* node, unsigned int depth, unsigned int index);
 	template <unsigned int PREF_BLOCKS, unsigned int N>
 	void visit(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index);
+	template <unsigned int PREF_BLOCKS, unsigned int N>
+	void visit(PLHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index);
 	virtual void reset() =0;
 	std::ostream& operator <<(std::ostream &out);
 
@@ -105,6 +110,19 @@ void Visitor<DIM>::visit(LHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, uns
 	}
 }
 
+template <unsigned int DIM>
+template <unsigned int PREF_BLOCKS, unsigned int N>
+void Visitor<DIM>::visit(PLHC<DIM, PREF_BLOCKS, N>* node, unsigned int depth, unsigned int index) {
+	if (SizeVisitor<DIM>* sub = dynamic_cast<SizeVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth);
+	} else if (CountNodeTypesVisitor<DIM>* sub = dynamic_cast<CountNodeTypesVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth);
+	} else if (SuffixVisitor<DIM>* sub = dynamic_cast<SuffixVisitor<DIM>*>(this)) {
+		sub->visitSub(node, depth, index);
+	} else {
+		throw std::runtime_error("unknown visitor");
+	}
+}
 
 template <unsigned int DIM>
 std::ostream& Visitor<DIM>::operator <<(std::ostream &out) {
