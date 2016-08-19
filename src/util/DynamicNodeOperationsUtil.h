@@ -333,7 +333,6 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	cout << " (enlarged node from " << currentNode->getMaximumNumberOfContents() << " to " << adjustedNode->getMaximumNumberOfContents() << ")";
 #endif
 	}
-	assert(!adjustedNode->full());
 
 	bool success = true;
 	if (adjustedNode->canStoreSuffixInternally(suffixBits)) {
@@ -355,13 +354,15 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 
 		const pair<unsigned long*, unsigned int> suffixStartBlock = adjustedNode->reserveSuffixSpace(suffixBits, true);
 		success = adjustedNode->insertAtAddress(hcAddress, suffixStartBlock.second, entry.id_);
-		MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock.first);
-		assert(adjustedNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
+		if (success) {
+			MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock.first);
+			assert(adjustedNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
+		}
 	}
 
 	assert(adjustedNode);
-	assert(adjustedNode->lookup(hcAddress, true).exists);
-	assert(adjustedNode->lookup(hcAddress, true).id == entry.id_);
+//	assert(adjustedNode->lookup(hcAddress, true).exists);
+//	assert(adjustedNode->lookup(hcAddress, true).id == entry.id_);
 
 #ifdef PRINT
 	cout << endl;
@@ -435,11 +436,9 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 	success = newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnodeCopy);
 	assert (success);
 
-	// finally make the whole change visible
-	currentNode->updateAddressFromSpinlock(content.address, newSubnode);
 
-	assert (currentNode->lookup(content.address, true).hasSubnode);
-	assert (currentNode->lookup(content.address, true).subnode == newSubnode);
+//	assert (currentNode->lookup(content.address, true).hasSubnode);
+//	assert (currentNode->lookup(content.address, true).subnode == newSubnode);
 	assert (newSubnode->lookup(newSubnodeEntryHCAddress, true).exists);
 	assert (!newSubnode->lookup(newSubnodeEntryHCAddress, true).hasSubnode);
 	assert (newSubnode->lookup(newSubnodeEntryHCAddress, true).id == entry.id_);
@@ -449,6 +448,9 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 			oldSubnodeCopy->getFixPrefixStartBlock(),
 			oldSubnodeCopy->getMaxPrefixLength(),
 			remainingOldPrefixBits));
+
+	// finally make the whole change visible
+	currentNode->updateAddressFromSpinlock(content.address, newSubnode);
 
 	// no need to adjust size because the old node remains and the new
 	// one already has the correct size
@@ -473,6 +475,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteLock(Node<DIM>* node)
 
 template<unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::downgradeWriterToReader(Node<DIM>* node) {
+	assert (!node->removed);
 	node->rwLock.unlock_and_lock_shared();
 }
 
@@ -501,33 +504,35 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* chi
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::optimisticWriteUnlock(Node<DIM>* node) {
 	assert (node);
-	assert (!node->removed);
+//	assert (!node->removed);
 	assert (node->rwLock.state.shared_count == 0 && node->rwLock.state.exclusive);
 	node->rwLock.unlock();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool DynamicNodeOperationsUtil<DIM, WIDTH>::tryWriteLockWithoutRead(Node<DIM>* node) {
+	assert (!node->removed);
 	return node->rwLock.try_lock();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::readLockBlocking(Node<DIM>* node) {
+	assert (!node->removed);
 	return node->rwLock.lock_shared();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool DynamicNodeOperationsUtil<DIM, WIDTH>::readLock(Node<DIM>* node) {
 	assert (node);
-	assert (!node->removed);
 	assert (node->rwLock.state.shared_count < nThreads);
-	return node->rwLock.try_lock_shared();
+	if (node->removed) { return false; }
+	else { return node->rwLock.try_lock_shared(); }
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::readUnlock(Node<DIM>* node) {
 	assert (node);
-	assert (node->removed == false);
+//	assert (node->removed == false);
 	assert (node->rwLock.state.shared_count > 0);
 	assert (node->rwLock.state.shared_count <= nThreads);
 	node->rwLock.unlock_shared();
@@ -619,9 +624,8 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(const Entry<DIM, WIDT
 					// create new node with prefix A and only leave prefix B in old subnode
 					if (optimisticWriteLock(currentNode)) {
 						if (splitSubnodePrefix(currentIndex, differentBitAtPrefixIndex, subnodePrefixLength, lastNode, content, entry, tree)) {
-							optimisticWriteUnlock(currentNode);
 							currentNode->removed = true;
-// TODO							delete currentNode;
+							optimisticWriteUnlock(currentNode);
 							readUnlock(lastNode);
 							break;
 						} else {
@@ -656,10 +660,9 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(const Entry<DIM, WIDT
 				Node<DIM>* adjustedNode = insertSuffix(currentIndex, hcAddress, currentNode, entry, tree);
 				assert (adjustedNode && (adjustedNode != currentNode));
 				lastNode->updateAddressFromSpinlock(lastHcAddress, adjustedNode);
+				currentNode->removed = true;
 				optimisticWriteUnlock(currentNode);
 				readUnlock(lastNode);
-				currentNode->removed = true;
-// TODO				delete currentNode;
 				break;
 			} else {
 				restart = true;
