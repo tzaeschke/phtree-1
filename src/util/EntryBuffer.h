@@ -221,8 +221,8 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 	assert (suffixBits_ > 0);
-	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
-				&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
+//	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
+//				&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
 
 	// builds the subtree from bottom up
 	bool rowEmpty[capacity_];
@@ -401,13 +401,13 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 		#endif
 	}
 
-	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
-			&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
+//	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
+//			&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
 	rowNode[0]->setParent(this->node_);
-	NodeAddressContent<DIM> prevContent;
-	NodeAddressContent<DIM>::fillSpecialPointer(this->nodeHcAddress, reinterpret_cast<uintptr_t>(this), prevContent);
-	const bool success = this->node_->updateAddress(rowNode[0], prevContent);
-	assert (success);
+//	NodeAddressContent<DIM> prevContent;
+//	NodeAddressContent<DIM>::fillSpecialPointer(this->nodeHcAddress, reinterpret_cast<uintptr_t>(this), prevContent);
+//	const bool success = this->node_->updateAddress(rowNode[0], prevContent);
+//	this->node_->updateAddressFromSpinlock(this->nodeHcAddress, rowNode[0]);
 
 #ifndef NDEBUG
 	// Validate all copied entries (except for the first one which was only copied partially)

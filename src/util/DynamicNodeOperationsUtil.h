@@ -71,7 +71,7 @@ public:
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
 
-	static void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer, bool deallocate);
+	static void flushSubtree(EntryBuffer<DIM, WIDTH>* buffer, bool deallocate, bool atomic);
 private:
 
 	static inline bool needToCopyNodeForSuffixInsertion(Node<DIM>* currentNode);
@@ -884,7 +884,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				cout << "insert into buffer (flush: " << needFlush << ")" << endl;
 #endif
 				if (needFlush) {
-					flushSubtree(buffer, true);
+					flushSubtree(buffer, true, false);
 					++nFlushCountWithin;
 				}
 
@@ -1035,16 +1035,14 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			if (lastNode) { readUnlock(lastNode); lastNode = NULL; }
 			EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM,WIDTH>*>(content.specialPointer);
 			if (buffer->full()) {
-				if (tryUpgradable(currentNode)) {
-					if (buffer->full()) {
-						assert (buffer->full());
-						// cleaning the old buffer and restart
-						flushSubtree(buffer, true);
-					}
+				const bool edgeLocked = currentNode->updateAddressToSpinlock(content);
+				if (edgeLocked) {
+					assert (buffer->full());
+					// cleaning the old buffer and restart
+					flushSubtree(buffer, true, true);
 
-					downgradeUpgradableToReader(currentNode);
+//					downgradeUpgradableToReader(currentNode);
 					// continue with the current node
-				} else {
 					restart = true; // TOOO not needed??
 //					++nRestartWriteFLushBuffer;
 				}
@@ -1125,16 +1123,30 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(
-		EntryBuffer<DIM, WIDTH>* buffer, bool deallocate) {
+		EntryBuffer<DIM, WIDTH>* buffer, bool deallocate, bool atomic) {
 	EntryBufferPool<DIM,WIDTH>* pool = buffer->getPool();
 	assert (pool);
-	buffer->flushToSubtree();
+	Node<DIM>* subtreeRoot = buffer->flushToSubtree();
+
+	// add the root of the created subtree to the parent
+	TEntryBuffer<DIM>* tBuffer = static_cast<TEntryBuffer<DIM>*>(buffer);
+	const pair<Node<DIM>*, unsigned long> nodeAndAddress = tBuffer->getNodeAndAddress();
+	Node<DIM>* bufferParent = nodeAndAddress.first;
+	const unsigned long hcAddress = nodeAndAddress.second;
+	if (atomic) {
+		bufferParent->updateAddressFromSpinlock(hcAddress, subtreeRoot);
+	} else {
+		NodeAddressContent<DIM> prevContent;
+		NodeAddressContent<DIM>::fillSpecialPointer(hcAddress, reinterpret_cast<uintptr_t>(buffer), prevContent);
+		const bool success = bufferParent->updateAddress(subtreeRoot, prevContent);
+		assert (success);
+	}
+
 	buffer->clear();
 	assert (buffer->assertCleared());
 	if (deallocate) {
 		pool->deallocate(buffer);
 	}
-
 }
 
 #endif /* SRC_UTIL_DYNAMICNODEOPERATIONSUTIL_H_ */

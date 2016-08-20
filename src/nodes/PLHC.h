@@ -198,7 +198,7 @@ size_t PLHC<DIM, PREF_BLOCKS, N>::findUnsortedInsertIndex(size_t hcAddress) {
 	const size_t mUnsortedSnap = mUnsorted;
 	// validate if the key was already inserted
 	for (unsigned i = 0; i < mUnsortedSnap; ++i) {
-		if (unorderedReferences_[i] == hcAddress) {
+		if (unorderedAddresses_[i] == hcAddress) {
 			return -1uL;
 		}
 	}
