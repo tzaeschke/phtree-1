@@ -52,8 +52,11 @@ public:
 	RangeQueryIterator<DIM, WIDTH>* rangeQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 	RangeQueryIterator<DIM, WIDTH>* intersectionQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 	RangeQueryIterator<DIM, WIDTH>* intersectionQuery(const std::vector<unsigned long>& values) const;
+	// TODO what exactly to return?
+	void parallelIntersectionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads) const;
 	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& values) const;
+	void parallelInclusionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads) const;
 
 	void accept(Visitor<DIM>* visitor);
 
@@ -67,6 +70,7 @@ private:
 #include "util/SpatialSelectionOperationsUtil.h"
 #include "util/NodeTypeUtil.h"
 #include "util/InsertionThreadPool.h"
+#include "util/RangeQueryThreadPool.h"
 
 using namespace std;
 
@@ -274,6 +278,21 @@ RangeQueryIterator<DIM, WIDTH>* PHTree<DIM, WIDTH>::intersectionQuery(
 	return intersectionQuery(lowerLeftValues, upperRightValues);
 }
 
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::parallelIntersectionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads) const {
+	RangeQueryThreadPool<DIM, WIDTH>* pool = new RangeQueryThreadPool<DIM, WIDTH>(nThreads - 1, values, this, intersection_query);
+	pool->joinPool();
+	// TODO values extracted but what to return?
+	delete pool;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PHTree<DIM, WIDTH>::parallelInclusionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads) const {
+	RangeQueryThreadPool<DIM, WIDTH>* pool = new RangeQueryThreadPool<DIM, WIDTH>(nThreads - 1, values, this, inclusion_query);
+	pool->joinPool();
+	// TODO values extracted but what to return?
+	delete pool;
+}
 
 template <unsigned int DIM, unsigned int WIDTH>
 void PHTree<DIM, WIDTH>::accept(Visitor<DIM>* visitor) {

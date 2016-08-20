@@ -348,6 +348,7 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 	assert (axonsFiles.size() == dendritesFiles.size());
 
 	ofstream* plotFile = openPlotFile(AXONS_DENDRITES_PLOT_NAME, true);
+	const size_t nThreads = thread::hardware_concurrency();
 
 	for (unsigned run = 0; run < axonsFiles.size(); ++run) {
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
@@ -359,11 +360,14 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 		cout << "ok" << endl;
 		cout << "inserting dendrites into a PH-Tree... " << flush;
 		const size_t nDendrites = dendritesRectValues->size();
-		const unsigned int startInsertTime = clock();
+		chrono::steady_clock::time_point startInsert, endInsert;
+		startInsert = chrono::steady_clock::now();
 		for (unsigned iEntry = 0; iEntry < nDendrites; ++iEntry) {
 			phtree->insert((*dendritesRectValues)[iEntry], iEntry);
 		}
-		const unsigned int totalInsertTime = clock() - startInsertTime;
+		endInsert = chrono::steady_clock::now();
+		const unsigned int insertionMillis = chrono::duration_cast<chrono::milliseconds>(endInsert - startInsert).count();
+		cout << "insertion seconds: " << (double(insertionMillis) / 1000) << endl;
 
 		for (unsigned iEntry = 0; iEntry < nDendrites; ++iEntry) {
 			assert (phtree->lookup((*dendritesRectValues)[iEntry]).second == iEntry);
@@ -407,8 +411,11 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 //		ofstream* idsFile = new ofstream();
 //		idsFile->open(idPath.c_str(), ofstream::out | ofstream::trunc);
 
+		chrono::steady_clock::time_point startRanges, endRanges;
 		CALLGRIND_START_INSTRUMENTATION;
-		for (unsigned iAxon = 0; iAxon < nAxons; ++iAxon) {
+		startRanges = chrono::steady_clock::now();
+		phtree->parallelIntersectionQuery(*axonsRectValues, nThreads);
+/*		for (unsigned iAxon = 0; iAxon < nAxons; ++iAxon) {
 //			cout << "Axon: " << iAxon << " | previous intersections: " << nIntersectingDendrites << endl;
 			const unsigned int startInitTime = clock();
 			RangeQueryIterator<DIM, WIDTH>* it = phtree->intersectionQuery((*axonsRectValues)[iAxon]);
@@ -423,7 +430,10 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 			}
 			delete it;
 			totalRangeQueuryNextTime += (clock() - startRangeQueryTime);
-		}
+		}*/
+		endRanges = chrono::steady_clock::now();
+		const unsigned int rangesMillis = chrono::duration_cast<chrono::milliseconds>(endRanges - startRanges).count();
+		cout << "queries seconds: " << (double(rangesMillis) / 1000) << endl;
 		CALLGRIND_STOP_INSTRUMENTATION;
 		cout << "ok" << endl;
 //		delete idsFile;
@@ -434,7 +444,7 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 		const double rangeQueryInitsSec = double(totalRangeQueryIntiTime) / double(CLOCKS_PER_SEC);
 		const double rangeQueryNextsSec = double(totalRangeQueuryNextTime) / double(CLOCKS_PER_SEC);
 		const double totalRangeQuerySec = rangeQueryInitsSec + rangeQueryNextsSec;
-		const double insertSec = double(totalInsertTime) / double(CLOCKS_PER_SEC);
+		const double insertSec = 0.0; //double(totalInsertTime) / double(CLOCKS_PER_SEC);
 
 		(*plotFile) << (run + 1) << "\t" << nAxons << "\t" << nDendrites << "\t"
 				<< nIntersectingDendrites << "\t" << insertSec << "\t"
