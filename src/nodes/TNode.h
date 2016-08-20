@@ -63,6 +63,7 @@ public:
 	virtual NodeType getType() const = 0;
 	virtual void setParent(Node<DIM>* parent) override;
 	virtual Node<DIM>* getParent() override;
+	virtual bool isAtomic() const =0;
 
 	// prefix handling
 	size_t getMaxPrefixLength() const override;

@@ -50,6 +50,7 @@ public:
 	NodeType getType() const override { return AtomicLinear; }
 	void setParent(Node<DIM>* parent) override;
 	Node<DIM>* getParent() override;
+	bool isAtomic() const { return true; };
 
 private:
 	static const unsigned long fullBlock = -1;

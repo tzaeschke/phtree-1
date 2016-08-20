@@ -363,7 +363,8 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 				assert (currentNode->getNumberOfContents() < currentNode->getMaximumNumberOfContents());
 				if (rowNode[column]) {
 					// insert the subnode
-					currentNode->insertAtAddress(hcAddress, rowNode[column]);
+					bool success = currentNode->insertAtAddress(hcAddress, rowNode[column]);
+					assert (success);
 					rowNode[column]->setParent(currentNode);
 					 // TODO double???					setLcp(row, column, rowNextMax[row]);
 				} else {
@@ -373,11 +374,13 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 					if (currentNode->canStoreSuffixInternally(suffixBits)) {
 						unsigned long suffix = 0uL;
 						MultiDimBitset<DIM>::removeHighestBits(buffer_[column].values_, DIM * WIDTH, index + 1, &suffix);
-						currentNode->insertAtAddress(hcAddress, suffix, buffer_[column].id_);
+						bool success = currentNode->insertAtAddress(hcAddress, suffix, buffer_[column].id_);
+						assert (success);
 					} else {
 						assert (currentNode->canStoreSuffix(suffixBits) == 0);
 						const pair<unsigned long*, unsigned int> suffixStartBlock = currentNode->reserveSuffixSpace(suffixBits, true);
-						currentNode->insertAtAddress(hcAddress, suffixStartBlock.second, buffer_[column].id_);
+						bool success = currentNode->insertAtAddress(hcAddress, suffixStartBlock.second, buffer_[column].id_);
+						assert (success);
 						MultiDimBitset<DIM>::duplicateLowestBitsAligned(buffer_[column].values_, suffixBits, suffixStartBlock.first);
 						assert(currentNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
 					}

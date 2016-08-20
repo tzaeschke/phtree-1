@@ -81,6 +81,7 @@ public:
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) = 0;
 
+	virtual bool isAtomic() const =0;
 	virtual Node<DIM>* getParent() =0;
 	virtual void setParent(Node<DIM>* parent) =0;
 	virtual NodeType getType() const = 0;

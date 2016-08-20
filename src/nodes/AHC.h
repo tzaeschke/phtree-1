@@ -54,6 +54,7 @@ public:
 	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
 	string getName() const override;
 	NodeType getType() const override { return Array; }
+	bool isAtomic() const { return true; };
 
 private:
 

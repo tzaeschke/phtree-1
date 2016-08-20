@@ -50,6 +50,7 @@ public:
 	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
 	string getName() const override;
 	NodeType getType() const override { return Linear; }
+	bool isAtomic() const { return false; };
 
 private:
 	static const unsigned long fullBlock = -1;

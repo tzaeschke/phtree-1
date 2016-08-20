@@ -368,12 +368,14 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 		success = adjustedNode->insertAtAddress(hcAddress, suffixStartBlock.second, entry.id_);
 		if (success) {
 			MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock.first);
-			assert(adjustedNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
+			// TODO remove:
+			NodeAddressContent<DIM> content = adjustedNode->lookup(hcAddress, true);
+			assert(content.suffixStartBlock == suffixStartBlock.first);
 		}
 	}
 
 	assert(adjustedNode);
-//	assert(adjustedNode->lookup(hcAddress, true).exists);
+	assert(!success || adjustedNode->lookup(hcAddress, true).exists);
 //	assert(adjustedNode->lookup(hcAddress, true).id == entry.id_);
 
 #ifdef PRINT
@@ -551,8 +553,8 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::tryWriteLockWithoutRead(Node<DIM>* n
 
 template <unsigned int DIM, unsigned int WIDTH>
 void DynamicNodeOperationsUtil<DIM, WIDTH>::readLockBlocking(Node<DIM>* node) {
-	assert (!node->removed);
-	return node->rwLock.lock_shared();
+//	assert (!node->removed);
+	node->rwLock.lock_shared();
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

@@ -218,9 +218,9 @@ private:
 	inline static void copyContents(const Node<DIM>& from, Node<DIM>& to, bool atomic, size_t suffixBits, bool hardCopySuffixes) {
 		// copy suffixes
 		assert (!to.getSuffixStorage());
-		bool needToDeleteFromStorage = false;
+		bool copiedOld = true;
 		if (atomic && hardCopySuffixes) {
-			needToDeleteFromStorage = copyOrEnlargeAtomicSuffix<WIDTH>(&from, &to, suffixBits);
+			copiedOld = copyOrEnlargeAtomicSuffix<WIDTH>(&from, &to, suffixBits);
 		} else {
 			to.copySuffixStorageFrom(from);
 		}
@@ -242,8 +242,8 @@ private:
 				to.linearCopyFromOther(content.address, content.suffix, content.id);
 			} else {
 				to.linearCopyFromOther(content.address, content.suffixStartBlockIndex, content.id);
-				if (atomic && hardCopySuffixes) {
-					// create a hard copy of the suffix
+				if (atomic && hardCopySuffixes && !copiedOld) {
+					// create a hard copy of the suffix as the suffix storage changed
 					unsigned long* suffixStartBlock = from.getChangeableSuffixStorage()->getPointerFromIndex(content.suffixStartBlockIndex);
 					unsigned long* newSuffixStartBlock = to.getChangeableSuffixStorage()->getPointerFromIndex(content.suffixStartBlockIndex);
 					MultiDimBitset<DIM>::duplicateLowestBitsAligned(suffixStartBlock, suffixBits, newSuffixStartBlock);
@@ -254,7 +254,7 @@ private:
 			}
 		}
 
-		if (needToDeleteFromStorage) {
+		if (!copiedOld) {
 			TSuffixStorage* oldStorage = from.getChangeableSuffixStorage();
 			if (oldStorage) {delete oldStorage;}
 		}
@@ -282,12 +282,21 @@ private:
 
 	template <unsigned int WIDTH>
 	inline static void attachAtomicSuffix(Node<DIM>* node, size_t suffixBits) {
+		attachAtomicSuffix<WIDTH>(node, suffixBits, node->getMaximumNumberOfContents());
+	}
+
+	template <unsigned int WIDTH>
+	inline static void attachAtomicSuffix(Node<DIM>* node, size_t suffixBits, size_t nSuffixes) {
 		assert (suffixBits > 0);
+		// calculate how many suffix blocks are required for the suffixes with the given number of bits each
 		const size_t blocksPerSuffix = 1 + (suffixBits + 1) / (8 * sizeof (unsigned long));
-		const size_t maxContents = node->getMaximumNumberOfContents();
-		const size_t totalSuffixBlocks = blocksPerSuffix * maxContents;
+		const size_t totalSuffixBlocks = blocksPerSuffix * nSuffixes;
+
+		// calculate how many suffixes can be stored at most in any case
 		const size_t maxBlocksPerSuffix = 1 + (DIM * (WIDTH - 1) - 1) / (8 * sizeof (unsigned long));
 		const size_t totalMaxSuffixBlocks = (1uL << DIM) * maxBlocksPerSuffix;
+
+		// use the minimum possible suffix blocks
 		const size_t requiredBlocks = min(totalSuffixBlocks, totalMaxSuffixBlocks);
 		TSuffixStorage* atomicSuffixStorage = createSuffixStorage<WIDTH>(requiredBlocks, true);
 		node->setSuffixStorage(atomicSuffixStorage);
@@ -296,26 +305,26 @@ private:
 	template <unsigned int WIDTH>
 	inline static bool copyOrEnlargeAtomicSuffix(const Node<DIM>* from, Node<DIM>* to, size_t suffixBits) {
 		const TSuffixStorage* oldStorage = from->getSuffixStorage();
+		const size_t nMaxSuffixes = to->getMaximumNumberOfContents();
 		assert (!from->canStoreSuffixInternally(suffixBits) && !to->canStoreSuffixInternally(suffixBits));
 		if (oldStorage) {
 			const size_t blocksPerSuffix = 1 + (suffixBits + 1) / (8 * sizeof (unsigned long));
-			const size_t nBlocks = oldStorage->getNCurrentStorageBlocks();
-			const size_t nOldContents = from->getNumberOfContents();
-			assert (nBlocks % blocksPerSuffix == 0);
-			const size_t nOldContentsWithSuffix = nBlocks / blocksPerSuffix;
-			const size_t nOldContentsWithoutSuffix = nOldContents - nOldContentsWithSuffix;
-			assert (nOldContents <= from->getMaximumNumberOfContents());
-			const size_t nNewMaxContents = to->getMaximumNumberOfContents();
-			const size_t nMaxNewWithSuffix = nNewMaxContents - nOldContentsWithoutSuffix;
-			const size_t requiredBlocks = nMaxNewWithSuffix * blocksPerSuffix;
-			// TODO check if the old storage can be reused!
-			TSuffixStorage* atomicSuffixStorage = createSuffixStorage<WIDTH>(requiredBlocks, true);
-			to->setSuffixStorage(atomicSuffixStorage);
+			const size_t nOldSuffixes = oldStorage->getNCurrentStorageBlocks() / blocksPerSuffix;
+			const size_t nMaxNewSuffixes = nMaxSuffixes - from->getMaximumNumberOfContents();
+			const size_t nSuffixes = nMaxNewSuffixes + nOldSuffixes;
+			if (oldStorage->getNMaxStorageBlocks() >= nSuffixes * blocksPerSuffix) {
+				// reuse the old storage
+				to->copySuffixStorageFrom(*from);
+				return true;
+			} else {
+				// the old storage is too small
+				attachAtomicSuffix<WIDTH>(to, suffixBits, nSuffixes);
+			}
 		} else {
-			attachAtomicSuffix<WIDTH>(to, suffixBits);
+			attachAtomicSuffix<WIDTH>(to, suffixBits, nMaxSuffixes);
 		}
 
-		return true;
+		return false;
 	}
 
 	template <unsigned int PREF_BLOCKS>
@@ -338,12 +347,14 @@ private:
 		assert(0 < insertToRatio && insertToRatio < 1);
 
 		if (atomic) {
-			if (nDirectInserts < 5) {
+			/*if (nDirectInserts < 3) {
+				return new LHC<DIM, PREF_BLOCKS, 2>(prefixLength);
+			} else*/ if (nDirectInserts < 5) {
 				return new PLHC<DIM, PREF_BLOCKS, 4>(prefixLength);
-			} else if (insertToRatio < 0.25) {
-				return new PLHC<DIM, PREF_BLOCKS, 1 + 25 * (1 << DIM) / 100>(prefixLength);
-			} else if (insertToRatio < 0.5) {
-				return new PLHC<DIM, PREF_BLOCKS, 1 + 50 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.2) {
+				return new PLHC<DIM, PREF_BLOCKS, 1 + 20 * (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.45) {
+				return new PLHC<DIM, PREF_BLOCKS, 1 + 45 * (1 << DIM) / 100>(prefixLength);
 			} else {
 				return new PLHC<DIM, PREF_BLOCKS, (1 << DIM)>(prefixLength);
 			}

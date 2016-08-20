@@ -124,7 +124,8 @@ void EntryTreeMap<DIM, WIDTH>::compareForStart(const Entry<DIM, WIDTH>& entry) {
 		if (startIndices_[l] > differentAtMsb) { l -= 1; }
 
 #ifdef PRINT
-		cout << "new is different at index " << differentAtMsb << endl;
+		// TODO
+/*		cout << "new is different at index " << differentAtMsb << endl;
 		for (unsigned i = 0; i <= lowestCommonNodeIndex_; ++i) {
 			cout << i << "\t-> [" << startIndices_[i] << "-";
 			if (i != lowestCommonNodeIndex_) { cout << (startIndices_[i + 1] - 1) << "]"; }
@@ -133,7 +134,7 @@ void EntryTreeMap<DIM, WIDTH>::compareForStart(const Entry<DIM, WIDTH>& entry) {
 			if (l - 1 == i) { cout << "\tstart here"; }
 			else if (l == i) { cout << "\tmatch here"; }
 			cout << endl;
-		}
+		}*/
 #endif
 
 		// the entry requires the same path from the root node to the node at
