@@ -173,14 +173,18 @@ std::ostream& SuffixVisitor<DIM>::output(std::ostream &out) const {
 				<< avgExternalSuffixBlocks << " blocks)" << endl;
 	out << "suffix block histogram:" << endl;
 	for (unsigned i = 0; i < suffixBlockHistogram.size(); ++i) {
-		out << "\t" << i << " block(s): " << suffixBlockHistogram[i] << endl;
+		if (suffixBlockHistogram[i] > 0) {
+			out << "\t" << i << " block(s): " << suffixBlockHistogram[i] << endl;
+		}
 	}
 	out << "unused leaf storage: " << float(totalUnusedLeafBlocks) / totalLeaves << " block(s) per leaf" << endl;
 	out << "leaf size histogram:" << endl;
 	assert (leafMaxSizeHistogram.size() == leafFilledSizeHistogram.size());
 	out << "\t\tcapacity |\tactually used" << endl;
 	for (unsigned i = 0; i < leafMaxSizeHistogram.size(); ++i) {
-		out << "\t" << i << " block(s): " << leafMaxSizeHistogram[i] << " |\t" << leafFilledSizeHistogram[i] << endl;
+		if (leafMaxSizeHistogram[i] > 0 || leafFilledSizeHistogram[i] > 0) {
+			out << "\t" << i << " block(s): " << leafMaxSizeHistogram[i] << " |\t" << leafFilledSizeHistogram[i] << endl;
+		}
 	}
 
 	return out;

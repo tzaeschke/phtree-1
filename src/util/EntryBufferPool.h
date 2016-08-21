@@ -84,16 +84,6 @@ void EntryBufferPool<DIM, WIDTH>::fullDeallocate() {
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBufferPool<DIM, WIDTH>::prepareFullDeallocate() {
 	assert (assertClearedFreeList());
-
-	// disables the current items in the free list by flagging their index
-	// attention: this destroys the free list so reset() should be called afterwards!
-	size_t nextIndex = headIndex_;
-	headIndex_ = -1u;
-	while (nextIndex != (-1u) && nextIndex < nInitialized_) {
-		const size_t nextIndexTmp = pool_[nextIndex].nextIndex_;
-		pool_[nextIndex].nextIndex_ = -1u;
-		nextIndex = nextIndexTmp;
-	}
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -107,9 +97,10 @@ void EntryBufferPool<DIM, WIDTH>::doFullDeallocatePart(size_t part, size_t total
 	// go through the pool backwards and deallocate all buffers where the
 	// assigned node can be locked
 	for (unsigned i = start; i < end; ++i) {
-		if (pool_[i].nextIndex_ != (-1u)) {
+		if (pool_[i].inUse) {
 			DynamicNodeOperationsUtil<DIM, WIDTH>::flushSubtree(&(pool_[i]), false, false);
 			assert (pool_[i].assertCleared());
+			pool_[i].inUse = false;
 		} else {
 			pool_[i].nextIndex_ = 0; // TODO only needed for consistency in assertCleared()
 			assert (pool_[i].assertCleared());
@@ -157,6 +148,8 @@ EntryBuffer<DIM, WIDTH>* EntryBufferPool<DIM, WIDTH>::allocate() {
 
 		alloc->nextIndex_ = 0;
 		assert (alloc->assertCleared());
+		assert (!alloc->inUse);
+		alloc->inUse = true;
 	}
 
 	return alloc;
@@ -174,6 +167,8 @@ void EntryBufferPool<DIM, WIDTH>::deallocate(EntryBuffer<DIM, WIDTH>* buffer) {
 
 	unique_lock<mutex> lk(singleOperationMutex_);
 //	assert (assertClearedFreeList());
+	assert (buffer->inUse);
+	buffer->inUse = false;
 
 	if (headIndex_ != (-1u)) {
 		buffer->nextIndex_ = headIndex_;

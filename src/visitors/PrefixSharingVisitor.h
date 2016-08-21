@@ -120,7 +120,9 @@ std::ostream& PrefixSharingVisitor<DIM>::output(std::ostream &out) const {
 			<< getPrefixBitsWithoutSharing() << " bits)" << endl;
 	out << "prefix blocks histogram:" << endl;
 	for (unsigned i = 0; i < prefixBlockHistogram.size(); ++i) {
-		out << "\t" << i << " block(s): " << prefixBlockHistogram[i] << endl;
+		if (prefixBlockHistogram[i] > 0) {
+			out << "\t" << i << " block(s): " << prefixBlockHistogram[i] << endl;
+		}
 	}
 
 	return out;

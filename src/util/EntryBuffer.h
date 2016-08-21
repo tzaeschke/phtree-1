@@ -44,6 +44,7 @@ private:
 
 	static const size_t capacity_ = 10;
 
+	bool inUse;
 	atomic<bool> flushing_;
 	atomic<size_t> nextIndex_;
 	size_t suffixBits_;
@@ -72,7 +73,7 @@ private:
 #include "util/EntryBufferPool.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
-EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0), suffixBits_(0), pool_(NULL), lcps_(), buffer_(), copyCompleted_(), insertCompleted_() {
+EntryBuffer<DIM, WIDTH>::EntryBuffer() : inUse(false), flushing_(false), nextIndex_(0), suffixBits_(0), pool_(NULL), lcps_(), buffer_(), copyCompleted_(), insertCompleted_() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -360,7 +361,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 
 				const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(buffer_[column].values_,index , DIM * WIDTH);
 				assert (!(currentNode->lookup(hcAddress, true).exists));
-				assert (currentNode->getNumberOfContents() < currentNode->getMaximumNumberOfContents());
+				assert (!currentNode->full());
 				if (rowNode[column]) {
 					// insert the subnode
 					bool success = currentNode->insertAtAddress(hcAddress, rowNode[column]);

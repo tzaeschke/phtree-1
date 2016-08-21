@@ -44,13 +44,13 @@ public:
 
 	static unsigned int nThreads;
 
-	static atomic<unsigned long> nRestartReadRecurse;
-	static atomic<unsigned long> nRestartWriteSplitPrefix;
-	static atomic<unsigned long> nRestartWriteFLushBuffer;
-	static atomic<unsigned long> nRestartInsertBuffer;
-	static atomic<unsigned long> nRestartWriteSwapSuffix;
-	static atomic<unsigned long> nRestartWriteInsertSuffixEnlarge;
-	static atomic<unsigned long> nRestartWriteInsertSuffix;
+	static std::atomic<unsigned long> nRestartReadRecurse;
+	static std::atomic<unsigned long> nRestartWriteSplitPrefix;
+	static std::atomic<unsigned long> nRestartWriteFLushBuffer;
+	static std::atomic<unsigned long> nRestartInsertBuffer;
+	static std::atomic<unsigned long> nRestartWriteSwapSuffix;
+	static std::atomic<unsigned long> nRestartWriteInsertSuffixEnlarge;
+	static std::atomic<unsigned long> nRestartWriteInsertSuffix;
 
 	static void resetCounters();
 	static void insert(const Entry<DIM, WIDTH>& e, PHTree<DIM, WIDTH>& tree);
@@ -113,19 +113,19 @@ template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nThreads = 0;
 
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReadRecurse;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReadRecurse;
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSplitPrefix;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSplitPrefix;
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteFLushBuffer;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteFLushBuffer;
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartInsertBuffer;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartInsertBuffer;
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSwapSuffix;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSwapSuffix;
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffixEnlarge;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffixEnlarge;
 template <unsigned int DIM, unsigned int WIDTH>
-atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffix;
+std::atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsertSuffix;
 
 #include <assert.h>
 #include <stdexcept>
@@ -1025,7 +1025,7 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 					}
 				}
 			} else {
-				// did not get access to the subnode so restart
+				// the subnode was already removed so restart
 				restart = true;
 				readUnlock(subnode);
 //				++nRestartReadRecurse;

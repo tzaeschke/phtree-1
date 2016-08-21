@@ -139,13 +139,17 @@ std::ostream& CountNodeTypesVisitor<DIM>::output(std::ostream &out) const {
 
 	out << "LHC size histogram:" << endl;
 	for (unsigned i = 0; i < lhcSizeHistogram.size(); ++i) {
-		out << "\t" << i << ": " << lhcSizeHistogram[i] << endl;
+		if (lhcSizeHistogram[i] > 0) {
+			out << "\t" << i << ": " << lhcSizeHistogram[i] << endl;
+		}
 	}
 
 	if (foundPLHC()) {
 		out << "PLHC size histogram:" << endl;
 		for (unsigned i = 0; i < plhcSizeHistogram.size(); ++i) {
-			out << "\t" << i << ": " << plhcSizeHistogram[i] << endl;
+			if (plhcSizeHistogram[i] > 0) {
+				out << "\t" << i << ": " << plhcSizeHistogram[i] << endl;
+			}
 		}
 	}
 
