@@ -80,6 +80,9 @@ public:
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotParallelInsertPerformance(std::string file, bool isFloat);
 
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotCompareParallelTreeToScanQuery(std::string entryFile, std::string queryFile, bool isFloat);
+
 private:
 	static void plot(std::string gnuplotFileName);
 	static void clearPlotFile(std::string dataFileName);
@@ -115,6 +118,7 @@ private:
 #include "util/RandUtil.h"
 #include "util/DynamicNodeOperationsUtil.h"
 #include "util/InsertionThreadPool.h"
+#include "util/ParallelRangeQueryScan.h"
 
 using namespace std;
 
@@ -341,6 +345,92 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 	cout << "Run nr. " << run << "(" << lable << "): " << insertMs << " ms" << endl;
 	return insertMs;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotCompareParallelTreeToScanQuery(std::string entryFile, std::string queryFile, bool isFloat) {
+	vector<vector<unsigned long>>* entries;
+	vector<vector<unsigned long>>* queries;
+	if (isFloat) {
+		entries = FileInputUtil::
+					readFloatEntries<DIM>(entryFile, FLOAT_ACCURACY_DECIMALS);
+		queries = FileInputUtil::
+					readFloatEntries<DIM>(queryFile, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		entries = FileInputUtil::readEntries<DIM>(entryFile);
+		queries = FileInputUtil::readEntries<DIM>(queryFile);
+	}
+
+	vector<int>* ids = new vector<int>();
+	ids->reserve(entries->size());
+	for (int i = 0; i < entries->size(); ++i) {
+		ids->push_back(i);
+	}
+
+	const size_t maxThreads = std::thread::hardware_concurrency();
+	const size_t maxSeqQueries = queries->size();
+	bool done = false;
+
+	for (unsigned q = 1; q <= maxSeqQueries && !done; q += 3) {
+		cout << "sequential queries: " << q << endl;
+		for (unsigned t = 1; t <= maxThreads && !done; ++t) {
+			// --- parallel scan ---
+			chrono::steady_clock::time_point startScan, endScan;
+			startScan = chrono::steady_clock::now();
+			size_t nMatchesScan = 0;
+			// do parallel scan
+			for (unsigned nQueries = 1; nQueries <= q; ++nQueries) {
+				ParallelRangeQueryScan* scan = new ParallelRangeQueryScan(t - 1, *entries, queries->at(nQueries - 1));
+				scan->joinWork();
+				scan->finishWork();
+				nMatchesScan += scan->getResult()->size();
+				delete scan;
+			}
+			endScan = chrono::steady_clock::now();
+
+			// --- parallel PH-Tree ---
+			chrono::steady_clock::time_point startTreeBuild, endTreeBuild;
+			PHTree<DIM, WIDTH>* tree = new PHTree<DIM, WIDTH>();
+			startTreeBuild = chrono::steady_clock::now();
+			// 1) build the tree
+			tree->parallelBulkInsert(*entries, *ids, t);
+			endTreeBuild = chrono::steady_clock::now();
+
+			chrono::steady_clock::time_point startTreeQuery, endTreeQuery;
+			startTreeQuery = chrono::steady_clock::now();
+			// 2) run the queries
+			unsigned long matches = 0;
+			for (unsigned nQueries = 1; nQueries <= q; ++nQueries) {
+				RangeQueryIterator<DIM, WIDTH>* it = tree->intersectionQuery(queries->at(nQueries - 1));
+				while (it->hasNext()) {
+					it->next();
+					++matches;
+				}
+				delete it;
+			}
+			assert (nMatchesScan == matches);
+			endTreeQuery = chrono::steady_clock::now();
+			delete tree;
+
+			const unsigned int scanMillis = chrono::duration_cast<chrono::milliseconds>(endScan - startScan).count();
+			const unsigned int treeBuildMillis = chrono::duration_cast<chrono::milliseconds>(endTreeBuild - startTreeBuild).count();
+			const unsigned int treeQueryMillis = chrono::duration_cast<chrono::milliseconds>(endTreeQuery - startTreeQuery).count();
+			const unsigned int totalTreeMillis = treeBuildMillis + treeQueryMillis;
+
+			cout << "\t#Threads=" << t << "\tscan: "
+					<< double(scanMillis) / 1000 << "s,\t tree: "
+					<< double(totalTreeMillis) / 1000
+					<< "s (build: " << double(treeBuildMillis) / 1000 << ", query: " << double(treeQueryMillis) / 1000
+					<< ")\t#matches: "<< nMatchesScan << endl;
+			if (scanMillis > totalTreeMillis) {
+				done = true;
+			}
+		}
+	}
+
+	delete ids;
+	delete entries;
+	delete queries;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

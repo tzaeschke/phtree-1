@@ -41,7 +41,6 @@ public:
 private:
 	QueryType type_;
 	size_t nThreads_;
-	std::atomic<unsigned long> nextRangeEntryIndex_;
 	std::vector<std::thread> threads_;
 	std::vector<ResultStorage<DIM, WIDTH>> startStorage_;
 	const std::vector<std::vector<unsigned long>>& ranges_;
@@ -62,7 +61,7 @@ template <unsigned int DIM, unsigned int WIDTH>
 RangeQueryThreadPool<DIM, WIDTH>::RangeQueryThreadPool(size_t nAdditionalThreads,
 			const std::vector<std::vector<unsigned long>>& ranges,
 			const PHTree<DIM, WIDTH>* tree, QueryType type) :
-			type_(type), nThreads_(nAdditionalThreads + 1), nextRangeEntryIndex_(0),
+			type_(type), nThreads_(nAdditionalThreads + 1),
 			threads_(), startStorage_(nAdditionalThreads + 1), ranges_(ranges), tree_(tree) {
 	threads_.reserve(nAdditionalThreads);
 	for (unsigned tCount = 0; tCount < nAdditionalThreads; ++tCount) {
