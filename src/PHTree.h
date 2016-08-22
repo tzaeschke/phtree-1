@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include "Entry.h"
+#include <thread>
 
 template <unsigned int DIM>
 class Node;
@@ -40,7 +41,7 @@ public:
 	void insert(const Entry<DIM, WIDTH>& e);
 	void insert(const std::vector<unsigned long>& values, int id);
 	void parallelInsert(const Entry<DIM,WIDTH>& entry);
-	void parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads);
+	void parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>* ids = NULL, size_t nThreads = std::thread::hardware_concurrency());
 	void insertHyperRect(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues, int id);
 	void bulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids);
 	void bulkInsert(const std::vector<Entry<DIM,WIDTH>>& entries);
@@ -53,10 +54,10 @@ public:
 	RangeQueryIterator<DIM, WIDTH>* intersectionQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 	RangeQueryIterator<DIM, WIDTH>* intersectionQuery(const std::vector<unsigned long>& values) const;
 	// TODO what exactly to return?
-	void parallelIntersectionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads) const;
+	void parallelIntersectionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads = std::thread::hardware_concurrency()) const;
 	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& lowerLeftValues, const std::vector<unsigned long>& upperRightValues) const;
 	RangeQueryIterator<DIM, WIDTH>* inclusionQuery(const std::vector<unsigned long>& values) const;
-	void parallelInclusionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads) const;
+	void parallelInclusionQuery(const std::vector<std::vector<unsigned long>>& values, size_t nThreads = std::thread::hardware_concurrency()) const;
 
 	void accept(Visitor<DIM>* visitor);
 
@@ -111,7 +112,7 @@ void PHTree<DIM, WIDTH>::parallelInsert(const Entry<DIM,WIDTH>& entry) {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>& ids, size_t nThreads) {
+void PHTree<DIM, WIDTH>::parallelBulkInsert(const std::vector<std::vector<unsigned long>>& values, const std::vector<int>* ids, size_t nThreads) {
 	assert (nThreads > 0);
 	InsertionThreadPool<DIM,WIDTH>* pool = new InsertionThreadPool<DIM,WIDTH>(nThreads - 1, values, ids, this);
 	pool->joinPool();

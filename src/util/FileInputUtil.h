@@ -15,6 +15,8 @@ public:
 	// parses the file at the given location in the format 'ulong, ulong, ulong, ...\n...'
 	template <unsigned int DIM>
 	static std::vector<vector<unsigned long>>* readEntries(std::string fileLocation);
+	template <unsigned int DIM>
+	static std::vector<vector<double>>* readEntriesToFloat(std::string fileLocation);
 	// parses the file at the given location in the format 'float, float, float, ...\n...'
 	template <unsigned int DIM>
 	static std::vector<vector<unsigned long>>* readFloatEntries(string fileLocation, size_t decimals);
@@ -33,6 +35,21 @@ public:
 #include "util/FileInputUtil.h"
 
 using namespace std;
+
+inline vector<double> getNextLineTokensFloat(ifstream& stream) {
+	string line;
+	getline(stream, line);
+	stringstream lineStream(line);
+	string cell;
+	vector<double> tokens;
+
+	while (getline(lineStream, cell, ' ')) {
+		const double parsedToken = stod(cell);
+		tokens.push_back(parsedToken);
+	}
+
+	return tokens;
+}
 
 inline vector<unsigned long> getNextLineTokens(ifstream& stream) {
 	string line;
@@ -59,7 +76,7 @@ inline vector<unsigned long> getNextLineTokens(ifstream& stream, unsigned long d
 
 	while (getline(lineStream, cell, ' ')) {
 		// TODO added a shift
-		const long double parsedToken = stold(cell) + 1000.0L;
+		const long double parsedToken = stold(cell) + 2000.0L;
 		const long double longToken = parsedToken * decimalShift;
 		if (parsedToken < 0.0)
 			throw runtime_error("Can only handle positive values: the offset is too small");
@@ -80,6 +97,27 @@ vector<vector<unsigned long>>* FileInputUtil::readEntries(string fileLocation) {
 	if (myfile.is_open()) {
 		while (!myfile.eof()) {
 			vector<unsigned long> values = getNextLineTokens(myfile);
+			if (!values.empty()) {
+				assert (values.size() == DIM);
+				result->push_back(values);
+			}
+		}
+	} else {
+		delete result;
+		throw runtime_error("cannot open the file " + fileLocation);
+	}
+
+	return result;
+}
+
+template <unsigned int DIM>
+vector<vector<double>>* FileInputUtil::readEntriesToFloat(string fileLocation) {
+
+	ifstream myfile (fileLocation);
+	vector<vector<double>>* result = new vector<vector<double>>();
+	if (myfile.is_open()) {
+		while (!myfile.eof()) {
+			vector<double> values = getNextLineTokensFloat(myfile);
 			if (!values.empty()) {
 				assert (values.size() == DIM);
 				result->push_back(values);

@@ -304,7 +304,8 @@ int main(int argc, char* argv[]) {
 		mainBulkExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotCompareParallelTreeToScanQuery<6,64>("./axons.dat", "./ranges.dat", true);
+		PlotUtil::plotCompareToRTreeBulk<6,64>("./axons.dat", true);
+//		PlotUtil::plotCompareParallelTreeToScanQuery<6,64>("./axons.dat", "./ranges.dat", true);
 //		PlotUtil::plotParallelInsertPerformance<6,64>("./axons.dat", true);
 //		PlotUtil::plotParallelInsertPerformance<3,32>("./benchmark_Java-extract_1M_3D_32bit.dat", false);
 //		PlotUtil::plotInsertPerformanceDifferentOrder<6, 64>("./axons.dat", true);
@@ -331,7 +332,7 @@ int main(int argc, char* argv[]) {
 		vector<string> dendriteFiles;
 		dendriteFiles.push_back("./dendrites.dat");
 //		dendriteFiles.push_back("./axons.dat");
-		PlotUtil::plotAxonsAndDendrites<6, 64>(axonFiles, dendriteFiles);
+		PlotUtil::plotAxonsAndDendrites<6, 64>(axonFiles, dendriteFiles, true);
 	} else {
 		cerr << "Missing command line argument!" << endl << "valid: 'debug', 'plot', 'rand', 'benchmark', 'axon";
 		return 1;

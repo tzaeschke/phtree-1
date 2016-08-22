@@ -31,7 +31,7 @@ public:
 
 	InsertionThreadPool(size_t nThreads,
 			const std::vector<std::vector<unsigned long>>& values,
-			const std::vector<int>& ids, PHTree<DIM, WIDTH>* tree);
+			const std::vector<int>* ids, PHTree<DIM, WIDTH>* tree);
 	~InsertionThreadPool();
 	void joinPool();
 
@@ -44,7 +44,7 @@ private:
 	size_t nThreads_;
 	std::vector<std::thread> threads_;
 	const std::vector<std::vector<unsigned long>>& values_;
-	const std::vector<int>& ids_;
+	const std::vector<int>* ids_;
 	PHTree<DIM, WIDTH>* tree_;
 
 	void processNext(size_t threadIndex);
@@ -63,7 +63,7 @@ InsertionOrder InsertionThreadPool<DIM, WIDTH>::order_ = range_per_thread;
 template <unsigned int DIM, unsigned int WIDTH>
 InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t nThreads,
 		const vector<vector<unsigned long>>& values,
-		const vector<int>& ids, PHTree<DIM, WIDTH>* tree)
+		const vector<int>* ids, PHTree<DIM, WIDTH>* tree)
 		: i_(0), values_(values), ids_(ids), tree_(tree) {
 	assert (values.size() > 0);
 	// create the biggest possible root node so there is no need to synchronize access on the root
@@ -111,7 +111,8 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 		while (i < size) {
 			i = i_++;
 			if (i < size) {
-				const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
+				const int id = (ids_)? (*ids_)[i] : int(i);
+				const Entry<DIM, WIDTH> entry(values_[i], id);
 				DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
 			}
 		}
@@ -123,7 +124,8 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 		const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
 		for (size_t i = start; i < end; ++i) {
 			// get the next valid work item
-			const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
+			const int id = (ids_)? (*ids_)[i] : int(i);
+			const Entry<DIM, WIDTH> entry(values_[i], id);
 			DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
 		}
 	}
@@ -138,7 +140,8 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 			end = min(start + fixRangeSize, size);
 			for (size_t i = start; i < end; ++i) {
 				// get the next valid work item
-				const Entry<DIM, WIDTH> entry(values_[i], ids_[i]);
+				const int id = (ids_)? (*ids_)[i] : int(i);
+				const Entry<DIM, WIDTH> entry(values_[i], id);
 				DynamicNodeOperationsUtil<DIM, WIDTH>::parallelInsert(entry, *tree_);
 			}
 		}
