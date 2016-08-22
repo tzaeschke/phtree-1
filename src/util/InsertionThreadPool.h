@@ -66,18 +66,23 @@ private:
 	std::vector<std::thread> threads_;
 	std::vector<DeletedNodes<DIM>> deletedNodes_;
 	std::vector<EntryTreeMap<DIM,WIDTH>> entryMaps_;
+	std::vector<std::vector<double>> nanosPerEntryPerThread_;
 	const std::vector<std::vector<unsigned long>>& values_;
 	const std::vector<int>& ids_;
 	PHTree<DIM, WIDTH>* tree_;
 	EntryBufferPool<DIM, WIDTH>* pool_;
 
 	void processNext(size_t threadIndex);
-	inline void insertBySelectedStrategy(size_t entryIndex, size_t threadIndex);
+	inline double insertBySelectedStrategy(size_t entryIndex, size_t threadIndex);
 
 	inline void handlePoolFlushSync(size_t threadIndex, bool lastFlush);
 	inline void handleDoneBySelectedStrategy(size_t threadIndex);
 
 };
+
+#include <iostream>
+#include <string>
+#include <fstream>
 
 #include "Entry.h"
 #include "util/DynamicNodeOperationsUtil.h"
@@ -98,7 +103,8 @@ InsertionThreadPool<DIM, WIDTH>::InsertionThreadPool(size_t furtherThreads,
 		const vector<vector<unsigned long>>& values,
 		const vector<int>& ids, PHTree<DIM, WIDTH>* tree)
 		: syncPhaseRequired_(false), i_(0), nThreads_(furtherThreads + 1), createBarriersMutex_(),
-		  poolFlushBarrier_(NULL), deletedNodes_(furtherThreads + 1), entryMaps_(furtherThreads + 1), values_(values),
+		  poolFlushBarrier_(NULL), deletedNodes_(furtherThreads + 1), entryMaps_(furtherThreads + 1),
+		  nanosPerEntryPerThread_(furtherThreads + 1), values_(values),
 		  ids_(ids), tree_(tree), pool_(NULL) {
 	assert (values.size() > 0);
 	// create the biggest possible root node so there is no need to synchronize access on the root
@@ -130,6 +136,19 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 	delete poolFlushBarrier_;
 	delete pool_;
 
+	// TODO remove:
+	string path = "./plot/data/timeseries-" + to_string(nThreads_) + ".dat";
+	ofstream* dataFile = new ofstream();
+	dataFile->open(path.c_str(), ofstream::out | ofstream::trunc);
+	size_t nEntries = nanosPerEntryPerThread_[nThreads_-1].size();
+	for (unsigned e = 0; e < nEntries; ++e) {
+		(*dataFile) << e;
+		for (unsigned t = 0; t < nThreads_; ++t) {
+			(*dataFile) << "\t" << nanosPerEntryPerThread_[t][e];
+		}
+		(*dataFile) << endl;
+	}
+	delete dataFile;
 	// shrink the root node again
 	size_t rootContents = tree_->root_->getNumberOfContents();
 	assert (rootContents > 0);
@@ -196,7 +215,11 @@ void InsertionThreadPool<DIM, WIDTH>::handleDoneBySelectedStrategy(size_t thread
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex, size_t threadIndex) {
+double InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex, size_t threadIndex) {
+
+	struct timespec start, finish;
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
 	const Entry<DIM, WIDTH>* entry = entryMaps_[threadIndex].createEntry(values_[entryIndex], ids_[entryIndex]);
 	switch (approach_) {
 	case optimistic_locking:
@@ -215,6 +238,10 @@ void InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex
 		}
 		break;
 	}
+
+	clock_gettime(CLOCK_MONOTONIC, &finish);
+	const double elapsedNanos = finish.tv_nsec - start.tv_nsec;
+	return elapsedNanos;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -238,8 +265,10 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 			// TODO misses last entries for size mod thread != 0
 			const size_t start = size * threadIndex / nThreads_;
 			const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
+			nanosPerEntryPerThread_[threadIndex].resize(end - start);
 			for (size_t i = start; i < end; ++i) {
-				insertBySelectedStrategy(i, threadIndex);
+				double nanos = insertBySelectedStrategy(i, threadIndex);
+				nanosPerEntryPerThread_[threadIndex][i - start] = nanos;
 			}
 		}
 		break;
