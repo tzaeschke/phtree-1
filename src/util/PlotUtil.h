@@ -476,6 +476,13 @@ template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> dendritesFiles, bool parallel) {
 	assert (axonsFiles.size() == dendritesFiles.size());
 
+	if (parallel) {
+		cout << "parallel";
+	} else {
+		cout << "sequential";
+	}
+	cout << " spatial join of axons (indexed) and dendrites (queried)" << endl;
+
 	ofstream* plotFile = openPlotFile(AXONS_DENDRITES_PLOT_NAME, true);
 
 	for (unsigned run = 0; run < axonsFiles.size(); ++run) {
