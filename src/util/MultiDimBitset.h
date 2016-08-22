@@ -22,6 +22,9 @@ public:
 	static std::pair<bool, size_t> compare(const unsigned long* const startBlock, unsigned int nBits,
 			size_t fromIndex, size_t toIndex, const unsigned long* const otherStartBlock, unsigned int otherNBits);
 
+	static size_t compareFullAligned(const unsigned long* const startBlock,
+			unsigned int nBits, const unsigned long* const otherStartBlock);
+
 	static std::vector<unsigned long> toLongs(const unsigned long* const fromStartBlock, size_t nBits);
 
 	static unsigned long interleaveBits(const unsigned long* const fromStartBlock, size_t index, size_t nBits);
@@ -352,6 +355,24 @@ std::pair<bool, size_t> MultiDimBitset<DIM>::compare(const unsigned long* startB
 }
 
 template <unsigned int DIM>
+size_t MultiDimBitset<DIM>::compareFullAligned(const unsigned long* const startBlock,
+			unsigned int nBits, const unsigned long* const otherStartBlock) {
+
+	const size_t blockHighIndex = (nBits - 1uL) / bitsPerBlock;
+	size_t nCommonPrefixBits = 0;
+	for (unsigned block = blockHighIndex; block != (-1u); --block) {
+		const pair<bool, size_t> comp = compareAlignedBlocks(startBlock[block], otherStartBlock[block]);
+		nCommonPrefixBits += comp.second;
+		if (!comp.first) { break; }
+	}
+
+	// remove the highest bits that were not set in both highest blocks from the count
+	const size_t nCommonUnsetBits = ((blockHighIndex + 1) * bitsPerBlock) - nBits;
+	nCommonPrefixBits = (nCommonPrefixBits - nCommonUnsetBits) / DIM;
+	return nCommonPrefixBits;
+}
+
+template <unsigned int DIM>
 pair<bool, size_t> MultiDimBitset<DIM>::compareAlignedBlocks(const unsigned long b1, const unsigned long b2) {
 	const unsigned long comparison = b1 ^ b2;
 	size_t longestCommonPrefix = sizeof (unsigned long) * 8;
@@ -383,7 +404,7 @@ unsigned long MultiDimBitset<DIM>::interleaveBits(const unsigned long* fromStart
 		const size_t lower = lsbStartIndex % b_max;
 
 		if (startBlock == endBlock || lsbEndIndex % b_max == 0) {
-			const unsigned long maskForInterleaved = (1uL << DIM) - 1uL;
+			const unsigned long maskForInterleaved = (1uL << DIM) - 1uL; // TODO can be precalculated an reused
 			hcAddress = (block >> lower) & maskForInterleaved;
 		} else {
 			const size_t upper = lsbEndIndex % b_max;

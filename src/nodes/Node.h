@@ -17,7 +17,7 @@
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
 #include "util/MultiDimBitset.h"
-#include <boost/thread/shared_mutex.hpp>
+#include <pthread.h>
 
 template <unsigned int DIM>
 class Visitor;
@@ -37,8 +37,9 @@ class Node {
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	boost::upgrade_mutex rwLock;
 	bool removed;
+	unsigned int updateCounter;
+	pthread_rwlock_t rwLock = PTHREAD_RWLOCK_INITIALIZER;
 
 	Node();
 	virtual ~Node();
@@ -80,13 +81,13 @@ public:
 using namespace std;
 
 template <unsigned int DIM>
-Node<DIM>::Node() : removed(false) {
+Node<DIM>::Node() : removed(false), updateCounter(0) {
 //	pthread_rwlock_init(&rwLock, NULL);
 }
 
 template <unsigned int DIM>
 Node<DIM>::~Node() {
-//	pthread_rwlock_destroy(&rwLock);
+	pthread_rwlock_destroy(&rwLock);
 }
 
 template <unsigned int DIM>

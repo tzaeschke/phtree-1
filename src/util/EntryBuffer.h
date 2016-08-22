@@ -11,6 +11,7 @@
 #include <set>
 #include "Entry.h"
 #include "util/TEntryBuffer.h"
+#include <atomic>
 
 template <unsigned int DIM>
 class Node;
@@ -29,30 +30,38 @@ public:
 	bool insert(const Entry<DIM, WIDTH>& entry);
 	bool full() const;
 	bool empty() const;
-	size_t size() const;
 	size_t capacity() const;
 	void clear();
 	Entry<DIM, WIDTH>* init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress);
 	void updateNode(Node<DIM>* node);
 	std::pair<Node<DIM>*, unsigned long> getNodeAndAddress();
-	Node<DIM>* flushToSubtree(PHTree<DIM, WIDTH>& tree);
+	Node<DIM>* flushToSubtree(); // TODO should be made const
+	EntryBufferPool<DIM, WIDTH>* getPool();
+
+	bool assertCleared() const;
 
 private:
-	static const size_t capacity_ = 10;
 
-	size_t nextIndex_;
+	static const size_t capacity_ = 20;
+
+	atomic<bool> flushing_;
+	atomic<size_t> nextIndex_;
+	bool inUse;
 	size_t suffixBits_;
+	EntryBufferPool<DIM, WIDTH>* pool_;
 	// - symmetric matrix: need to store n/2 (n+1) fields only
 	// - stores the diagonal too for easier access
 	// - stores the lower matrix because LCP values of one row are stored together
 	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
 	Entry<DIM, WIDTH> buffer_[capacity_];
+	bool insertCompleted_[capacity_];
 
 	// TODO validation only:
 	const Entry<DIM, WIDTH>* originals_[capacity_];
 
 	inline void setLcp(unsigned int row, unsigned int column, unsigned int lcp);
 	inline unsigned int getLcp(unsigned int row, unsigned int column) const;
+	void setPool(EntryBufferPool<DIM, WIDTH>* pool);
 };
 
 #include <assert.h>
@@ -60,26 +69,38 @@ private:
 #include "util/NodeTypeUtil.h"
 #include "nodes/Node.h"
 #include "PHTree.h"
+#include "util/EntryBufferPool.h"
 
 template <unsigned int DIM, unsigned int WIDTH>
-EntryBuffer<DIM, WIDTH>::EntryBuffer() : nextIndex_(0), suffixBits_(0), lcps_(), buffer_() {
+EntryBuffer<DIM, WIDTH>::EntryBuffer() : flushing_(false), nextIndex_(0), inUse(false), suffixBits_(0), pool_(NULL), lcps_(), buffer_(), insertCompleted_() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 Entry<DIM, WIDTH>* EntryBuffer<DIM, WIDTH>::init(size_t suffixLength, Node<DIM>* node, unsigned long hcAddress) {
-	assert (suffixLength <= (WIDTH - 1));
+	assert (0 < suffixLength && suffixLength <= (WIDTH - 1));
+	assert (!flushing_);
 	suffixBits_ = suffixLength * DIM;
 	this->node_ = node;
 	this->nodeHcAddress = hcAddress;
 	nextIndex_ = 1;
+	flushing_ = false;
+	assert (!insertCompleted_[0]);
+	insertCompleted_[0] = true;
 	return &(buffer_[0]);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryBuffer<DIM, WIDTH>::clear() {
 	assert (suffixBits_ > 0);
+	assert (flushing_);
+
+	const size_t i = nextIndex_;
+	const size_t c = capacity_;
+	const size_t n = c; // TODO less work possible: min(i, c);
 	const size_t blocksPerEntry = 1 + (suffixBits_ - 1) / MultiDimBitset<DIM>::bitsPerBlock;
-	for (unsigned row = 0; row < nextIndex_; ++row) {
+	for (unsigned row = 0; row < n; ++row) {
+		insertCompleted_[row] = false;
+
 		for (unsigned column = 0; column <= row; ++column) {
 			setLcp(row, column, 0);
 		}
@@ -91,6 +112,26 @@ void EntryBuffer<DIM, WIDTH>::clear() {
 
 	suffixBits_ = 0;
 	nextIndex_ = 0;
+	this->node_ = NULL;
+	flushing_ = false;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+bool EntryBuffer<DIM, WIDTH>::assertCleared() const {
+	assert (suffixBits_ == 0);
+	assert (nextIndex_ == 0);
+	assert (!flushing_);
+	for (unsigned i = 0; i < capacity_; ++i) {
+		assert (!insertCompleted_[i]);
+
+		for (unsigned j = 0; j < capacity_; j++) {
+			assert (getLcp(i, j) == 0);
+		}
+	}
+
+	assert (!this->node_);
+
+	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -114,8 +155,13 @@ inline unsigned int EntryBuffer<DIM, WIDTH>::getLcp(unsigned int row, unsigned i
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-size_t EntryBuffer<DIM, WIDTH>::size() const {
-	return nextIndex_;
+EntryBufferPool<DIM,WIDTH>* EntryBuffer<DIM, WIDTH>::getPool() {
+	return pool_;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void EntryBuffer<DIM, WIDTH>::setPool(EntryBufferPool<DIM,WIDTH>* pool) {
+	pool_ = pool;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -125,8 +171,7 @@ size_t EntryBuffer<DIM, WIDTH>::capacity() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::full() const {
-	assert (nextIndex_ <= capacity_);
-	return nextIndex_ == capacity_;
+	return nextIndex_ >= capacity_  && suffixBits_ > 0; // TODO replace with inUse variable from recent version;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -136,40 +181,44 @@ bool EntryBuffer<DIM, WIDTH>::empty() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
-	assert (!full());
 	assert (suffixBits_ > 0 && suffixBits_ % DIM == 0);
-	assert (0 < nextIndex_ && nextIndex_ <= capacity_);
+	assert (!flushing_);
+	const size_t i = nextIndex_++;
+	if (i >= capacity_) { return false; }
+	// exclusively responsible for index i
 
+	assert (0 < i && i < capacity_);
+	assert (!insertCompleted_[i]);
 	// copy ID and necessary bits into the local buffer
-	buffer_[nextIndex_].id_ = entry.id_;
-	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[nextIndex_].values_);
-
-	originals_[nextIndex_] = &entry;
+	MultiDimBitset<DIM>::duplicateLowestBitsAligned(entry.values_, suffixBits_, buffer_[i].values_);
+	insertCompleted_[i] = true; // TODO place after duplication?
+	buffer_[i].id_ = entry.id_;
+	originals_[i] = &entry;
 
 	// compare the new entry to all previously inserted entries
 	const unsigned int startIndexDim = WIDTH - (suffixBits_ / DIM);
-	for (unsigned other = 0; other < nextIndex_; ++other) {
+	for (unsigned other = 0; other < i; ++other) {
+		while (!insertCompleted_[other]) {}; // spin until the previous thread is done
 		// TODO no need to compare all values!
 		// TODO no need to compare to full values!
-		assert (getLcp(other, nextIndex_) == 0 && getLcp(nextIndex_, other) == 0);
+		assert (getLcp(other, i) == 0 && getLcp(i, other) == 0);
 		assert (MultiDimBitset<DIM>::checkRangeUnset(buffer_[other].values_, DIM * WIDTH, suffixBits_));
 		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
 				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
 		assert(!comp.first);
-		setLcp(nextIndex_, other, comp.second);
+		assert (!flushing_);
+		setLcp(i, other, comp.second);
 	}
 
-	++nextIndex_;
-
-	// empty the buffer if it is full
-	return full();
+	return true;
 }
 
 
 template <unsigned int DIM, unsigned int WIDTH>
-Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
-	assert (nextIndex_ > 0 && nextIndex_ <= capacity_);
+Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 	assert (suffixBits_ > 0);
+	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
+				&& (this->node_->lookup(this->nodeHcAddress, true).hasSpecialPointer));
 
 	// builds the subtree from bottom up
 	bool rowEmpty[capacity_];
@@ -178,7 +227,17 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 	unsigned int rowNSuffixes[capacity_];
 	unsigned int rowNSubnodes[capacity_];
 	Node<DIM>* rowNode[capacity_];
-	for (unsigned row = 0; row < nextIndex_; ++row) {
+
+	assert (!flushing_);
+	flushing_ = true;
+	const size_t currentIndex = nextIndex_;
+	const size_t capacity = capacity_;
+	const size_t n = min(currentIndex, capacity);
+	assert (n > 0 && n <= capacity_);
+
+	for (unsigned row = 0; row < n; ++row) {
+		// spin until remaining insertions are done
+		assert (insertCompleted_[row]);
 		rowEmpty[row] = false;
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!
@@ -193,7 +252,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 		// calculate maximum and number of occurrences per row
 		// TODO no need to revisit rows that were not changed!
-		for (unsigned row = 0; row < nextIndex_; ++row) {
+		for (unsigned row = 0; row < n; ++row) {
 			if (rowEmpty[row]) continue;
 			hasMoreRows = row != 0;
 
@@ -203,7 +262,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 				rowMax[row] = -1u; // TODO possible similar to: (rowNextMax[row] == (-1u))? -1u : rowNextMax[row] - 1;
 				rowNextMax[row] = -1u;
 
-				for (unsigned column = 0; column < nextIndex_; ++column) { // TODO how to save iterations?
+				for (unsigned column = 0; column < n; ++column) { // TODO how to save iterations?
 					if (rowEmpty[column] || row == column) continue;
 
 					const unsigned int currentLcp = getLcp(row, column);
@@ -242,24 +301,16 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 		}
 
 #ifdef PRINT
-		// print the current LCP matrix
 		cout << "type\tmax\tnext\t#suff\t#node\t| i";
-		for (unsigned row = 0; row < nextIndex_; ++row) { cout << "\t"  << row;}
+		for (unsigned row = 0; row < n; ++row) { cout << "\t"  << row;}
 		cout << endl;
-
-		for (unsigned row = 0; row < nextIndex_; ++row) {
-			if (rowNode[row]) { cout << "(node)\t"; }
-			else { cout << "(suff)\t"; }
-			if (rowMax[row] == -1u) { cout << "-1\t"; }
-			else { cout << rowMax[row] << "\t"; }
-			if (rowNextMax[row] == -1u) { cout << "-1\t"; }
-			else {cout << rowNextMax[row] << "\t"; }
-			cout << rowNSuffixes[row] << "\t";
-			cout << rowNSubnodes[row] << "\t| ";
-
-			cout << row;
-
-			for (unsigned col = 0; col < nextIndex_; ++col) {
+		// print the current LCP matrix
+		for (unsigned row = 0; row < n; ++row) {
+			if (rowNode[row]) { cout << "(node)\t"; } else { cout << "(suff)\t"; }
+			if (rowMax[row] == -1u) { cout << "-1\t"; } else { cout << rowMax[row] << "\t"; }
+			if (rowNextMax[row] == -1u) { cout << "-1\t"; } else {cout << rowNextMax[row] << "\t"; }
+			cout << rowNSuffixes[row] << "\t" << rowNSubnodes[row] << "\t| " << row;
+			for (unsigned col = 0; col < n; ++col) {
 				cout << "\t";
 				if (rowEmpty[row] || rowEmpty[col]) {cout << "-";}
 				else if (getLcp(row, col) == (-1u)) {cout << "(-1)";}
@@ -278,7 +329,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 		assert (index < WIDTH);
 		// current suffix bits: buffer suffix bits - current longest prefix bits - HC address bits (one node)
 		const unsigned int suffixBits = suffixBits_ - DIM * (maxRowMax + 1);
-		for (unsigned row = 0; row < (nextIndex_ - 1) && hasMoreRows; ++row) {
+		for (unsigned row = 0; row < (n - 1) && hasMoreRows; ++row) {
 			if (rowEmpty[row] || maxRowMax != rowMax[row]) continue;
 
 			setLcp(row, row, maxRowMax);
@@ -299,7 +350,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 			}
 
 			// insert all entries within this row into the new sub node
-			for (unsigned column = row; column < nextIndex_; ++column) {
+			for (unsigned column = row; column < n; ++column) {
 				const unsigned int currentLcp = getLcp(row, column);
 				if (rowEmpty[column] || currentLcp != rowMax[row]) continue;
 
@@ -333,6 +384,13 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 			setLcp(row, row, rowNextMax[row]); // TODO not needed?!
 		}
+
+		#ifndef NDEBUG
+			// Validate round
+			for (unsigned i = 0; i < n; ++i) {
+				assert (!rowNode[i] || rowNode[i]->getNumberOfContents() >= 2);
+			}
+		#endif
 	}
 
 	assert ((this->node_->lookup(this->nodeHcAddress, true).exists)
@@ -341,9 +399,9 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree(PHTree<DIM, WIDTH>& tree) {
 
 #ifndef NDEBUG
 	// Validate all copied entries (except for the first one which was only copied partially)
-	for (unsigned i = 1; i < nextIndex_; ++i) {
-		assert (rowEmpty[i]);
-		assert (tree.lookup(*(originals_[i])).first);
+	for (unsigned i = 0; i < n; ++i) {
+		assert (insertCompleted_[i]);
+		assert (i == 0 || rowEmpty[i]);
 	}
 #endif
 

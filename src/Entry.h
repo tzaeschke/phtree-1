@@ -29,6 +29,8 @@ public:
 	Entry(const unsigned long* startBlock, int id);
 	~Entry();
 
+	void reinit(const std::vector<unsigned long> &values, int id);
+
 	size_t getBitLength() const;
 	size_t getDimensions() const;
 
@@ -64,6 +66,19 @@ Entry<DIM, WIDTH>::Entry(const unsigned long* startBlock, int id) : id_(id), nBi
 	}
 
 	assert (nBits_ == getBitLength() * getDimensions());
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void Entry<DIM, WIDTH>::reinit(const std::vector<unsigned long> &values, int id) {
+	assert (nBits_ == DIM * WIDTH);
+	id_ = id;
+	assert (values.size() == DIM);
+	const size_t nBlocks = 1u + (nBits_ - 1u) / (sizeof (unsigned long) * 8u);
+	for (unsigned i = 0; i < nBlocks; ++i) {
+		values_[i] = 0;
+	}
+
+	MultiDimBitset<DIM>::template toBitset<WIDTH>(values, values_);
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
