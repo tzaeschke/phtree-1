@@ -170,7 +170,7 @@ size_t EntryBuffer<DIM, WIDTH>::capacity() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 bool EntryBuffer<DIM, WIDTH>::full() const {
-	return nextIndex_ >= capacity_;
+	return nextIndex_ >= capacity_  && suffixBits_ > 0; // TODO replace with inUse variable from recent version;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
