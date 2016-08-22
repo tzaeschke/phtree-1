@@ -72,7 +72,7 @@ public:
 	static void plotTimeSeriesOfInserts();
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotAxonsAndDendrites(std::vector<std::string> axonsFiles, std::vector<std::string> dendritesFiles);
+	static void plotAxonsAndDendrites(std::vector<std::string> axonsFiles, std::vector<std::string> dendritesFiles, bool parallel);
 
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotInsertPerformanceDifferentOrder(std::string file, bool isFloat);
@@ -82,6 +82,9 @@ public:
 
 	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotCompareParallelTreeToScanQuery(std::string entryFile, std::string queryFile, bool isFloat);
+
+	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotCompareToRTreeBulk(std::string entryFile, bool isFloat);
 
 private:
 	static void plot(std::string gnuplotFileName);
@@ -118,7 +121,8 @@ private:
 #include "util/RandUtil.h"
 #include "util/DynamicNodeOperationsUtil.h"
 #include "util/InsertionThreadPool.h"
-#include "util/ParallelRangeQueryScan.h"
+#include "util/compare/ParallelRangeQueryScan.h"
+#include "util/compare/RTreeBulkWrapper.h"
 
 using namespace std;
 
@@ -434,11 +438,45 @@ void PlotUtil::plotCompareParallelTreeToScanQuery(std::string entryFile, std::st
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> dendritesFiles) {
+void PlotUtil::plotCompareToRTreeBulk(std::string entryFile, bool isFloat) {
+	assert (isFloat);
+
+	cout << "comparing bulk-loaded R-Tree with parallel bulk-loaded PH-Tree" << endl;
+
+	cout << "\tR-Tree: " << flush;
+	chrono::steady_clock::time_point startRTreeBuild, endRTreeBuild;
+	{
+		// R-tree bulk loaded insertion
+		startRTreeBuild = chrono::steady_clock::now();
+		vector<vector<double>>* entriesRTree = FileInputUtil::readEntriesToFloat<DIM>(entryFile);
+		RTreeBulkWrapper rtree;
+		rtree.bulkLoad3DSpatialObject(*entriesRTree);
+		endRTreeBuild = chrono::steady_clock::now();
+		delete entriesRTree;
+	}
+	unsigned int rTreeMillis = chrono::duration_cast<chrono::milliseconds>(endRTreeBuild - startRTreeBuild).count();
+	cout << double(rTreeMillis) / 1000 << "s" << endl;
+
+	cout << "\tPH-Tree: " << flush;
+	chrono::steady_clock::time_point startPhTreeBuild, endPhTreeBuild;
+	{
+		// PH-Tree parallel bulk loaded insertion
+		startPhTreeBuild = chrono::steady_clock::now();
+		vector<vector<unsigned long>>* entriesPhTree = FileInputUtil::readFloatEntries<DIM>(entryFile, FLOAT_ACCURACY_DECIMALS);
+		PHTree<DIM, WIDTH> phTree;
+		phTree.parallelBulkInsert(*entriesPhTree);
+		endPhTreeBuild = chrono::steady_clock::now();
+		delete entriesPhTree;
+	}
+	unsigned int phTreeMillis = chrono::duration_cast<chrono::milliseconds>(endPhTreeBuild - startPhTreeBuild).count();
+	cout << double(phTreeMillis) / 1000 << "s" << endl;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> dendritesFiles, bool parallel) {
 	assert (axonsFiles.size() == dendritesFiles.size());
 
 	ofstream* plotFile = openPlotFile(AXONS_DENDRITES_PLOT_NAME, true);
-	const size_t nThreads = thread::hardware_concurrency();
 
 	for (unsigned run = 0; run < axonsFiles.size(); ++run) {
 		PHTree<DIM, WIDTH>* phtree = new PHTree<DIM, WIDTH>();
@@ -452,8 +490,12 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 		const size_t nDendrites = dendritesRectValues->size();
 		chrono::steady_clock::time_point startInsert, endInsert;
 		startInsert = chrono::steady_clock::now();
-		for (unsigned iEntry = 0; iEntry < nDendrites; ++iEntry) {
-			phtree->insert((*dendritesRectValues)[iEntry], iEntry);
+		if (parallel) {
+			phtree->parallelBulkInsert(*dendritesRectValues);
+		} else {
+			for (unsigned iEntry = 0; iEntry < nDendrites; ++iEntry) {
+				phtree->insert((*dendritesRectValues)[iEntry], iEntry);
+			}
 		}
 		endInsert = chrono::steady_clock::now();
 		const unsigned int insertionMillis = chrono::duration_cast<chrono::milliseconds>(endInsert - startInsert).count();
@@ -497,36 +539,31 @@ void PlotUtil::plotAxonsAndDendrites(vector<string> axonsFiles, vector<string> d
 		unsigned int totalRangeQueryIntiTime = 0;
 		unsigned int totalRangeQueuryNextTime = 0;
 
-//		std::string idPath = "./myDendriteIds.dat";
-//		ofstream* idsFile = new ofstream();
-//		idsFile->open(idPath.c_str(), ofstream::out | ofstream::trunc);
-
 		chrono::steady_clock::time_point startRanges, endRanges;
 		CALLGRIND_START_INSTRUMENTATION;
 		startRanges = chrono::steady_clock::now();
-		phtree->parallelIntersectionQuery(*axonsRectValues, nThreads);
-/*		for (unsigned iAxon = 0; iAxon < nAxons; ++iAxon) {
-//			cout << "Axon: " << iAxon << " | previous intersections: " << nIntersectingDendrites << endl;
-			const unsigned int startInitTime = clock();
-			RangeQueryIterator<DIM, WIDTH>* it = phtree->intersectionQuery((*axonsRectValues)[iAxon]);
-			totalRangeQueryIntiTime += (clock() - startInitTime);
-			const unsigned int startRangeQueryTime = clock();
-//			unsigned i = 0;
-			while (it->hasNext()) {
-//				cout << "Intersect nr. " << (++i) << endl;
-//				(*idsFile) << iAxon << ": " <<  it->next().id_ << endl;
-				it->next();
-				++nIntersectingDendrites;
+		if (parallel) {
+			phtree->parallelIntersectionQuery(*axonsRectValues);
+		} else {
+			for (unsigned iAxon = 0; iAxon < nAxons; ++iAxon) {
+				const unsigned int startInitTime = clock();
+				RangeQueryIterator<DIM, WIDTH>* it = phtree->intersectionQuery((*axonsRectValues)[iAxon]);
+				totalRangeQueryIntiTime += (clock() - startInitTime);
+				const unsigned int startRangeQueryTime = clock();
+				while (it->hasNext()) {
+					it->next();
+					++nIntersectingDendrites;
+				}
+				delete it;
+				totalRangeQueuryNextTime += (clock() - startRangeQueryTime);
 			}
-			delete it;
-			totalRangeQueuryNextTime += (clock() - startRangeQueryTime);
-		}*/
+		}
+
 		endRanges = chrono::steady_clock::now();
 		const unsigned int rangesMillis = chrono::duration_cast<chrono::milliseconds>(endRanges - startRanges).count();
 		cout << "queries seconds: " << (double(rangesMillis) / 1000) << endl;
 		CALLGRIND_STOP_INSTRUMENTATION;
 		cout << "ok" << endl;
-//		delete idsFile;
 
 		axonsRectValues->clear();
 		delete axonsRectValues;
