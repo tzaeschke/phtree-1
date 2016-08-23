@@ -39,6 +39,7 @@ public:
 	bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
 	bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	bool insertAtAddressSpinlock(unsigned long hcAddress) override;
 	void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) override;
 	void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) override;
@@ -48,6 +49,7 @@ public:
 	bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) override;
 	void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	string getName() const override;
 	NodeType getType() const override { return Linear; }
 	bool isAtomic() const { return false; };
@@ -485,6 +487,16 @@ void LHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddress
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) {
+	throw "atomic operations not supported";
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void LHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+	throw "atomic operations not supported";
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+bool LHC<DIM, PREF_BLOCKS, N>::insertAtAddressSpinlock(unsigned long hcAddress) {
 	throw "atomic operations not supported";
 }
 

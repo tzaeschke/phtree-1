@@ -43,6 +43,7 @@ public:
 	bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
 	bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	bool insertAtAddressSpinlock(unsigned long hcAddress) override;
 	void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) override;
 	void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) override;
@@ -52,6 +53,7 @@ public:
 	bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) override;
 	void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	string getName() const override;
 	NodeType getType() const override { return Array; }
 	bool isAtomic() const { return true; };
@@ -367,6 +369,21 @@ template <unsigned int DIM, unsigned int PREF_BLOCKS>
 void AHC<DIM, PREF_BLOCKS>::updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) {
 	const bool success = atomicUpdate(hcAddress, REF_SPINLOCK, pointer);
 	assert (success);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+void AHC<DIM, PREF_BLOCKS>::updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+	const unsigned long suffixStartBlockIndexExtended = suffixStartBlockIndex;
+	const unsigned long extendedId = id;
+	const uintptr_t storedRef = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended << 2);
+	const uintptr_t newRef = 3 | storedRef | (extendedId << 32);
+	const bool success = atomicUpdate(hcAddress, REF_SPINLOCK, newRef);
+	assert (success);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS>
+bool AHC<DIM, PREF_BLOCKS>::insertAtAddressSpinlock(unsigned long hcAddress) {
+	return insertAtAddress(hcAddress, REF_SPINLOCK);
 }
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS>

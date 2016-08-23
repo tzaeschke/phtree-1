@@ -37,6 +37,7 @@ public:
 	bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) override;
 	bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) override;
+	bool insertAtAddressSpinlock(unsigned long hcAddress) override;
 	void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) override;
 	void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) override;
@@ -46,6 +47,7 @@ public:
 	bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) override;
 	void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) override;
 	void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) override;
+	void updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) override;
 	string getName() const override;
 	NodeType getType() const override { return AtomicLinear; }
 	void setParent(Node<DIM>* parent) override;
@@ -404,6 +406,8 @@ bool PLHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, uintptr
 	// format: [ pointer (62) | flags - 00 (2) ]
 	size_t insertIndex = findUnsortedInsertIndex(hcAddress);
 	if (insertIndex != (-1uL)) {
+		assert (unorderedAddresses_[insertIndex] == hcAddress);
+		assert (unorderedReferences_[insertIndex] == REF_SPINLOCK);
 		unorderedReferences_[insertIndex] = pointer;
 	}
 
@@ -509,6 +513,19 @@ void PLHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddres
 	assert (success);
 }
 
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+void PLHC<DIM, PREF_BLOCKS, N>::updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) {
+	const unsigned long upperId = id;
+	const unsigned long suffixStartBlockIndexExtended = (upperId << 32) | (suffixStartBlockIndex << 2) | 3;
+	const uintptr_t reference = reinterpret_cast<uintptr_t>(suffixStartBlockIndexExtended);
+	const bool success = update(hcAddress, REF_SPINLOCK, reference);
+	assert (success);
+}
+
+template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
+bool PLHC<DIM, PREF_BLOCKS, N>::insertAtAddressSpinlock(unsigned long hcAddress) {
+	return insertAtAddress(hcAddress, REF_SPINLOCK);
+}
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void PLHC<DIM, PREF_BLOCKS, N>::linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) {

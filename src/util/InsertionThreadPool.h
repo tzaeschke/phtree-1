@@ -57,6 +57,8 @@ public:
 
 private:
 
+	static const size_t INITIAL_JITTER_NANOS_FACTOR = 500;
+
 	bool syncPhaseRequired_;
 	std::atomic<unsigned int> i_;
 	size_t nThreads_;
@@ -246,8 +248,13 @@ double InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryInd
 
 template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
-	const size_t size = values_.size();
 
+	if (threadIndex > 0) {
+		// add jitter to reduce the initial contention of the threads
+		boost::this_thread::sleep_for(boost::chrono::nanoseconds(INITIAL_JITTER_NANOS_FACTOR * threadIndex));
+	}
+
+	const size_t size = values_.size();
 	switch (order_) {
 	case sequential_entries:
 		{

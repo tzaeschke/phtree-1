@@ -239,7 +239,7 @@ void PlotUtil::plotParallelInsertPerformance(std::string file, bool isFloat) {
 	ofstream* plotFile = openPlotFile(PARALLEL_INSERT_NAME, true);
 
 	CALLGRIND_START_INSTRUMENTATION;
-	const size_t availableThreads = 3;// * thread::hardware_concurrency();
+	const size_t availableThreads = 10 * thread::hardware_concurrency();
 	const vector<InsertionOrder> orders = {static_cast<InsertionOrder>(1)};//, static_cast<InsertionOrder>(2)};
 	for (unsigned t = 1; t <= availableThreads; ++t) {
 		for (InsertionOrder o : orders) {

@@ -50,6 +50,7 @@ public:
 	virtual bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
 	virtual bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual bool insertAtAddressSpinlock(unsigned long hcAddress) = 0;
 	virtual void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) =0;
 	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned long suffix, int id) = 0;
@@ -59,6 +60,7 @@ public:
 	virtual bool updateAddressToSpinlock(const NodeAddressContent<DIM>& prevContent) = 0;
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) = 0;
+	virtual void updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual string getName() const =0;
 	virtual NodeType getType() const = 0;
 	virtual void setParent(Node<DIM>* parent) override;

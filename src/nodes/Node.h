@@ -17,7 +17,8 @@
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
 #include "util/MultiDimBitset.h"
-#include <boost/thread/shared_mutex.hpp>
+#include <pthread.h>
+#include <atomic>
 
 template <unsigned int DIM>
 class Visitor;
@@ -43,8 +44,9 @@ class Node {
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	boost::upgrade_mutex rwLock;
 	bool removed;
+	atomic<unsigned int> updateCounter;
+	pthread_rwlock_t rwLock = PTHREAD_RWLOCK_INITIALIZER;
 
 	Node();
 	virtual ~Node();
@@ -68,6 +70,7 @@ public:
 	virtual bool insertAtAddress(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 	virtual bool insertAtAddress(unsigned long hcAddress, unsigned long suffix, int id) = 0;
 	virtual bool insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
+	virtual bool insertAtAddressSpinlock(unsigned long hcAddress) = 0;
 
 	virtual void linearCopyFromOther(unsigned long hcAddress, uintptr_t pointer) =0;
 	virtual void linearCopyFromOther(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
@@ -80,6 +83,7 @@ public:
 	bool updateAddressToSpinlock(unsigned hcAddress, Node<DIM>* subnode);
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, const Node<DIM>* const subnode) = 0;
 	virtual void updateAddressFromSpinlock(unsigned long hcAddress, uintptr_t pointer) = 0;
+	virtual void updateAddressFromSpinlock(unsigned long hcAddress, unsigned int suffixStartBlockIndex, int id) = 0;
 
 	virtual bool isAtomic() const =0;
 	virtual Node<DIM>* getParent() =0;
@@ -105,13 +109,13 @@ public:
 using namespace std;
 
 template <unsigned int DIM>
-Node<DIM>::Node() : removed(false) {
+Node<DIM>::Node() : removed(false), updateCounter(0) {
 //	pthread_rwlock_init(&rwLock, NULL);
 }
 
 template <unsigned int DIM>
 Node<DIM>::~Node() {
-//	pthread_rwlock_destroy(&rwLock);
+	pthread_rwlock_destroy(&rwLock);
 }
 
 template <unsigned int DIM>
