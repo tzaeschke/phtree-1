@@ -139,7 +139,7 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 	delete pool_;
 
 	// TODO remove:
-	string path = "./plot/data/timeseries-" + to_string(nThreads_) + ".dat";
+	/*string path = "./plot/data/timeseries-" + to_string(nThreads_) + ".dat";
 	ofstream* dataFile = new ofstream();
 	dataFile->open(path.c_str(), ofstream::out | ofstream::trunc);
 	size_t nEntries = nanosPerEntryPerThread_[nThreads_-1].size();
@@ -150,7 +150,8 @@ InsertionThreadPool<DIM, WIDTH>::~InsertionThreadPool() {
 		}
 		(*dataFile) << endl;
 	}
-	delete dataFile;
+	delete dataFile;*/
+
 	// shrink the root node again
 	size_t rootContents = tree_->root_->getNumberOfContents();
 	assert (rootContents > 0);
@@ -219,8 +220,8 @@ void InsertionThreadPool<DIM, WIDTH>::handleDoneBySelectedStrategy(size_t thread
 template <unsigned int DIM, unsigned int WIDTH>
 double InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryIndex, size_t threadIndex) {
 
-	struct timespec start, finish;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+//	struct timespec start, finish;
+//	clock_gettime(CLOCK_MONOTONIC, &start);
 
 	const Entry<DIM, WIDTH>* entry = entryMaps_[threadIndex].createEntry(values_[entryIndex], ids_[entryIndex]);
 	switch (approach_) {
@@ -241,18 +242,14 @@ double InsertionThreadPool<DIM, WIDTH>::insertBySelectedStrategy(size_t entryInd
 		break;
 	}
 
-	clock_gettime(CLOCK_MONOTONIC, &finish);
-	const double elapsedNanos = finish.tv_nsec - start.tv_nsec;
-	return elapsedNanos;
+//	clock_gettime(CLOCK_MONOTONIC, &finish);
+//	const double elapsedNanos = finish.tv_nsec - start.tv_nsec;
+//	return elapsedNanos;
+	return 0.0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
-
-	if (threadIndex > 0) {
-		// add jitter to reduce the initial contention of the threads
-		boost::this_thread::sleep_for(boost::chrono::nanoseconds(INITIAL_JITTER_NANOS_FACTOR * threadIndex));
-	}
 
 	const size_t size = values_.size();
 	switch (order_) {
@@ -272,10 +269,10 @@ void InsertionThreadPool<DIM, WIDTH>::processNext(size_t threadIndex) {
 			// TODO misses last entries for size mod thread != 0
 			const size_t start = size * threadIndex / nThreads_;
 			const size_t end = min(size * (threadIndex + 1) / nThreads_, size);
-			nanosPerEntryPerThread_[threadIndex].resize(end - start);
+//			nanosPerEntryPerThread_[threadIndex].resize(end - start);
 			for (size_t i = start; i < end; ++i) {
 				double nanos = insertBySelectedStrategy(i, threadIndex);
-				nanosPerEntryPerThread_[threadIndex][i - start] = nanos;
+//				nanosPerEntryPerThread_[threadIndex][i - start] = nanos;
 			}
 		}
 		break;

@@ -165,7 +165,11 @@ private:
 		TSuffixStorage* suffixes;
 
 		if (atomic) {
-			if (suffixRatio < 0.1) {
+			if (suffixRatio < 0.004) {
+				suffixes = new AtomicSuffixStorage<1 + 4 * maxSuffixBlocks / 1000>();
+			} else if (suffixRatio < 0.01) {
+				suffixes = new AtomicSuffixStorage<1 + maxSuffixBlocks / 100>();
+			} else if (suffixRatio < 0.1) {
 				suffixes = new AtomicSuffixStorage<1 + 10 * maxSuffixBlocks / 100>();
 			} else if (suffixRatio < 0.25) {
 				suffixes = new AtomicSuffixStorage<1 + 25 * maxSuffixBlocks / 100>();
@@ -349,8 +353,12 @@ private:
 		if (atomic) {
 			/*if (nDirectInserts < 3) {
 				return new LHC<DIM, PREF_BLOCKS, 2>(prefixLength);
-			} else*/ if (nDirectInserts < 5) {
-				return new PLHC<DIM, PREF_BLOCKS, 4>(prefixLength);
+			} else*/ if (nDirectInserts < 3) {
+				return new PLHC<DIM, PREF_BLOCKS, 2>(prefixLength);
+			} else if (insertToRatio < 0.01) {
+				return new PLHC<DIM, PREF_BLOCKS, 1 + (1 << DIM) / 100>(prefixLength);
+			} else if (insertToRatio < 0.08) {
+				return new PLHC<DIM, PREF_BLOCKS, 1 + 8 * (1 << DIM) / 100>(prefixLength);
 			} else if (insertToRatio < 0.2) {
 				return new PLHC<DIM, PREF_BLOCKS, 1 + 20 * (1 << DIM) / 100>(prefixLength);
 			} else if (insertToRatio < 0.45) {
