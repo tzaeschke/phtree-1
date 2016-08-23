@@ -479,8 +479,7 @@ void PlotUtil::plotCompareParallelTreeToScanQuery(std::string entryFile, std::st
 template <unsigned int DIM, unsigned int WIDTH>
 void PlotUtil::plotCompareToRTreeBulk(std::string entryFile, bool isFloat) {
 	assert (isFloat);
-
-	cout << "comparing bulk-loaded R-Tree with parallel bulk-loaded PH-Tree" << endl;
+	cout << "comparing bulk-loaded R-Tree with parallel bulk-loaded PH-Tree: " << entryFile << endl;
 
 	cout << "\tR-Tree: " << flush;
 	chrono::steady_clock::time_point startRTreeBuild, endRTreeBuild;
@@ -489,7 +488,13 @@ void PlotUtil::plotCompareToRTreeBulk(std::string entryFile, bool isFloat) {
 		startRTreeBuild = chrono::steady_clock::now();
 		vector<vector<double>>* entriesRTree = FileInputUtil::readEntriesToFloat<DIM>(entryFile);
 		RTreeBulkWrapper rtree;
-		rtree.bulkLoad3DSpatialObject(*entriesRTree);
+		if (DIM == 4) {
+			rtree.bulkLoad2DSpatialObject(*entriesRTree);
+		} else if (DIM == 6) {
+			rtree.bulkLoad3DSpatialObject(*entriesRTree);
+		} else {
+			throw "currently only compares 2D or 3D spatial objects";
+		}
 		endRTreeBuild = chrono::steady_clock::now();
 		delete entriesRTree;
 	}
