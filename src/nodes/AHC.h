@@ -187,6 +187,7 @@ void AHC<DIM, PREF_BLOCKS>::lookup(unsigned long address, NodeAddressContent<DIM
 	do {
 		getRef(address, &outContent.exists, &isSpinlock, &outContent.hasSubnode,
 				&outContent.directlyStoredSuffix, &outContent.hasSpecialPointer, &ref);
+		if (isSpinlock) { nanosleep((const struct timespec[]) {{0, 1000L}}, NULL); }
 	} while (isSpinlock);
 
 	if (outContent.exists) {

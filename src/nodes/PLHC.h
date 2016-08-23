@@ -384,6 +384,7 @@ inline void PLHC<DIM, PREF_BLOCKS, N>::lookupSorted(unsigned long hcAddress, boo
 	if (*exists) {
 		do {
 		*ref = orderedReferences_[index];
+		if ((*ref) == REF_SPINLOCK) { nanosleep((const struct timespec[]) {{0, 1000L}}, NULL); }
 		} while ((*ref) == REF_SPINLOCK);
 	}
 }
@@ -395,6 +396,7 @@ inline void PLHC<DIM, PREF_BLOCKS, N>::lookupUnsorted(unsigned long hcAddress, b
 	if (*exists) {
 		do {
 			(*ref) = unorderedReferences_[index];
+			if ((*ref) == REF_SPINLOCK) { nanosleep((const struct timespec[]) {{0, 1000L}}, NULL); }
 		} while ((*ref) == REF_SPINLOCK);
 	}
 }

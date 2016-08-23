@@ -54,8 +54,8 @@ private:
 	// - stores the lower matrix because LCP values of one row are stored together
 	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
 	Entry<DIM, WIDTH> buffer_[capacity_];
-	bool copyCompleted_[capacity_];
-	bool insertCompleted_[capacity_]; // TODO can be merged with copyCompleted
+	volatile bool copyCompleted_[capacity_];
+	volatile bool insertCompleted_[capacity_]; // TODO can be merged with copyCompleted
 
 	// TODO validation only:
 	const Entry<DIM, WIDTH>* originals_[capacity_];
@@ -202,7 +202,12 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 	// compare the new entry to all previously inserted entries
 	const unsigned int startIndexDim = WIDTH - (suffixBits_ / DIM);
 	for (unsigned other = 0; other < i; ++other) {
-		while (!copyCompleted_[other]) {}; // spin until the previous thread is done
+		bool completed;
+		do {
+			completed = copyCompleted_[other];
+			if (!completed) { nanosleep((const struct timespec[]) {{0, 1000L}}, NULL); }
+		} while (!completed);
+
 		// TODO no need to compare all values!
 		// TODO no need to compare to full values!
 		assert (getLcp(other, i) == 0 && getLcp(i, other) == 0);
@@ -242,7 +247,11 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 
 	for (unsigned row = 0; row < n; ++row) {
 		// spin until remaining insertions are done
-		while (!insertCompleted_[row]) {}
+		bool completed;
+		do {
+			completed = insertCompleted_[row];
+			if (!completed) { nanosleep((const struct timespec[]) {{0, 1000L}}, NULL); }
+		} while (!completed);
 		rowEmpty[row] = false;
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!

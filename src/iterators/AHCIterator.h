@@ -55,6 +55,7 @@ void AHCIterator<DIM, PREF_BLOCKS>::setAddress(size_t address) {
 		for (this->address_ = address; this->address_ < (1uL << DIM); this->address_++) {
 			do {
 				node_->getRef(this->address_, &filled, &isSpinlock, &hasSub, &isDirectlyStoredSuffix, &isSpecial, &ref);
+				if (isSpinlock) { nanosleep((const struct timespec[]) {{0, 1000L}}, NULL); }
 			} while (isSpinlock);
 
 			if (filled) break;
