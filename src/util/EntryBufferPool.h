@@ -37,7 +37,7 @@ private:
 	size_t headIndex_;
 	size_t nInitialized_;
 	size_t nFree_;
-	mutex singleOperationMutex_;
+//	mutex singleOperationMutex_;
 	EntryBuffer<DIM, WIDTH> pool_[capacity_];
 
 	bool assertClearedFreeList();
@@ -50,8 +50,7 @@ private:
 
 template <unsigned int DIM, unsigned int WIDTH>
 EntryBufferPool<DIM, WIDTH>::EntryBufferPool() :
-	headIndex_(0), nInitialized_(0), nFree_(capacity_),
-	singleOperationMutex_(), pool_() {
+	headIndex_(0), nInitialized_(0), nFree_(capacity_), pool_() {
 #ifndef NDEBUG
 	// Validate that all buffers are cleared
 	for (unsigned i = 0; i < capacity_; ++i) {
@@ -124,7 +123,7 @@ void EntryBufferPool<DIM, WIDTH>::finishFullDeallocate() {
 
 template <unsigned int DIM, unsigned int WIDTH>
 EntryBuffer<DIM, WIDTH>* EntryBufferPool<DIM, WIDTH>::allocate() {
-	unique_lock<mutex> lk(singleOperationMutex_);
+//	unique_lock<mutex> lk(singleOperationMutex_);
 //	assert (assertClearedFreeList());
 
 	// no need to sync the following because only one thread can allocate!
@@ -165,7 +164,7 @@ void EntryBufferPool<DIM, WIDTH>::deallocate(EntryBuffer<DIM, WIDTH>* buffer) {
 	assert ((size_t)buffer >= (size_t)pool_ && index < capacity_);
 	assert (buffer->assertCleared());
 
-	unique_lock<mutex> lk(singleOperationMutex_);
+//	unique_lock<mutex> lk(singleOperationMutex_);
 //	assert (assertClearedFreeList());
 	assert (buffer->inUse);
 	buffer->inUse = false;

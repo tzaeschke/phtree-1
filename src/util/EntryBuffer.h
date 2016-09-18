@@ -42,7 +42,7 @@ public:
 
 private:
 
-	static const size_t capacity_ = 20;
+	static const size_t capacity_ = 8;
 
 	atomic<bool> flushing_;
 	atomic<size_t> nextIndex_;

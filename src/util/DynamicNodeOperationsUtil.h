@@ -75,7 +75,7 @@ public:
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree);
 	static Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
-			const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree);
+			const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree, bool count = true);
 	static void splitSubnodePrefix(size_t currentIndex, size_t newPrefixLength, size_t oldPrefixLength,
 			Node<DIM>* currentNode, const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
@@ -349,11 +349,11 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::needToCopyNodeForSuffixInsertion(Nod
 template <unsigned int DIM, unsigned int WIDTH>
 Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentIndex,
 		size_t hcAddress, Node<DIM>* currentNode,
-		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree) {
+		const Entry<DIM, WIDTH>& entry, PHTree<DIM, WIDTH>& tree, bool count) {
 #ifdef PRINT
 	cout << "inserting suffix";
 #endif
-	++nInsertSuffix;
+
 	const uint64_t startInsert = clock();
 	bool enlarged = false;
 
@@ -361,7 +361,6 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	Node<DIM>* adjustedNode = currentNode;
 	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
 		// need to adjust the node to insert another entry
-		++nInsertSuffixEnlarge;
 		adjustedNode = NodeTypeUtil<DIM>::copyIntoLargerNode(currentNode->getMaximumNumberOfContents() + 1, currentNode);
 		enlarged = true;
 #ifdef PRINT
@@ -395,11 +394,15 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 		assert(adjustedNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
 	}
 
-	const uint64_t totalInsertTicks = clock() - startInsert;
-	if (enlarged) {
-		nInsertNanosSuffixEnlarge += totalInsertTicks;
-	} else {
-		nInsertNanosSuffix += totalInsertTicks;
+	if (count) {
+		const uint64_t totalInsertTicks = clock() - startInsert;
+		if (enlarged) {
+			nInsertNanosSuffixEnlarge += totalInsertTicks;
+			++nInsertSuffixEnlarge;
+		} else {
+			nInsertNanosSuffix += totalInsertTicks;
+			++nInsertSuffix;
+		}
 	}
 
 	assert(adjustedNode);
@@ -445,7 +448,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 	assert (newSubnodeEntryHCAddress != newSubnodePrefixDiffHCAddress);
 
 	// insert remaining entry bits as suffix in the new subnode
-	insertSuffix(currentIndex + 1 + newPrefixLength, newSubnodeEntryHCAddress, newSubnode, entry, tree);
+	insertSuffix(currentIndex + 1 + newPrefixLength, newSubnodeEntryHCAddress, newSubnode, entry, tree, false);
 
 	// move A part of the old prefix to the new subnode and remove [A | d] from the old prefix
 	if (newPrefixLength > 0) {
@@ -943,17 +946,18 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				break;
 			} else if (content.exists && !content.hasSubnode) {
 				// instead of splitting the suffix a buffer is added
-				const uint64_t startInsert = clock();
+				uint64_t startInsert = clock();
 				EntryBuffer<DIM, WIDTH>* buffer = pool->allocate();
 				if (!buffer) {
 					pool->fullDeallocate();
+					startInsert = clock();
 					buffer = pool->allocate();
 					assert (buffer);
 				}
 
 				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
 				const uint64_t totalInsertTime = clock() - startInsert;
-				nInsertNanosBufferFlush += totalInsertTime;
+				nInsertNanosBufferInsert += totalInsertTime;
 				break;
 			} else {
 				// node entry does not exist:
