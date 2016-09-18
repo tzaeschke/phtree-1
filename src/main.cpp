@@ -304,7 +304,8 @@ int main(int argc, char* argv[]) {
 		mainBulkExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotParallelInsertPerformance<6,64>("./axons.dat", true);
+		PlotUtil::plotInsertPerformanceSequentialVsBulk<6,64>("./axons.dat", true);
+//		PlotUtil::plotParallelInsertPerformance<6,64>("./axons.dat", true);
 //		PlotUtil::plotCompareToRTreeBulk<6,64>("./axons.dat", true);
 //		PlotUtil::plotCompareParallelTreeToScanQuery<6,64>("./axons.dat", "./ranges.dat", true);
 //		PlotUtil::plotParallelInsertPerformance<6,64>("/media/max/TOSHIBA/MA/data/ph-tree_workload/100K-axon-mbr-644000.txt", true);

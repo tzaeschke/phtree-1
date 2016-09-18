@@ -39,8 +39,17 @@ public:
 	static unsigned int nInsertSuffixBuffer;
 	static unsigned int nInsertSuffixIntoBuffer;
 	static unsigned int nInsertSplitPrefix;
+
 	static unsigned int nFlushCountWithin;
 	static unsigned int nFlushCountAfter;
+
+	static unsigned long nInsertNanosSplitSuffix;
+	static unsigned long nInsertNanosSuffix;
+	static unsigned long nInsertNanosSuffixEnlarge;
+	static unsigned long nInsertNanosBufferSuffixInsert;
+	static unsigned long nInsertNanosBufferFlush;
+	static unsigned long nInsertNanosBufferInsert;
+	static unsigned long nInsertNanosSplitPrefix;
 
 	static unsigned int nThreads;
 
@@ -110,6 +119,21 @@ template <unsigned int DIM, unsigned int WIDTH>
 unsigned int DynamicNodeOperationsUtil<DIM, WIDTH>::nThreads = 0;
 
 template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSplitSuffix = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSuffix = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSuffixEnlarge = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosBufferFlush = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosBufferInsert = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSplitPrefix = 0;
+template <unsigned int DIM, unsigned int WIDTH>
+unsigned long DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosBufferSuffixInsert = 0;
+
+template <unsigned int DIM, unsigned int WIDTH>
 atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartReadRecurse;
 template <unsigned int DIM, unsigned int WIDTH>
 atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteSplitPrefix;
@@ -140,6 +164,7 @@ atomic<unsigned long> DynamicNodeOperationsUtil<DIM, WIDTH>::nRestartWriteInsert
 #include "nodes/TSuffixStorage.h"
 #include "util/EntryBuffer.h"
 #include "util/EntryBufferPool.h"
+#include "util/rdtsc.h"
 
 // requires upwards conversions of shared mutex
 #define BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
@@ -164,6 +189,14 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::resetCounters() {
 	nRestartWriteSwapSuffix = 0;
 	nRestartWriteInsertSuffixEnlarge = 0;
 	nRestartWriteInsertSuffix = 0;
+
+	nInsertNanosSplitSuffix = 0;
+	nInsertNanosSuffix = 0;
+	nInsertNanosSuffixEnlarge = 0;
+	nInsertNanosBufferFlush = 0;
+	nInsertNanosBufferInsert = 0;
+	nInsertNanosSplitPrefix = 0;
+	nInsertNanosBufferSuffixInsert = 0;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -176,6 +209,8 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 #endif
 
 	++DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix;
+
+	const uint64_t startInsert = clock();
 
 	const size_t currentSuffixBits = DIM * (WIDTH - currentIndex - 1);
 	const unsigned long* suffixStartBlock = content.getSuffixStartBlock();
@@ -248,6 +283,9 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 		NodeTypeUtil<DIM>::template shrinkSuffixStorageIfPossible<WIDTH>(currentNode);
 	}
 
+	const uint64_t totalInsertTicks = clock() - startInsert;
+	nInsertNanosSplitSuffix += totalInsertTicks;
+
 	// no need to adjust the size of the node because the correct node type was already provided
 	assert (currentNode->lookup(content.address, true).subnode == subnode);
 	assert (MultiDimBitset<DIM>::checkRangeUnset(
@@ -300,6 +338,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentI
 		currentNode->freeSuffixSpace(suffixLength * DIM, oldSuffixLocation);
 		NodeTypeUtil<DIM>::template shrinkSuffixStorageIfPossible<WIDTH>(currentNode);
 	}
+
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -315,12 +354,16 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 	cout << "inserting suffix";
 #endif
 	++nInsertSuffix;
+	const uint64_t startInsert = clock();
+	bool enlarged = false;
+
 	// TODO reuse this method in other two cases!
 	Node<DIM>* adjustedNode = currentNode;
 	if (currentNode->getNumberOfContents() == currentNode->getMaximumNumberOfContents()) {
 		// need to adjust the node to insert another entry
 		++nInsertSuffixEnlarge;
 		adjustedNode = NodeTypeUtil<DIM>::copyIntoLargerNode(currentNode->getMaximumNumberOfContents() + 1, currentNode);
+		enlarged = true;
 #ifdef PRINT
 	cout << " (enlarged node from " << currentNode->getMaximumNumberOfContents() << " to " << adjustedNode->getMaximumNumberOfContents() << ")";
 #endif
@@ -340,6 +383,7 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 		if (newTotalSuffixBlocks != 0) {
 			NodeTypeUtil<DIM>::template enlargeSuffixStorage<WIDTH>(newTotalSuffixBlocks, adjustedNode);
 			assert (adjustedNode->canStoreSuffix(suffixBits) == 0);
+			enlarged = true;
 #ifdef PRINT
 	cout << " (enlarged suffix storage to " << adjustedNode->getSuffixStorage()->getNMaxStorageBlocks() << " block(s) )";
 #endif
@@ -349,6 +393,13 @@ Node<DIM>* DynamicNodeOperationsUtil<DIM, WIDTH>::insertSuffix(size_t currentInd
 		adjustedNode->insertAtAddress(hcAddress, suffixStartBlock.second, entry.id_);
 		MultiDimBitset<DIM>::removeHighestBits(entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock.first);
 		assert(adjustedNode->lookup(hcAddress, true).suffixStartBlock == suffixStartBlock.first);
+	}
+
+	const uint64_t totalInsertTicks = clock() - startInsert;
+	if (enlarged) {
+		nInsertNanosSuffixEnlarge += totalInsertTicks;
+	} else {
+		nInsertNanosSuffix += totalInsertTicks;
 	}
 
 	assert(adjustedNode);
@@ -374,6 +425,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 #endif
 
 	++nInsertSplitPrefix;
+	const uint64_t startInsert = clock();
 
 	const Node<DIM>* oldSubnode = content.subnode;
 	assert (oldSubnode->getPrefixLength() == oldPrefixLength);
@@ -412,6 +464,9 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 
 	// replace the old subnode with the copy
 	newSubnode->insertAtAddress(newSubnodePrefixDiffHCAddress, oldSubnodeCopy);
+
+	const uint64_t totalInsertTicks = clock() - startInsert;
+	nInsertNanosSplitPrefix += totalInsertTicks;
 
 	assert (currentNode->lookup(content.address, true).hasSubnode);
 	assert (currentNode->lookup(content.address, true).subnode == newSubnode);
@@ -868,20 +923,27 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				}
 			} else if (content.exists && content.hasSpecialPointer) {
 				// a buffer was found that can be filled
+				const uint64_t startInsert = clock();
 				EntryBuffer<DIM, WIDTH>* buffer = reinterpret_cast<EntryBuffer<DIM, WIDTH>*>(content.specialPointer);
 				assert (buffer && !buffer->full());
 				bool needFlush = buffer->insert(entry);
+				const uint64_t totalInsertTime = clock() - startInsert;
+				nInsertNanosBufferSuffixInsert += totalInsertTime;
 #ifdef PRINT
 				cout << "insert into buffer (flush: " << needFlush << ")" << endl;
 #endif
 				if (needFlush) {
-					flushSubtree(buffer, true);
 					++nFlushCountWithin;
+					const uint64_t startInsert = clock();
+					flushSubtree(buffer, true);
+					const uint64_t totalInsertTime = clock() - startInsert;
+					nInsertNanosBufferFlush += totalInsertTime;
 				}
 
 				break;
 			} else if (content.exists && !content.hasSubnode) {
 				// instead of splitting the suffix a buffer is added
+				const uint64_t startInsert = clock();
 				EntryBuffer<DIM, WIDTH>* buffer = pool->allocate();
 				if (!buffer) {
 					pool->fullDeallocate();
@@ -890,6 +952,8 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::bulkInsert(
 				}
 
 				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
+				const uint64_t totalInsertTime = clock() - startInsert;
+				nInsertNanosBufferFlush += totalInsertTime;
 				break;
 			} else {
 				// node entry does not exist:

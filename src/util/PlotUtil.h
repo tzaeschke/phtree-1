@@ -78,6 +78,9 @@ public:
 	static void plotInsertPerformanceDifferentOrder(std::string file, bool isFloat);
 
 	template <unsigned int DIM, unsigned int WIDTH>
+	static void plotInsertPerformanceSequentialVsBulk(std::string file, bool isFloat);
+
+	template <unsigned int DIM, unsigned int WIDTH>
 	static void plotParallelInsertPerformance(std::string file, bool isFloat);
 
 	template <unsigned int DIM, unsigned int WIDTH>
@@ -182,6 +185,35 @@ bool zOrderCompare(vector<unsigned long> i, vector<unsigned long> j) {
 
 	assert (false);
 	return true;
+}
+
+template <unsigned int DIM, unsigned int WIDTH>
+void PlotUtil::plotInsertPerformanceSequentialVsBulk(std::string file, bool isFloat) {
+	vector<vector<unsigned long>>* original;
+	if (isFloat) {
+		original= FileInputUtil::
+			readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		original = FileInputUtil::readEntries<DIM>(file);
+	}
+
+	ofstream* plotFile = openPlotFile("foo", true);
+
+	double insertSec1b1 = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "one-by-one", false, false, 0);
+	/*cout << "suffix add: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSuffix << endl;
+	cout << "suffix add enlarge: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSuffixEnlarge << endl;
+	cout << "suffix split: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSplitSuffix << endl;
+	cout << "prefix split: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSplitPrefix << endl;
+	cout << "1-by-1 insert seconds: " << insertSec1b1 << endl;*/
+
+	double insertSecBulk = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "bulk", true, false, 0);
+	/*cout << "suffix add: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSuffix << endl;
+	cout << "suffix add enlarge: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSuffixEnlarge << endl;
+	cout << "suffix split: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSplitSuffix << endl;
+	cout << "prefix split: " << DynamicNodeOperationsUtil<DIM,WIDTH>::nInsertSplitPrefix << endl;
+	cout << "bulk insertion seconds: " << insertSecBulk;*/
+
+	delete plotFile;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -329,15 +361,22 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 	cout << "insert calls:" << endl;
 	cout << "\t#suffix insertion = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffix
-			<< " (with enlarging node: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge << ")" << endl;
-	cout << "\t#split prefix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix << endl;
+			<< " (with enlarging node: " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixEnlarge << "): "
+			<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSuffix) / CLOCKS_PER_SEC) << " / "
+			<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSuffixEnlarge) / CLOCKS_PER_SEC) << endl;
+	cout << "\t#split prefix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitPrefix << ": "
+			<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSplitPrefix) / CLOCKS_PER_SEC) << endl;
 	if (bulk) {
-		cout << "\t#new suffix buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer << endl;
-		cout << "\t#suffix insertion into buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixIntoBuffer << endl;
-		cout << "\t#flushes (bulk) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountWithin << endl;
+		cout << "\t#new suffix buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixBuffer << ": "
+				<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosBufferInsert) / CLOCKS_PER_SEC) << endl;
+		cout << "\t#suffix insertion into buffer = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSuffixIntoBuffer << ": "
+				<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosBufferSuffixInsert) / CLOCKS_PER_SEC) << endl;
+		cout << "\t#flushes (bulk) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountWithin << ": "
+				<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosBufferFlush) / CLOCKS_PER_SEC) << endl;
 		cout << "\t#flushes (clean up) = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nFlushCountAfter << endl;
 	} else {
-		cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << endl;
+		cout << "\t#split suffix = " << DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertSplitSuffix << ": "
+				<< (double(DynamicNodeOperationsUtil<DIM, WIDTH>::nInsertNanosSplitSuffix) / CLOCKS_PER_SEC) << endl;
 	}
 
 	if (parallel) {
