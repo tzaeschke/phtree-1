@@ -27,7 +27,7 @@
 #define GNUPLOT_FILE_PATH 		"./plot/"
 #define GNUPLOT_FILE_EXTENSION 	".p"
 
-#define N_REPETITIONS 			1
+#define N_REPETITIONS 			10
 #define BIT_LENGTH 				42
 #define ENTRY_DIM 				6
 #define ENTRY_DIM_INSERT_SERIES 3
@@ -229,32 +229,31 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
 
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true, false, 0);
-/*	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
+	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false, false, 0);
 
 	cout << "shuffling... " << flush;
 	random_shuffle(original->begin(), original->end());
 	cout << "ok" << endl;
-	const double shuffledMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "shuffled", false);
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 6, "shuffled-bulk", false);
+	const double shuffledMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 4, "shuffled", false, false, 0);
+//	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 6, "shuffled-bulk", false);
 
 	cout << "sorting (default)... " << flush;
 	sort(original->begin(), original->end());
 	cout << "ok" << endl;
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 3, "sorted", false);
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 7, "sorted-bulk", false);
+	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 3, "sorted", false, false, 0);
+//	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 7, "sorted-bulk", false);
 
 	cout << "sorting (z-order)... " << flush;
 	sort(original->begin(), original->end(), zOrderCompare<DIM,WIDTH>);
 	cout << "ok" << endl;
-	const double zOrderMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "z-ordered", false);
-	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 8, "z-ordered-bulk", false);
+	const double zOrderMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 1, "z-ordered", false, false, 0);
+//	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 8, "z-ordered-bulk", false);
 
 	const double betterThanWorst = 100.0 * ((shuffledMs / normalMs) - 1.0);
 	const double worseThanBest = 100.0 * (1.0 - (zOrderMs / normalMs));
 	cout << "The given order of the data was:" << endl
 			<< "\t" << betterThanWorst << "% better than the worst case (shuffled)" << endl
-			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;*/
+			<< "\t" << worseThanBest << "% worse than the best case (z-ordered)" << endl;
 
 	delete original;
 	delete plotFile;
