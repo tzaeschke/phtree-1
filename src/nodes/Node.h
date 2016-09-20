@@ -13,11 +13,11 @@
 #define BOOST_THREAD_PROVIDES_SHARED_MUTEX_UPWARDS_CONVERSIONS
 #endif
 
+#include <atomic>
 #include "Entry.h"
 #include "iterators/NodeIterator.h"
 #include "nodes/NodeAddressContent.h"
 #include "util/MultiDimBitset.h"
-#include <pthread.h>
 
 template <unsigned int DIM>
 class Visitor;
@@ -37,9 +37,8 @@ class Node {
 	friend class PrefixSharingVisitor<DIM>;
 public:
 
-	bool removed;
-	unsigned int updateCounter;
-	pthread_rwlock_t rwLock = PTHREAD_RWLOCK_INITIALIZER;
+	// [version counter (62) | removed (1) | locked (1)]
+	atomic<uint64_t> version;
 
 	Node();
 	virtual ~Node();
@@ -80,14 +79,13 @@ public:
 
 using namespace std;
 
+
 template <unsigned int DIM>
-Node<DIM>::Node() : removed(false), updateCounter(0) {
-//	pthread_rwlock_init(&rwLock, NULL);
+Node<DIM>::Node() : version(0) {
 }
 
 template <unsigned int DIM>
 Node<DIM>::~Node() {
-	pthread_rwlock_destroy(&rwLock);
 }
 
 template <unsigned int DIM>

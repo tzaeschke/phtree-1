@@ -44,6 +44,7 @@ private:
 #include "nodes/Node.h"
 #include "Entry.h"
 #include "util/MultiDimBitset.h"
+#include "util/OptimisticLockCoupling.h"
 
 using namespace std;
 
@@ -148,7 +149,7 @@ void EntryTreeMap<DIM, WIDTH>::getNextUndeletedNode(Node<DIM>** lowestCommonNode
 	assert (lowestCommonNodeIndex_ != (-1uL));
 
 	for (unsigned i = lowestCommonNodeIndex_; i != (-1u); --i) {
-		if (!mappedNodes_[i]->removed) {
+		if (!OptimisticLockCoupling<DIM>::isRemoved(mappedNodes_[i])) {
 			lowestCommonNodeIndex_ = i;
 			(*lowestCommonNode) = mappedNodes_[i];
 			(*index) = startIndices_[i];
@@ -174,7 +175,7 @@ void EntryTreeMap<DIM, WIDTH>::enforcePreviousNode() {
 
 template <unsigned int DIM, unsigned int WIDTH>
 void EntryTreeMap<DIM, WIDTH>::put(size_t startIndex, Node<DIM>* containedInNode) {
-	assert (containedInNode && !containedInNode->removed);
+	assert (containedInNode && !OptimisticLockCoupling<DIM>::isRemoved(containedInNode));
 	assert (startIndex < WIDTH);
 	assert (lowestCommonNodeIndex_ == -1u || startIndices_[lowestCommonNodeIndex_] < startIndex);
 	assert (lowestCommonNodeIndex_ == -1u || lowestCommonNodeIndex_ < WIDTH);

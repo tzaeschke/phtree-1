@@ -62,8 +62,6 @@ void DeletedNodes<DIM>::deleteAll() {
 
 template <unsigned int DIM>
 void DeletedNodes<DIM>::add(Node<DIM>* node) {
-	assert (!node->removed);
-	node->removed = true;
 	assert (nextIndex_ < SIZE);
 	assert (!buffer_[nextIndex_]);
 	buffer_[nextIndex_++] = node;
