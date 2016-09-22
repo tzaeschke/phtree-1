@@ -51,7 +51,7 @@ private:
 	EntryBufferPool<DIM, WIDTH>* pool_;
 	// - symmetric matrix: need to store n/2 (n+1) fields only
 	// - stores the diagonal too for easier access
-	// - stores the lower matrix because LCP values of one row are stored together
+	// - stores the upper matrix as the array is than linearly processed
 	unsigned int lcps_[capacity_ * (capacity_ + 1) / 2];
 	Entry<DIM, WIDTH> buffer_[capacity_];
 	bool insertCompleted_[capacity_];
@@ -136,21 +136,25 @@ bool EntryBuffer<DIM, WIDTH>::assertCleared() const {
 
 template <unsigned int DIM, unsigned int WIDTH>
 inline void EntryBuffer<DIM, WIDTH>::setLcp(unsigned int row, unsigned int column, unsigned int lcp) {
-	assert (row < capacity_ && column < capacity_);
-	// only stores lower half of the symmetrical matrix
-	const unsigned int i = (row > column)? row : column;
-	const unsigned int j = (row > column)? column : row;
-	const unsigned int index = i * (i + 1) / 2 + j;
+	assert (row < capacity_ && column < capacity_ && 0 < capacity_);
+	// only stores upper half of the symmetrical matrix
+	const unsigned int i = (row > column)? column : row;
+	const unsigned int j = (row > column)? row : column;
+	const unsigned int k = capacity_ - 1 - i;
+	const unsigned int offset = capacity_ * (capacity_ - 1) / 2;
+	const unsigned int index = offset - k * (k + 1) / 2 + j;
 	lcps_[index] = lcp;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
 inline unsigned int EntryBuffer<DIM, WIDTH>::getLcp(unsigned int row, unsigned int column) const {
 	assert (row < capacity_ && column < capacity_);
-	// only stores lower half of the symmetrical matrix
-	const unsigned int i = (row > column)? row : column;
-	const unsigned int j = (row > column)? column : row;
-	const unsigned int index = i * (i + 1) / 2 + j;
+	// only stores upper half of the symmetrical matrix
+	const unsigned int i = (row > column)? column : row;
+	const unsigned int j = (row > column)? row : column;
+	const unsigned int k = capacity_ - 1 - i;
+	const unsigned int offset = capacity_ * (capacity_ - 1) / 2;
+	const unsigned int index = offset - k * (k + 1) / 2 + j;
 	return lcps_[index];
 }
 
