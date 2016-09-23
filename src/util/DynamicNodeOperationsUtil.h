@@ -377,10 +377,10 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::splitSubnodePrefix(
 
 	const Node<DIM>* oldSubnode = content.subnode;
 	assert (oldSubnode->getPrefixLength() == oldPrefixLength);
-	assert (MultiDimBitset<DIM>::checkRangeUnset(
+/*	assert (MultiDimBitset<DIM>::checkRangeUnset(
 			oldSubnode->getFixPrefixStartBlock(),
 			oldSubnode->getMaxPrefixLength(),
-			oldPrefixLength * DIM));
+			oldPrefixLength * DIM));*/
 	const size_t newSubnodeSuffixLength = WIDTH - (currentIndex + 1 + newPrefixLength + 1);
 	// build a node that will hold 1 subnode and 1 suffix
 	Node<DIM>* newSubnode = NodeTypeUtil<DIM>::template buildNodeWithSuffixes<WIDTH>(DIM * newPrefixLength, 2, 1, DIM * newSubnodeSuffixLength);

@@ -24,6 +24,24 @@ public:
 		srand(time(NULL));
 	}
 
+	static std::vector<unsigned long> generateRandValuesNormalDistribution(const size_t nValues, unsigned long vMin, unsigned long vMax) {
+		assert (vMax > vMin);
+		std::vector<unsigned long> randValues(nValues);
+		 unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+		std::default_random_engine generator (seed);
+		double mean = double(vMax - vMin) / 2.0;
+		std::normal_distribution<double> distribution (0.0,1.0);
+		for (unsigned i = 0; i < nValues; ++i) {
+			double r = distribution(generator);
+			unsigned long conv = r;
+			if (conv < vMin) { conv = vMin; }
+			else if (conv > vMax) { conv = vMax; }
+			randValues[i] = conv;
+		}
+
+		return randValues;
+	}
+
 	static std::vector<unsigned long> generateRandValues(const size_t nValues) {
 		std::vector<unsigned long> randValues(nValues);
 		for (unsigned i = 0; i < nValues; ++i) {

@@ -304,7 +304,10 @@ int main(int argc, char* argv[]) {
 		mainBulkExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotInsertPerformanceDifferentOrder<6, 64>("./axons.dat", true);
+		PlotUtil::plotParallelInsertPerformance<4,64>("./CA_streets-out-extract.dat", true);
+		PlotUtil::plotParallelInsertPerformance<9,64>("./ped09-out-extract.dat", true);
+		PlotUtil::plotParallelInsertPerformance<16,64>("./rea16-out-extract.dat", true);
+
 //		PlotUtil::plotParallelInsertPerformance<6,64>("./axons.dat", true);
 //		PlotUtil::plotCompareToRTreeBulk<6,64>("./axons.dat", true);
 //		PlotUtil::plotCompareParallelTreeToScanQuery<6,64>("./axons.dat", "./ranges.dat", true);
