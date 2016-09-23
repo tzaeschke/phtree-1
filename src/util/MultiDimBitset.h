@@ -99,6 +99,19 @@ unsigned long MultiDimBitset<DIM>::initDimBlock() {
 	return dimBlock;
 }
 
+inline void interleave3D(unsigned long x, unsigned long y, unsigned long z,
+		unsigned long* outX, unsigned long* outY, unsigned long* outZ) {
+	(*outX) = morton3D_64_encode(x, y, z);
+	(*outY) = morton3D_64_encode(y >> 21, z >> 21, x >> 22);
+	(*outZ) = morton3D_64_encode(z >> 42, x >> 43, z >> 43);
+}
+
+inline void interleave2D(unsigned long x, unsigned long y,
+		unsigned long* outX, unsigned long* outY) {
+	(*outX) = morton2D_64_encode(x, y);
+	(*outY) = morton2D_64_encode(x >> 32, y >> 32);
+}
+
 template <unsigned int DIM>
 template <unsigned int WIDTH>
 void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, unsigned long* outStartBlock) {
@@ -202,6 +215,62 @@ void MultiDimBitset<DIM>::toBitset(const std::vector<unsigned long> &values, uns
 		if (WIDTH > 53) {
 			*(outStartBlock + 5) = inter6;
 		}
+	} else if (DIM == 9) {
+		assert (WIDTH == 64 && "only full length currently supported");
+		// interleave (v_1, v_4, v_7)
+		unsigned long tmp1Inter1, tmp1Inter2, tmp1Inter3;
+		interleave3D(values[0], values[3], values[6], &tmp1Inter1, &tmp1Inter2, &tmp1Inter3);
+		// interleave (v_2, v_5, v_8)
+		unsigned long tmp2Inter1, tmp2Inter2, tmp2Inter3;
+		interleave3D(values[1], values[4], values[7], &tmp2Inter1, &tmp2Inter2, &tmp2Inter3);
+		// interleave (v_3, v_6, v_9)
+		unsigned long tmp3Inter1, tmp3Inter2, tmp3Inter3;
+		interleave3D(values[2], values[5], values[8], &tmp3Inter1, &tmp3Inter2, &tmp3Inter3);
+		// interleave part 1, 2, 3 of result
+		interleave3D(tmp1Inter1, tmp2Inter1, tmp3Inter1, outStartBlock + 0, outStartBlock + 1, outStartBlock + 2);
+		interleave3D(tmp1Inter2, tmp2Inter2, tmp3Inter2, outStartBlock + 3, outStartBlock + 4, outStartBlock + 5);
+		interleave3D(tmp1Inter3, tmp2Inter3, tmp3Inter3, outStartBlock + 6, outStartBlock + 7, outStartBlock + 8);
+	} else if (DIM == 16) {
+		assert (WIDTH == 64 && "only full length currently supported");
+		// calculate first interleaving tree level
+		unsigned long level1Tmp1Inter1, level1Tmp1Inter2;
+		interleave2D(values[0], values[8], &level1Tmp1Inter1, &level1Tmp1Inter2);
+		unsigned long level1Tmp2Inter1, level1Tmp2Inter2;
+		interleave2D(values[4], values[12], &level1Tmp2Inter1, &level1Tmp2Inter2);
+		unsigned long level1Tmp3Inter1, level1Tmp3Inter2;
+		interleave2D(values[2], values[10], &level1Tmp3Inter1, &level1Tmp3Inter2);
+		unsigned long level1Tmp4Inter1, level1Tmp4Inter2;
+		interleave2D(values[6], values[14], &level1Tmp4Inter1, &level1Tmp4Inter2);
+		unsigned long level1Tmp5Inter1, level1Tmp5Inter2;
+		interleave2D(values[1], values[9], &level1Tmp5Inter1, &level1Tmp5Inter2);
+		unsigned long level1Tmp6Inter1, level1Tmp6Inter2;
+		interleave2D(values[5], values[13], &level1Tmp6Inter1, &level1Tmp6Inter2);
+		unsigned long level1Tmp7Inter1, level1Tmp7Inter2;
+		interleave2D(values[3], values[11], &level1Tmp7Inter1, &level1Tmp7Inter2);
+		unsigned long level1Tmp8Inter1, level1Tmp8Inter2;
+		interleave2D(values[7], values[15], &level1Tmp8Inter1, &level1Tmp8Inter2);
+		// calculate the second interleaving tree level
+		unsigned long level2Tmp1Inter1, level2Tmp1Inter2, level2Tmp1Inter3, level2Tmp1Inter4;
+		interleave2D(level1Tmp1Inter1, level1Tmp2Inter1, &level2Tmp1Inter1, &level2Tmp1Inter2);
+		interleave2D(level1Tmp1Inter2, level1Tmp2Inter2, &level2Tmp1Inter3, &level2Tmp1Inter4);
+		unsigned long level2Tmp2Inter1, level2Tmp2Inter2, level2Tmp2Inter3, level2Tmp2Inter4;
+		interleave2D(level1Tmp3Inter1, level1Tmp4Inter1, &level2Tmp2Inter1, &level2Tmp2Inter2);
+		interleave2D(level1Tmp3Inter2, level1Tmp4Inter2, &level2Tmp2Inter3, &level2Tmp2Inter4);
+		unsigned long level2Tmp3Inter1, level2Tmp3Inter2, level2Tmp3Inter3, level2Tmp3Inter4;
+		interleave2D(level1Tmp5Inter1, level1Tmp6Inter1, &level2Tmp3Inter1, &level2Tmp3Inter2);
+		interleave2D(level1Tmp5Inter2, level1Tmp6Inter2, &level2Tmp3Inter3, &level2Tmp3Inter4);
+		unsigned long level2Tmp4Inter1, level2Tmp4Inter2, level2Tmp4Inter3, level2Tmp4Inter4;
+		interleave2D(level1Tmp7Inter1, level1Tmp8Inter1, &level2Tmp4Inter1, &level2Tmp4Inter2);
+		interleave2D(level1Tmp7Inter2, level1Tmp8Inter2, &level2Tmp4Inter3, &level2Tmp4Inter4);
+		// calculate the third interleaving tree level
+		interleave2D(level2Tmp1Inter1, level2Tmp3Inter1, outStartBlock + 0, outStartBlock + 1);
+		interleave2D(level2Tmp2Inter1, level2Tmp4Inter1, outStartBlock + 2, outStartBlock + 3);
+		interleave2D(level2Tmp1Inter2, level2Tmp3Inter2, outStartBlock + 4, outStartBlock + 5);
+		interleave2D(level2Tmp2Inter2, level2Tmp4Inter2, outStartBlock + 6, outStartBlock + 7);
+		interleave2D(level2Tmp1Inter3, level2Tmp3Inter3, outStartBlock + 8, outStartBlock + 9);
+		interleave2D(level2Tmp2Inter3, level2Tmp4Inter3, outStartBlock + 10, outStartBlock + 11);
+		interleave2D(level2Tmp1Inter4, level2Tmp3Inter4, outStartBlock + 12, outStartBlock + 13);
+		interleave2D(level2Tmp2Inter4, level2Tmp4Inter4, outStartBlock + 14, outStartBlock + 15);
 	} else {
 		// TODO if BMI2 is available the operation PEXT should be used!
 		for (size_t d = 0; d < DIM; ++d) {
