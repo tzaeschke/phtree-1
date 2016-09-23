@@ -166,22 +166,20 @@ void PlotUtil::plot(string gnuplotFileName) {
 	system(gnuplotCommand.c_str());
 }
 
-template <unsigned int DIM, unsigned int WIDTH>
+/*template <unsigned int DIM, unsigned int WIDTH>
 bool zOrderCompare(vector<unsigned long> i, vector<unsigned long> j) {
 	Entry<DIM, WIDTH> e1(i, 0);
 	Entry<DIM, WIDTH> e2(j, 1);
+	return zOrderCompare(e1, e2);
+}*/
 
-	for (unsigned index = 0; index < WIDTH; ++index) {
-		unsigned long hcAddress1 = MultiDimBitset<DIM>::interleaveBits(e1.values_, index, DIM * WIDTH);
-		unsigned long hcAddress2 = MultiDimBitset<DIM>::interleaveBits(e2.values_, index, DIM * WIDTH);
-
-		if (hcAddress1 != hcAddress2) {
-			return hcAddress1 < hcAddress2;
-		}
-	}
-
-	assert (false);
-	return true;
+template <unsigned int DIM, unsigned int WIDTH>
+bool zOrderCompare(Entry<DIM, WIDTH>& e1, Entry<DIM, WIDTH>& e2) {
+	auto diff = MultiDimBitset<DIM>::compareFullAligned(e1.values_, DIM * WIDTH, e2.values_);
+	unsigned long hcAddress1 = MultiDimBitset<DIM>::interleaveBits(e1.values_, diff, DIM * WIDTH);
+	unsigned long hcAddress2 = MultiDimBitset<DIM>::interleaveBits(e2.values_, diff, DIM * WIDTH);
+	assert (hcAddress1 != hcAddress2);
+	return hcAddress1 < hcAddress2;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -196,6 +194,17 @@ void PlotUtil::plotInsertPerformanceDifferentOrder(std::string file, bool isFloa
 	}
 
 	ofstream* plotFile = openPlotFile(INSERT_ORDER_NAME, true);
+
+	vector<Entry<DIM,WIDTH>>* entries = new vector<Entry<DIM,WIDTH>>(original->size());
+	for (auto i = 0; i < original->size(); ++i) {
+		(*entries)[i].reinit((*original)[i], i);
+	}
+
+	chrono::steady_clock::time_point start, end;
+	start = chrono::steady_clock::now();
+	sort(entries->begin(), entries->end(), zOrderCompare<DIM,WIDTH>);
+	end = chrono::steady_clock::now();
+	cout << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms" << endl;
 
 	writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 5, "original-bulk", true, false, 0);
 /*	const double normalMs = writeInsertPerformanceOrder<DIM, WIDTH>(original, plotFile, 2, "original", false);
