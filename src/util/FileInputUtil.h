@@ -76,13 +76,23 @@ inline vector<unsigned long> getNextLineTokens(ifstream& stream, unsigned long d
 
 	while (getline(lineStream, cell, ' ')) {
 		// TODO added a shift
-		const long double parsedToken = stold(cell) + 2000.0L;
+/*		const long double parsedToken = stold(cell) + 2000.0L;
 		const long double longToken = parsedToken * decimalShift;
 		if (parsedToken < 0.0)
 			throw runtime_error("Can only handle positive values: the offset is too small");
 		if (parsedToken > nextafter(ULONG_MAX, 0))
 			throw runtime_error("Overflow: The floating point value cannot be represented as a 64-bit integer.");
-		const unsigned long convertedToken = (unsigned long) longToken;
+		const unsigned long convertedToken = (unsigned long) longToken;*/
+		double value = stod(cell);
+		if (value == -0.0) {
+			value = 0.0;
+		}
+		unsigned long convertedToken;
+		memcpy(&convertedToken, &value, sizeof(value));
+		if (value < 0.0) {
+			convertedToken = (~convertedToken) | (1L << 63);
+		}
+
 		tokens.push_back(convertedToken);
 	}
 

@@ -304,7 +304,20 @@ int main(int argc, char* argv[]) {
 		mainBulkExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-		PlotUtil::plotParallelInsertPerformance<6,64>("./axons.dat", true);
+//		PlotUtil::plotParallelInsertPerformance<4,64>("./CA_streets-out-extract.dat", true);
+
+		PlotUtil::plotAverageInsertTimePerDimension<3,64>("./random-extract.dat", false, false);
+		PlotUtil::plotAverageInsertTimePerDimension<4,64>("./CA_streets-out-extract.dat", false, true);
+		PlotUtil::plotAverageInsertTimePerDimension<6,64>("./axons-extract.dat", false, true);
+		PlotUtil::plotAverageInsertTimePerDimension<9,64>("./ped09-out-extract.dat", false, true);
+//		PlotUtil::plotAverageInsertTimePerDimension<16,64>("./rea16-out-extract.dat", false, true);
+
+		PlotUtil::plotParallelInsertPerformance<3,64>("./random-extract.dat", false);
+		PlotUtil::plotParallelInsertPerformance<4,64>("./CA_streets-out-extract.dat", true);
+		PlotUtil::plotParallelInsertPerformance<6,64>("./axons-extract.dat", true);
+		PlotUtil::plotParallelInsertPerformance<9,64>("./ped09-out-extract.dat", true);
+		PlotUtil::plotParallelInsertPerformance<16,64>("./rea16-out-extract.dat", true);
+
 //		PlotUtil::plotCompareToRTreeBulk<6,64>("./axons.dat", true);
 //		PlotUtil::plotCompareParallelTreeToScanQuery<6,64>("./axons.dat", "./ranges.dat", true);
 //		PlotUtil::plotParallelInsertPerformance<6,64>("/media/max/TOSHIBA/MA/data/ph-tree_workload/100K-axon-mbr-644000.txt", true);

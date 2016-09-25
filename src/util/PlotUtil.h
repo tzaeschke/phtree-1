@@ -51,7 +51,7 @@ public:
 	static std::set<std::vector<unsigned long>>* generateUniqueRandomEntries(size_t nUniqueEntries);
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotAverageInsertTimePerDimension(std::string file, bool bulk);
+	static void plotAverageInsertTimePerDimension(std::string file, bool bulk, bool isFloat = false);
 	static void plotAverageInsertTimePerDimensionRandom(bool bulk);
 
 	template <unsigned int DIM, unsigned int WIDTH>
@@ -324,7 +324,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 	// validation only
 	for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
-		assert (phtree->lookup((*entries)[iEntry]).second == iEntry);
+		assert (phtree->lookup((*entries)[iEntry]).first);
 	}
 
 	cout << "insert calls:" << endl;
@@ -664,6 +664,15 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 			startInsertTime = clock();
 			for (size_t iEntry = 0; iEntry < entries->size(); ++iEntry) {
 				vector<unsigned long> entry = (*entries)[iEntry];
+#ifndef NDEBUG
+				pair<bool, int> l = phtree->lookup(entry);
+				if (l.first) {
+					cout << "Spatial object already inserted! (previous ID: "
+							<< l.second << " | current ID: " << iEntry << ")" << endl;
+					//assert (false);
+				}
+#endif
+
 				phtree->insert(entry, iEntry);
 			}
 		}
@@ -729,9 +738,14 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotAverageInsertTimePerDimension(std::string file, bool bulk) {
+void PlotUtil::plotAverageInsertTimePerDimension(std::string file, bool bulk, bool isFloat) {
 	cout << "loading entries from file..." << flush;
-	vector<vector<unsigned long>>* entries = FileInputUtil::readEntries<DIM>(file);
+	vector<vector<unsigned long>>* entries;
+	if (isFloat) {
+		entries = FileInputUtil::readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		entries = FileInputUtil::readEntries<DIM>(file);
+	}
 	cout << " ok" << endl;
 
 	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries, bulk);

@@ -62,7 +62,7 @@ public:
 	static void createSubnodeWithExistingSuffix(size_t currentIndex, Node<DIM>* currentNode,
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			PHTree<DIM, WIDTH>& tree);
-	static void swapSuffixWithBuffer(size_t currentIndex, Node<DIM>* currentNode,
+	static bool swapSuffixWithBuffer(size_t currentIndex, Node<DIM>* currentNode,
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree);
 	static Node<DIM>* insertSuffix(size_t currentIndex, size_t hcAddress, Node<DIM>* currentNode,
@@ -185,6 +185,10 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 	const size_t prefixLength = MultiDimBitset<DIM>::calculateLongestCommonPrefix(
 			entry.values_, DIM * WIDTH, currentIndex + 1, suffixStartBlock, currentSuffixBits,
 			prefixTmp);
+	if (prefixLength + currentIndex + 1 == WIDTH) {
+		return;
+	}
+
 	const size_t newSuffixLength = WIDTH - (currentIndex + 1 + prefixLength + 1);
 	const size_t newSuffixBits = newSuffixLength * DIM;
 
@@ -250,7 +254,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 
 	// no need to adjust the size of the node because the correct node type was already provided
 	assert (currentNode->lookup(content.address, true).subnode == subnode);
-	assert (MultiDimBitset<DIM>::checkRangeUnset(
+	assert (subnode->getMaxPrefixLength() == prefixLength * DIM || MultiDimBitset<DIM>::checkRangeUnset(
 			subnode->getFixPrefixStartBlock(),
 			subnode->getMaxPrefixLength(),
 			prefixLength * DIM));
@@ -263,7 +267,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::createSubnodeWithExistingSuffix(
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentIndex, Node<DIM>* currentNode,
+bool DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentIndex, Node<DIM>* currentNode,
 			const NodeAddressContent<DIM>& content, const Entry<DIM, WIDTH>& entry,
 			EntryBuffer<DIM, WIDTH>* buffer, PHTree<DIM, WIDTH>& tree) {
 	assert (buffer);
@@ -276,8 +280,16 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentI
 
 	++nInsertSuffixBuffer;
 
-	// 1. move the entire current suffix into the buffer
+	// 0. validate if the new suffix would actually result in a new node
+	// i.e. is the suffix unique?
 	const size_t suffixLength = WIDTH - currentIndex - 1;
+	const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
+			entry.values_, DIM * WIDTH, WIDTH - suffixLength, WIDTH, content.getSuffixStartBlock(), suffixLength * DIM);
+	if (comp.first) {
+		return false;
+	}
+
+	// 1. move the entire current suffix into the buffer
 	assert (suffixLength > 0);
 	Entry<DIM, WIDTH>* newSuffixStorageEntry = buffer->init(suffixLength, currentNode, content.address);
 	newSuffixStorageEntry->id_ = content.id;
@@ -300,6 +312,8 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::swapSuffixWithBuffer(size_t currentI
 		currentNode->freeSuffixSpace(suffixLength * DIM, oldSuffixLocation);
 		NodeTypeUtil<DIM>::template shrinkSuffixStorageIfPossible<WIDTH>(currentNode);
 	}
+
+	return true;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
@@ -799,7 +813,7 @@ void DynamicNodeOperationsUtil<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entr
 		assert(content.exists && content.address == hcAddress
 						&& "after insertion the entry is always contained at the address");
 		pair<bool, int> retr = tree.lookup(entry);
-		assert (retr.first && retr.second == entry.id_
+		assert (retr.first
 			&& "after insertion the entry is always contained in the tree");
 		// does the node store the minimum number of suffix blocks
 		//const size_t remainingSuffixBits = DIM * (WIDTH - (index + currentNode->getPrefixLength() + 1));
@@ -930,7 +944,8 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 		cout << entry.id_ << ": " << flush;
 #endif
 
-	entryTreeMap.compareForStart(entry);
+	if (entryTreeMap.compareForStart(entry)) { return true; }
+
 	size_t lastHcAddress, index;
 	index = 0;
 	Node<DIM>* lastNode = NULL;
@@ -1055,7 +1070,9 @@ bool DynamicNodeOperationsUtil<DIM, WIDTH>::parallelBulkInsert(
 			}
 
 			if (writeLockBlocking(currentNode)) {
-				swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree);
+				if (!swapSuffixWithBuffer(currentIndex, currentNode, content, entry, buffer, tree)) {
+					pool.deallocate(buffer);
+				}
 				writeUnlock(currentNode);
 				break;
 			} else {

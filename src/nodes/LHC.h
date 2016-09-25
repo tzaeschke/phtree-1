@@ -127,18 +127,17 @@ void LHC<DIM,PREF_BLOCKS, N>::lookupIndex(unsigned int index, unsigned long* out
 
 	const unsigned long firstBlock = addresses_[firstBitBlockIndex];
 	assert (lastBitBlockIndex - firstBitBlockIndex <= 1);
-	if (firstBitBlockIndex == lastBitBlockIndex) {
+	if (firstBitBlockIndex == lastBitBlockIndex || lastBitIndex == 0) {
 		// all required bits are in one block
 		const unsigned long singleBlockAddressMask = (1uL << DIM) - 1uL;
 		const unsigned long extracted = firstBlock >> firstBitIndex;
 		(*outHcAddress) = extracted & singleBlockAddressMask;
 	} else {
-		// the address is split into two blocks and both flags are in the second block
+		// the address is split into two blocks
 		const unsigned long secondBlock = addresses_[lastBitBlockIndex];
-		assert (1 < lastBitIndex && lastBitIndex < DIM);
+		assert (0 < lastBitIndex && lastBitIndex < DIM);
 		const unsigned int firstBlockBits = bitsPerBlock - firstBitIndex;
 		const unsigned int secondBlockBits = DIM - firstBlockBits;
-		assert (0 < secondBlockBits && secondBlockBits < DIM);
 		const unsigned long secondBlockMask = (1uL << secondBlockBits) - 1uL;
 		(*outHcAddress) = (firstBlock >> firstBitIndex)
 						| ((secondBlock & secondBlockMask) << firstBlockBits);
@@ -395,6 +394,7 @@ void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, unsigned
 
 template <unsigned int DIM, unsigned int PREF_BLOCKS, unsigned int N>
 void LHC<DIM, PREF_BLOCKS, N>::insertAtAddress(unsigned long hcAddress, const Node<DIM>* const subnode) {
+	assert (subnode);
 	assert (hcAddress < 1uL << DIM);
 	// format: [ subnode reference (62) | flags - 10 (2) ]
 

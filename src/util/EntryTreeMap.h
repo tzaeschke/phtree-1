@@ -23,7 +23,7 @@ public:
 	void clearMap();
 	void enforcePreviousNode();
 	void getNextUndeletedNode(Node<DIM>** lowestCommonNode, size_t* index);
-	void compareForStart(const Entry<DIM, WIDTH>& entry);
+	bool compareForStart(const Entry<DIM, WIDTH>& entry);
 	void put(size_t startIndex, Node<DIM>* containedInNode);
 
 	const Entry<DIM, WIDTH>* createEntry(const std::vector<unsigned long> &values, int id);
@@ -92,12 +92,12 @@ void EntryTreeMap<DIM, WIDTH>::clearMap() {
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void EntryTreeMap<DIM, WIDTH>::compareForStart(const Entry<DIM, WIDTH>& entry) {
+bool EntryTreeMap<DIM, WIDTH>::compareForStart(const Entry<DIM, WIDTH>& entry) {
 	if (lowestCommonNodeIndex_ != -1u) { // TODO what about index = 0?
 		// compare the new entry to the old one and reset reset the old entry
 		const size_t differentAtMsb = (!lastEntry())? 0
 				: MultiDimBitset<DIM>::compareFullAligned(entry.values_, DIM * WIDTH, lastEntry()->values_);
-		assert (differentAtMsb < WIDTH);
+		if (differentAtMsb == WIDTH) { return true; }
 
 		// check which node the insertion needs to start at, i.e. the lowest
 		// common node that does not require any changes
@@ -138,9 +138,11 @@ void EntryTreeMap<DIM, WIDTH>::compareForStart(const Entry<DIM, WIDTH>& entry) {
 
 		// the entry requires the same path from the root node to the node at
 		// index l - 1 as it differs at the node at index l
-		lowestCommonNodeIndex_ = l - 1;
+		lowestCommonNodeIndex_ = (l == -1)? -1 : l - 1;
 
 	}
+
+	return false;
 }
 
 template <unsigned int DIM, unsigned int WIDTH>

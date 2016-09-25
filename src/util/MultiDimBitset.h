@@ -458,7 +458,7 @@ template <unsigned int DIM>
 void MultiDimBitset<DIM>::removeHighestBits(unsigned long* startBlock,
 		unsigned int nBits, size_t nBitsToRemove) {
 	assert (startBlock);
-	assert (nBits >= nBitsToRemove && nBitsToRemove > 0);
+	assert (nBits >= nBitsToRemove && (nBitsToRemove > 0) && (nBitsToRemove % DIM == 0));
 
 	// lsb                        msb
 	//      <-remove-><-not changed->
@@ -473,8 +473,11 @@ void MultiDimBitset<DIM>::removeHighestBits(unsigned long* startBlock,
 
 	if (firstClearBlockIndex == lastClearBlockIndex) {
 		// clear within one block
-		const unsigned long singleBlockMask = ~(((1uL << nBitsToRemove) - 1uL) << firstClearBitIndex);
-		assert (singleBlockMask != 0);
+		assert (nBitsToRemove == lastClearBlockBitIndex - firstClearBitIndex + 1);
+		const unsigned long singleBlockMask = (nBitsToRemove == bitsPerBlock) ?
+						0 :
+						~(((1uL << nBitsToRemove) - 1uL) << firstClearBitIndex);
+		assert (nBitsToRemove == bitsPerBlock || singleBlockMask != 0);
 		startBlock[firstClearBlockIndex] &= singleBlockMask;
 	} else {
 		// clear within several block (lsb and msb masks can be applied!)
@@ -669,7 +672,7 @@ void MultiDimBitset<DIM>::pushBackBitset(const unsigned long* fromStartBlock, un
 template <unsigned int DIM>
 bool MultiDimBitset<DIM>::checkRangeUnset(const unsigned long* startBlock, unsigned int nBits,
 			unsigned int lsbStartBitIndex) {
-	if (nBits == 0) return true;
+	if (nBits == 0 || nBits == lsbStartBitIndex) return true;
 
 	assert (lsbStartBitIndex < nBits);
 	assert (lsbStartBitIndex % DIM == 0);

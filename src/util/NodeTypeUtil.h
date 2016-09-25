@@ -22,6 +22,7 @@ class NodeTypeUtil {
 public:
 	template <unsigned int WIDTH>
 	static Node<DIM>* buildNodeWithSuffixes(size_t prefixBits, size_t nDirectInserts, size_t nSuffixes, unsigned int suffixBits) {
+		assert (suffixBits < DIM * WIDTH && (suffixBits % DIM == 0));
 		assert (nSuffixes <= nDirectInserts);
 		Node<DIM>* node = buildNode(prefixBits, nDirectInserts);
 		if (nSuffixes > 0 && suffixBits > 0 && !node->canStoreSuffixInternally(suffixBits)) {
