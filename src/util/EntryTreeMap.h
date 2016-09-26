@@ -138,7 +138,7 @@ bool EntryTreeMap<DIM, WIDTH>::compareForStart(const Entry<DIM, WIDTH>& entry) {
 
 		// the entry requires the same path from the root node to the node at
 		// index l - 1 as it differs at the node at index l
-		lowestCommonNodeIndex_ = (l == -1)? -1 : l - 1;
+		lowestCommonNodeIndex_ = (l == -1u)? -1u : l - 1;
 
 	}
 
