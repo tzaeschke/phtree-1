@@ -304,8 +304,6 @@ int main(int argc, char* argv[]) {
 		mainBulkExample();
 		return 0;
 	} else if (plot.compare(argv[1]) == 0) {
-//		PlotUtil::plotParallelInsertPerformance<4,64>("./CA_streets-out-extract.dat", true);
-
 		PlotUtil::plotAverageInsertTimePerDimension<3,64>("./random-extract.dat", false, false);
 		PlotUtil::plotAverageInsertTimePerDimension<4,64>("./CA_streets-out-extract.dat", false, true);
 		PlotUtil::plotAverageInsertTimePerDimension<6,64>("./axons-extract.dat", false, true);
