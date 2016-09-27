@@ -42,7 +42,7 @@ public:
 
 private:
 
-	static const size_t capacity_ = 20;
+	static const size_t capacity_ = 10;
 
 	atomic<bool> flushing_;
 	atomic<size_t> nextIndex_;
@@ -205,9 +205,9 @@ bool EntryBuffer<DIM, WIDTH>::insert(const Entry<DIM, WIDTH>& entry) {
 		assert (MultiDimBitset<DIM>::checkRangeUnset(buffer_[other].values_, DIM * WIDTH, suffixBits_));
 		const pair<bool, size_t> comp = MultiDimBitset<DIM>::compare(
 				entry.values_, DIM * WIDTH, startIndexDim, WIDTH, buffer_[other].values_, suffixBits_);
-		assert(!comp.first);
 		assert (!flushing_);
 		setLcp(i, other, comp.second);
+		if (comp.first) { setLcp(i, i, -1u); }
 	}
 
 	return true;
@@ -238,7 +238,7 @@ Node<DIM>* EntryBuffer<DIM, WIDTH>::flushToSubtree() {
 	for (unsigned row = 0; row < n; ++row) {
 		// spin until remaining insertions are done
 		assert (insertCompleted_[row]);
-		rowEmpty[row] = false;
+		rowEmpty[row] = (getLcp(row, row) == -1u);
 		rowNode[row] = NULL;
 		rowMax[row] = -1u; // TODO not needed ?!
 		rowNextMax[row] = -1u;

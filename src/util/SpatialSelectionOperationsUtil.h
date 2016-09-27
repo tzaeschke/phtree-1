@@ -64,7 +64,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 		index += prefixLength;
 		const unsigned long hcAddress = MultiDimBitset<DIM>::interleaveBits(e.values_, index, DIM * WIDTH);
 		currentNode->lookup(hcAddress, content, true);
-		assert (!content.hasSpecialPointer);
+		assert (!content.exists || !content.hasSpecialPointer);
 
 		if (!content.exists) {
 			#ifdef PRINT
@@ -79,6 +79,7 @@ pair<bool, int> SpatialSelectionOperationsUtil<DIM, WIDTH>::lookup(
 				cout << "ok up to index " << index << " > ";
 			#endif
 			++index;
+			assert (content.subnode);
 			currentNode = content.subnode;
 			lastHcAddress = content.address;
 		} else {

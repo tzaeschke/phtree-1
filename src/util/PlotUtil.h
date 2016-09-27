@@ -51,7 +51,7 @@ public:
 	static std::set<std::vector<unsigned long>>* generateUniqueRandomEntries(size_t nUniqueEntries);
 
 	template <unsigned int DIM, unsigned int WIDTH>
-	static void plotAverageInsertTimePerDimension(std::string file, bool bulk);
+	static void plotAverageInsertTimePerDimension(std::string file, bool bulk, bool isFloat = false);
 	static void plotAverageInsertTimePerDimensionRandom(bool bulk);
 
 	template <unsigned int DIM, unsigned int WIDTH>
@@ -333,7 +333,7 @@ double PlotUtil::writeInsertPerformanceOrder(vector<vector<unsigned long>>* entr
 
 	// validation only
 	for (unsigned iEntry = 0; iEntry < entries->size(); ++iEntry) {
-		assert (phtree->lookup((*entries)[iEntry]).second == iEntry);
+		assert (phtree->lookup((*entries)[iEntry]).first);
 	}
 
 	cout << "insert calls:" << endl;
@@ -673,6 +673,15 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 			startInsertTime = clock();
 			for (size_t iEntry = 0; iEntry < entries->size(); ++iEntry) {
 				vector<unsigned long> entry = (*entries)[iEntry];
+#ifndef NDEBUG
+				pair<bool, int> l = phtree->lookup(entry);
+				if (l.first) {
+					cout << "Spatial object already inserted! (previous ID: "
+							<< l.second << " | current ID: " << iEntry << ")" << endl;
+					//assert (false);
+				}
+#endif
+
 				phtree->insert(entry, iEntry);
 			}
 		}
@@ -687,7 +696,7 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 		unsigned int lookupTicks = clock() - startLookupTime;
 		// range query
 		const unsigned int startRangeQueryTicks = clock();
-		RangeQueryIterator<DIM, WIDTH>* it = RangeQueryUtil<DIM, WIDTH>::getSkewedRangeIterator(*phtree, 0.1, 0.7);
+		RangeQueryIterator<DIM, WIDTH>* it = RangeQueryUtil<DIM, WIDTH>::getSkewedRangeIterator(*phtree, 0.0, 1.0);
 		unsigned int nElementsInRange = 0;
 		while (it->hasNext()) {
 			it->next();
@@ -695,11 +704,8 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 		}
 		const unsigned int rangeQueryTicks = clock() - startRangeQueryTicks;
 
-		phtree->accept(visitor);
 		phtree->accept(sizeVisitor);
-		phtree->accept(prefixVisitor);
-		phtree->accept(suffixVisitor);
-		cout << "d=" << DIM << endl << *visitor << *prefixVisitor << *sizeVisitor << *suffixVisitor << endl;
+		cout << "d=" << DIM << endl << *sizeVisitor << endl;
 		const unsigned int nAHCNodes = visitor->getNumberOfVisitedAHCNodes();
 		const unsigned int nLHCNodes = visitor->getNumberOfVisitedLHCNodes();
 		const unsigned int totalAhcBitSize = sizeVisitor->getTotalAhcBitSize();
@@ -708,9 +714,9 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 
 		// write gathered data into a file
 		ofstream* plotFile = openPlotFile(AVERAGE_INSERT_DIM_PLOT_NAME, false);
-		float insertMs = (float (insertTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
-		float lookupMs = (float (lookupTicks) / entries->size() / (CLOCKS_PER_SEC / 1000));
-		float rangeQueryMs = (float (rangeQueryTicks) / nElementsInRange / (CLOCKS_PER_SEC / 1000));
+		float insertMs = (float (insertTicks) / (CLOCKS_PER_SEC / 1000));
+		float lookupMs = (float (lookupTicks) / (CLOCKS_PER_SEC / 1000));
+		float rangeQueryMs = (float (rangeQueryTicks) / (CLOCKS_PER_SEC / 1000));
 		float totalSizeBit = (float(totalAhcBitSize + totalLhcBitSize + totalLeafBitSize)) / entries->size();
 		(*plotFile) << runNumber
 			<< "\t" << DIM
@@ -738,9 +744,14 @@ void PlotUtil::writeAverageInsertTimeOfDimension(size_t runNumber, vector<vector
 }
 
 template <unsigned int DIM, unsigned int WIDTH>
-void PlotUtil::plotAverageInsertTimePerDimension(std::string file, bool bulk) {
+void PlotUtil::plotAverageInsertTimePerDimension(std::string file, bool bulk, bool isFloat) {
 	cout << "loading entries from file..." << flush;
-	vector<vector<unsigned long>>* entries = FileInputUtil::readEntries<DIM>(file);
+	vector<vector<unsigned long>>* entries;
+	if (isFloat) {
+		entries = FileInputUtil::readFloatEntries<DIM>(file, FLOAT_ACCURACY_DECIMALS);
+	} else {
+		entries = FileInputUtil::readEntries<DIM>(file);
+	}
 	cout << " ok" << endl;
 
 	writeAverageInsertTimeOfDimension<DIM, WIDTH>(0, entries, bulk);
